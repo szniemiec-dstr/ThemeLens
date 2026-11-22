@@ -44,6 +44,15 @@ public sealed class LensSession : IDisposable
         _controller.StatusChanged += OnStatusChanged;
     }
 
+    /// <summary>
+    /// How edit mode is switched. Defaults to the controller; the Windows runtime supplies its own so that the
+    /// lens window's input style changes together with the state.
+    /// </summary>
+    public Action<bool>? EditModeSwitch { get; init; }
+
+    /// <summary>How "everything off" is carried out. Defaults to the controller, like <see cref="EditModeSwitch"/>.</summary>
+    public Action? EverythingOffSwitch { get; init; }
+
     /// <summary>Raised after anything a view shows has changed.</summary>
     public event Action? Changed;
 
@@ -221,7 +230,7 @@ public sealed class LensSession : IDisposable
     /// <summary>Removes the lens at once, from any state.</summary>
     public void EverythingOff()
     {
-        _controller.EverythingOff();
+        (EverythingOffSwitch ?? _controller.EverythingOff)();
         Update(Settings with { LensWasOn = false });
         Changed?.Invoke();
     }
@@ -233,7 +242,7 @@ public sealed class LensSession : IDisposable
             return;
         }
 
-        _controller.SetEditMode(_controller.State != LensState.Edit);
+        (EditModeSwitch ?? _controller.SetEditMode)(_controller.State != LensState.Edit);
         Changed?.Invoke();
     }
 
