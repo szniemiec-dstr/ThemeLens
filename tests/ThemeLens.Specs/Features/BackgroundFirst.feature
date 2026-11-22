@@ -157,6 +157,14 @@ Feature: The background stays the one I chose
       Then the status is "Live"
       And every presented frame since then is a complete frame or the page colour
 
+    Scenario: Capture stops working on a theme that keeps the app's colours
+      Such a theme has no page colour of its own, so the last good frame is shown, dimmed. (Section 5.1)
+
+      Given the lens is live with the theme "Less blue"
+      When the frame source reports a fault
+      Then the next presented frame is the last picture, dimmed
+      And the status is "Holding background"
+
     Scenario: Screen capture is not allowed
       If capture is blocked by policy or unsupported, the app explains why and does not show a lens. (FR-20)
 

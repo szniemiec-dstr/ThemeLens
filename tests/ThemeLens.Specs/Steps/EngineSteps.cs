@@ -214,6 +214,18 @@ public sealed class EngineSteps(LensWorld world)
         ImageRgb8.Filled(next.Picture!.Width, next.Picture.Height, page).ContentEquals(next.Picture).ShouldBeTrue();
     }
 
+    [Then("the next presented frame is the last picture, dimmed")]
+    public void ThenTheNextPresentedFrameIsTheLastPictureDimmed()
+    {
+        EngineHarness engine = world.RequireEngine();
+        Presented before = engine.Surface.Shown.Take(world.Mark).Last(s => s.Kind == PresentedKind.Frame);
+        Presented next = engine.ShownSince(world.Mark).First();
+        next.Kind.ShouldBe(PresentedKind.Frame);
+        float was = Measure.MeanLuminance(before.Picture!);
+        float now = Measure.MeanLuminance(next.Picture!);
+        now.ShouldBeInRange(was * 0.3f, was * 0.7f);
+    }
+
     [Then("the status is {string}")]
     public void ThenTheStatusIs(string status) => world.RequireEngine().Controller.Status.Text.ShouldBe(status);
 
