@@ -6,6 +6,18 @@ evening. Clicks and typing go straight through to the app below.
 
 > **Status: early development.** Nothing is released yet. "ThemeLens" is a working title.
 
+## Where things stand
+
+| Part | State |
+| --- | --- |
+| Colour engine (`ThemeLens.Core`): colour maths, cluster analysis, roles, lookup tables, CPU reference renderer | Working and tested on Linux and Windows. This is milestone M1. |
+| Engine (`ThemeLens.Engine`): lens states, frame loop, fades, watchdog, settings, shortcuts | Working and tested against a fake clock and fake screen. |
+| 13 built-in themes and the theme file schema | Done. Colours the specification does not fix are provisional. |
+| Executable specifications: 165 scenario examples, plus golden images for every theme | All passing in CI on Ubuntu and Windows. |
+| Windows layer (`ThemeLens.Platform.Windows`): capture, Direct3D renderer, lens and handle windows, hotkeys | Written and compiled, **not yet run on a real Windows desktop**. This is the M0 proof and needs testing by hand. |
+| App (`ThemeLens.App`) | A minimal control window to drive the lens. First run, the mapping table, tray icon and settings are still to come (M3). |
+| Installer, updates, signing | Script only (`build/pack.ps1`), not exercised (M5). |
+
 The full product and technical specification is in [`docs/spec.html`](docs/spec.html). Where the code had to
 settle something the specification leaves open, the decision is recorded in
 [`docs/decisions.md`](docs/decisions.md).
