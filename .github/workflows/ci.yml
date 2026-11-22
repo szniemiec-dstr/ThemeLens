@@ -36,7 +36,16 @@ jobs:
         run: dotnet build ThemeLens.slnx -c Release
 
       - name: Core tests
+        if: matrix.os != 'ubuntu-latest'
         run: dotnet test --project tests/ThemeLens.Core.Tests -c Release --no-build
+
+      # Section 9.4: line coverage of Core at least 90%. Measured once, on Linux.
+      - name: Core tests, with line coverage of Core at least 90%
+        if: matrix.os == 'ubuntu-latest'
+        run: >
+          dotnet test --project tests/ThemeLens.Core.Tests -c Release --no-build
+          --coverlet --coverlet-include "[ThemeLens.Core]*"
+          --coverlet-threshold 90 --coverlet-threshold-type line --coverlet-threshold-stat Total
 
       - name: Specs
         run: dotnet test --project tests/ThemeLens.Specs -c Release --no-build
