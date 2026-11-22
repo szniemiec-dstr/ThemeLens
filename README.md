@@ -14,8 +14,8 @@ evening. Clicks and typing go straight through to the app below.
 | Engine (`ThemeLens.Engine`): lens states, frame loop, fades, watchdog, settings, shortcuts | Working and tested against a fake clock and fake screen. |
 | 13 built-in themes and the theme file schema | Done. Colours the specification does not fix are provisional. |
 | Executable specifications: 165 scenario examples, plus golden images for every theme | All passing in CI on Ubuntu and Windows. |
-| Windows layer (`ThemeLens.Platform.Windows`): capture, Direct3D renderer, lens and handle windows, hotkeys | Written and compiled, **not yet run on a real Windows desktop**. This is the M0 proof and needs testing by hand. |
-| App (`ThemeLens.App`) | A minimal control window to drive the lens. First run, the mapping table, tray icon and settings are still to come (M3). |
+| Windows layer (`ThemeLens.Platform.Windows`): capture, Direct3D renderer, lens and handle windows, hotkeys | In progress. This is the M0 proof and will need testing by hand on a real Windows desktop. |
+| App (`ThemeLens.App`) | In progress: first a minimal control window to drive the lens. First run, the mapping table, tray icon and settings come after (M3). |
 | Installer, updates, signing | Script only (`build/pack.ps1`), not exercised (M5). |
 
 The full product and technical specification is in [`docs/spec.html`](docs/spec.html). Where the code had to
