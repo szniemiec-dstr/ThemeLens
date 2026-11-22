@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(ThemeLensTfm)</TargetFramework>
+    <RootNamespace>ThemeLens.Engine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ThemeLens.Core\ThemeLens.Core.csproj" />
+  </ItemGroup>
+</Project>

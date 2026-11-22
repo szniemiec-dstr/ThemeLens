@@ -11,3 +11,5 @@ coverage/
 Releases/
 # Local golden-image diffs written by failing tests
 tests/**/Diffs/
+# Reqnroll code-behind, regenerated on every build
+*.feature.cs
