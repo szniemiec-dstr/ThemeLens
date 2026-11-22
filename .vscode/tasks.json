@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "ThemeLens.slnx", "-c", "Debug", "--nologo"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "--solution", "ThemeLens.slnx", "--filter-not-trait", "Category=Ui"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "specs",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "--project", "tests/ThemeLens.Specs"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "pack",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["build/pack.ps1"],
+      "problemMatcher": []
+    }
+  ]
+}

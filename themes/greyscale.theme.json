@@ -1,0 +1,8 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "greyscale",
+  "name": "Greyscale",
+  "description": "Removes colour, keeps lightness",
+  "base": "keep",
+  "limits": { "maxChroma": 0.0 }
+}

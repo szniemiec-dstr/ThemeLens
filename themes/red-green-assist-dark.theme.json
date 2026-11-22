@@ -1,0 +1,19 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "red-green-assist-dark",
+  "name": "Red–green assist dark",
+  "description": "Tells reds and greens apart",
+  "base": "dark",
+  "roles": {
+    "page": "#000000", "panel": "#0E0E0D",
+    "text": "#C9C4B8", "quietText": "#8F8A80",
+    "link": "#C9C4B8", "good": "#4EA3FF",
+    "warning": "#B5791A", "bad": "#FFB000"
+  },
+  "limits": {
+    "maxLuminance": 0.554,
+    "minTextContrast": 7.0
+  },
+  "colourVision": "redGreen",
+  "keepBackground": "strict"
+}

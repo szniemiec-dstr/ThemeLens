@@ -1,0 +1,7 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "passthrough",
+  "name": "Passthrough",
+  "description": "No adjustment at all",
+  "base": "keep"
+}

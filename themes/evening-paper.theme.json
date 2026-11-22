@@ -1,0 +1,19 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "evening-paper",
+  "name": "Evening paper",
+  "description": "Warm paper with reduced blue",
+  "base": "light",
+  "roles": {
+    "page": "#F2DFC2", "panel": "#E8D3B3",
+    "text": "#2A2118", "quietText": "#6B5A47",
+    "link": "#7A3F0A", "good": "#4A5F14",
+    "warning": "#7A5200", "bad": "#9A3324"
+  },
+  "limits": {
+    "maxLuminance": 0.76,
+    "minTextContrast": 7.0
+  },
+  "warmth": 0.3,
+  "keepBackground": "strict"
+}

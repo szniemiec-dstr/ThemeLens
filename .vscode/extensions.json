@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "editorconfig.editorconfig",
+    "alexkrechik.cucumberautocomplete"
+  ],
+  "unwantedRecommendations": [
+    "ms-dotnettools.csdevkit"
+  ]
+}

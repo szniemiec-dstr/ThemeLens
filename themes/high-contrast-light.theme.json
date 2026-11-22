@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "high-contrast-light",
+  "name": "High contrast light",
+  "description": "Strongest contrast on a white page",
+  "base": "light",
+  "roles": {
+    "page": "#FFFFFF", "panel": "#FFFFFF",
+    "text": "#000000", "quietText": "#000000",
+    "link": "#0000C8", "good": "#004D00",
+    "warning": "#5C3A00", "bad": "#8B0000"
+  },
+  "limits": {
+    "maxLuminance": 1.0,
+    "minTextContrast": 15.0
+  },
+  "keepBackground": "strict"
+}

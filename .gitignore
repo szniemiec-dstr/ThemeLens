@@ -1,0 +1,13 @@
+bin/
+obj/
+artifacts/
+.vs/
+*.user
+*.suo
+TestResults/
+coverage/
+*.received.*
+# Velopack output
+Releases/
+# Local golden-image diffs written by failing tests
+tests/**/Diffs/

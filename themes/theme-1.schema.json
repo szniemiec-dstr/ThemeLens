@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/themelens/theme-1.schema.json",
+  "title": "ThemeLens theme",
+  "description": "A ThemeLens theme. A theme is data only and cannot run code.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "base"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "description": "Stable identifier, also used as the file name.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "name": { "description": "Name shown in the app.", "type": "string", "minLength": 1, "maxLength": 80 },
+    "description": { "description": "One line shown under the name.", "type": "string", "maxLength": 200 },
+    "base": {
+      "description": "dark: backgrounds become the dark page colour. light: backgrounds become the light page colour. keep: lightness is left as the app drew it.",
+      "enum": ["dark", "light", "keep"]
+    },
+    "roles": {
+      "description": "Output colour for each role. Required for the dark and light bases, not allowed for keep.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page", "panel", "text", "quietText", "link", "good", "warning", "bad"],
+      "properties": {
+        "page": { "$ref": "#/$defs/colour", "description": "The largest background area." },
+        "panel": { "$ref": "#/$defs/colour", "description": "Secondary backgrounds: toolbars, cards, table stripes." },
+        "text": { "$ref": "#/$defs/colour", "description": "Main reading text." },
+        "quietText": { "$ref": "#/$defs/colour", "description": "Secondary text, borders, icons." },
+        "link": { "$ref": "#/$defs/colour", "description": "Interactive accent, usually blue in the source." },
+        "good": { "$ref": "#/$defs/colour", "description": "Status colour, usually green in the source." },
+        "warning": { "$ref": "#/$defs/colour", "description": "Status colour, usually yellow or orange in the source." },
+        "bad": { "$ref": "#/$defs/colour", "description": "Status colour, usually red in the source." }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxLuminance": {
+          "description": "Brightness limit: the largest WCAG relative luminance any pixel in the lens may have. 1 means no limit.",
+          "type": "number", "minimum": 0.02, "maximum": 1, "default": 1
+        },
+        "minTextContrast": {
+          "description": "Smallest contrast ratio against the page given to text-like colours.",
+          "type": "number", "minimum": 1, "maximum": 21, "default": 4.5
+        },
+        "maxChroma": {
+          "description": "Largest OKLab chroma. Leave out for no limit. 0 removes colour.",
+          "type": "number", "minimum": 0, "maximum": 0.5
+        },
+        "maxAreaContrast": {
+          "description": "Largest contrast ratio against the page that a large area may have before the area guard pulls it back to the page colour.",
+          "type": "number", "minimum": 1.5, "maximum": 21, "default": 6
+        }
+      }
+    },
+    "warmth": {
+      "description": "0 leaves blue alone, 1 removes almost all of it.",
+      "type": "number", "minimum": 0, "maximum": 1, "default": 0
+    },
+    "colourVision": { "enum": ["none", "redGreen"], "default": "none" },
+    "keepBackground": {
+      "description": "How hard the area guard works. Defaults to strict for the dark and light bases and off for keep.",
+      "enum": ["strict", "balanced", "off"]
+    },
+    "contrast": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "mode": { "enum": ["standard", "local"], "default": "standard" }
+      }
+    },
+    "sharpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "mode": { "enum": ["standard", "strong"], "default": "standard" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "base": { "const": "keep" } }, "required": ["base"] },
+      "then": { "not": { "required": ["roles"] } },
+      "else": { "required": ["roles"] }
+    }
+  ],
+  "$defs": {
+    "colour": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "high-contrast-dark",
+  "name": "High contrast dark",
+  "description": "Strongest contrast, for low vision",
+  "base": "dark",
+  "roles": {
+    "page": "#000000", "panel": "#000000",
+    "text": "#FFFFFF", "quietText": "#FFFFFF",
+    "link": "#FFFF00", "good": "#00FF66",
+    "warning": "#FFA500", "bad": "#FF8A8A"
+  },
+  "limits": {
+    "maxLuminance": 1.0,
+    "minTextContrast": 15.0
+  },
+  "keepBackground": "strict"
+}

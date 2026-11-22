@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ThemeLens.Core/ThemeLens.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ThemeLens.Core.Tests/ThemeLens.Core.Tests.csproj" />
+    <Project Path="tests/ThemeLens.Specs/ThemeLens.Specs.csproj" />
+  </Folder>
+</Solution>

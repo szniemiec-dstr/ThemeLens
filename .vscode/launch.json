@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ThemeLens",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
+      "args": ["--dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "ThemeLens (test pattern, no capture)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
+      "args": ["--dev", "--source", "pattern"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(ThemeLensTfm)</TargetFramework>
+    <RootNamespace>ThemeLens.Core</RootNamespace>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\themes\*.theme.json" LinkBase="Themes\BuiltIn" LogicalName="ThemeLens.Themes.%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="ThemeLens.Core.Tests" />
+  </ItemGroup>
+</Project>

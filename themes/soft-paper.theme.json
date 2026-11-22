@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "soft-paper",
+  "name": "Soft paper",
+  "description": "Lower glare than pure white",
+  "base": "light",
+  "roles": {
+    "page": "#EFEBDD", "panel": "#E4DFCE",
+    "text": "#1E1D1A", "quietText": "#6A665C",
+    "link": "#1F4E8C", "good": "#2F6B3A",
+    "warning": "#7A5A12", "bad": "#9A3324"
+  },
+  "limits": {
+    "maxLuminance": 0.83,
+    "minTextContrast": 7.0
+  },
+  "keepBackground": "strict"
+}

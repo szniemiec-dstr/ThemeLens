@@ -1,0 +1,20 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "night-warm",
+  "name": "Night warm",
+  "description": "Less blue for the evening",
+  "base": "dark",
+  "roles": {
+    "page": "#000000", "panel": "#0F0B06",
+    "text": "#E0B98A", "quietText": "#A8875F",
+    "link": "#E6A45C", "good": "#B5A04A",
+    "warning": "#E0C070", "bad": "#D9774A"
+  },
+  "limits": {
+    "maxLuminance": 0.55,
+    "minTextContrast": 7.0,
+    "maxChroma": 0.14
+  },
+  "warmth": 0.5,
+  "keepBackground": "strict"
+}

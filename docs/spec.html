@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThemeLens: product and technical specification</title>
+<style>
+:root{
+  --bg:#000000; --surface:#0d0d0c; --surface2:#191917; --text:#C9C4B8; --dim:#9A9488;
+  --line:#2b2a27; --strong:#6f6b62; --accent:#E0A44A; --link:#8FB4D9; --focus:#E0A44A;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-base="dark"]){
+    --bg:#FAFAF7; --surface:#F0EFEA; --surface2:#E4E3DC; --text:#1B1B1A; --dim:#5C5B57;
+    --line:#D2D0C8; --strong:#7A7872; --accent:#8A5A00; --link:#1F4E8C; --focus:#1F4E8C;
+    color-scheme:light;
+  }
+}
+:root[data-base="light"]{
+  --bg:#FAFAF7; --surface:#F0EFEA; --surface2:#E4E3DC; --text:#1B1B1A; --dim:#5C5B57;
+  --line:#D2D0C8; --strong:#7A7872; --accent:#8A5A00; --link:#1F4E8C; --focus:#1F4E8C;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",Verdana,"Segoe UI",system-ui,sans-serif;
+  font-size:17px; line-height:1.6;
+}
+a{color:var(--link); text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--focus); outline-offset:2px}
+.page{max-width:1180px; margin:0 auto; padding:20px 18px 80px}
+.topbar{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; padding-bottom:14px; border-bottom:1px solid var(--line)}
+.topbar .doc{color:var(--dim); font-size:15px}
+.seg{display:inline-flex; border:1px solid var(--strong); border-radius:6px; overflow:hidden}
+.seg button{font:inherit; font-size:15px; padding:9px 14px; min-height:44px; background:transparent; color:var(--text); border:0; border-right:1px solid var(--strong); cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--text); color:var(--bg); font-weight:700}
+
+header.hero{padding:34px 0 8px}
+h1{font-size:clamp(34px,7vw,60px); line-height:1.05; letter-spacing:-0.02em; margin:0 0 14px; font-weight:800}
+.lede{font-size:clamp(18px,2.4vw,21px); max-width:62ch; margin:0 0 22px}
+.meta{display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; font-size:15px; color:var(--dim); margin:0 0 26px}
+.meta dt{font-weight:700; color:var(--text)}
+.meta dd{margin:0}
+
+/* hero demo */
+.demo{position:relative; height:250px; max-width:640px; border:1px solid var(--strong); border-radius:6px; overflow:hidden; --x:36%}
+.scene{position:absolute; inset:0; background:var(--s-bg); color:var(--s-text); font-size:14px; line-height:1.35;
+  --s-bg:#ffffff; --s-surface:#f1f3f5; --s-text:#222222; --s-muted:#8a8f98; --s-head:#1a73e8; --s-headtext:#ffffff; --s-link:#1a73e8; --s-ok:#2e9e44; --s-bad:#d93025; --s-pilltext:#ffffff}
+.scene .bar{background:var(--s-head); color:var(--s-headtext); padding:8px 14px; font-weight:700}
+.scene .body{padding:12px 14px}
+.scene h4{margin:0 0 6px; font-size:17px}
+.scene p{margin:0 0 8px; max-width:none}
+.scene .muted{color:var(--s-muted)}
+.scene .lnk{color:var(--s-link); text-decoration:underline}
+.scene .rows{background:var(--s-surface); padding:8px 10px; display:grid; grid-template-columns:1fr max-content; gap:6px 12px; align-items:center}
+.scene .pill{padding:2px 10px; border-radius:20px; color:var(--s-pilltext); font-weight:700; font-size:13px}
+.scene .ok{background:var(--s-ok)} .scene .bad{background:var(--s-bad)}
+.themed{clip-path:inset(9% calc(100% - var(--x) - 48%) 9% var(--x))}
+.lensframe{position:absolute; top:9%; bottom:9%; left:var(--x); width:48%; border:2px solid #E0A44A; pointer-events:none}
+.lensframe span{position:absolute; left:-2px; top:-22px; height:20px; padding:0 8px; font-size:12px; line-height:20px; background:#E0A44A; color:#000; font-weight:700}
+.t-soft{--s-bg:#000000; --s-surface:#0e0e0d; --s-text:#C9C4B8; --s-muted:#8F8A80; --s-head:#161615; --s-headtext:#C9C4B8; --s-link:#8FB4D9; --s-ok:#7FB08A; --s-bad:#D98A7E; --s-pilltext:#000}
+.t-hc{--s-bg:#000000; --s-surface:#000000; --s-text:#ffffff; --s-muted:#ffffff; --s-head:#000000; --s-headtext:#FFFF00; --s-link:#FFFF00; --s-ok:#00FF66; --s-bad:#FF8A8A; --s-pilltext:#000}
+.t-rg{--s-bg:#000000; --s-surface:#0e0e0d; --s-text:#C9C4B8; --s-muted:#8F8A80; --s-head:#161615; --s-headtext:#C9C4B8; --s-link:#C9C4B8; --s-ok:#4EA3FF; --s-bad:#FFB000; --s-pilltext:#000}
+.t-warm{--s-bg:#000000; --s-surface:#0f0b06; --s-text:#E0B98A; --s-muted:#A8875F; --s-head:#1a1206; --s-headtext:#E0B98A; --s-link:#E6A45C; --s-ok:#B5A04A; --s-bad:#D9774A; --s-pilltext:#000}
+.t-paper{--s-bg:#EFEBDD; --s-surface:#E4DFCE; --s-text:#1E1D1A; --s-muted:#6A665C; --s-head:#D8D2BF; --s-headtext:#1E1D1A; --s-link:#1F4E8C; --s-ok:#2F6B3A; --s-bad:#9A3324; --s-pilltext:#fff}
+.democtl{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; margin:12px 0 4px}
+.democtl label{display:flex; gap:10px; align-items:center; font-size:15px}
+.democtl input[type=range]{width:min(260px,60vw); height:44px; accent-color:var(--accent)}
+.note{color:var(--dim); font-size:15px}
+
+/* layout */
+.layout{display:block; margin-top:34px}
+nav.toc{border:1px solid var(--line); border-radius:6px; padding:6px 14px; margin-bottom:26px}
+nav.toc summary{cursor:pointer; font-weight:700; padding:10px 0; min-height:44px}
+nav.toc ol{margin:0 0 10px; padding-left:1.4em}
+nav.toc li{margin:5px 0}
+nav.toc a{text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+@media (min-width:1080px){
+  .layout{display:grid; grid-template-columns:250px minmax(0,1fr); gap:56px; align-items:start}
+  nav.toc{position:sticky; top:14px; max-height:calc(100vh - 28px); overflow:auto; font-size:15px}
+}
+main{min-width:0}
+section{padding-top:8px; margin-bottom:46px}
+h2{font-size:clamp(25px,3.6vw,33px); line-height:1.15; margin:0 0 14px; padding-top:16px; border-top:3px solid var(--text); letter-spacing:-0.01em}
+h2 .n{color:var(--accent); margin-right:.45em; font-variant-numeric:tabular-nums}
+h3{font-size:20px; margin:30px 0 8px}
+h3 .n{color:var(--dim); margin-right:.45em; font-weight:400}
+p,li{max-width:72ch}
+ul,ol{padding-left:1.3em}
+li{margin:4px 0}
+code,pre{font-family:ui-monospace,"Cascadia Mono",Consolas,Menlo,monospace; font-size:.88em}
+code{background:var(--surface2); padding:1px 5px; border-radius:3px}
+pre{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--strong); padding:12px 14px; overflow-x:auto; line-height:1.45; border-radius:0 4px 4px 0; tab-size:2}
+pre code{background:none; padding:0}
+.tw{overflow-x:auto; margin:14px 0 18px}
+table{border-collapse:collapse; width:100%; font-size:15.5px; min-width:520px}
+.two table{min-width:0}
+th,td{text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line)}
+th{border-bottom:2px solid var(--strong); font-weight:700}
+td.id{white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:700}
+.call{border-left:4px solid var(--accent); padding:10px 16px; margin:18px 0; background:var(--surface)}
+.call p{margin:6px 0}
+.call strong:first-child{color:var(--accent)}
+figure{margin:20px 0 26px}
+figure svg{display:block; width:100%; max-width:560px; height:auto; border:1px solid var(--line); border-radius:6px; background:var(--bg)}
+figcaption{font-size:15px; color:var(--dim); margin-top:8px; max-width:68ch}
+figcaption b{color:var(--text)}
+figcaption ol{margin:6px 0 0}
+.sw{display:inline-block; width:.95em; height:.95em; border:1px solid var(--strong); vertical-align:-0.1em; margin-right:.35em}
+
+/* svg vocabulary */
+svg text{font-family:inherit; fill:var(--text); font-size:12px}
+svg .t-b{font-weight:700}
+svg .t-l{font-size:14px; font-weight:700}
+svg .t-s{font-size:11px}
+svg .t-d{fill:var(--dim)}
+svg .t-a{fill:var(--accent); font-weight:700}
+svg .win{fill:var(--bg); stroke:var(--strong); stroke-width:1.5}
+svg .box{fill:var(--surface); stroke:var(--strong); stroke-width:1.2}
+svg .box2{fill:var(--surface2); stroke:var(--strong); stroke-width:1.2}
+svg .sel{fill:var(--surface2); stroke:var(--accent); stroke-width:2.2}
+svg .rule{stroke:var(--line); stroke-width:1}
+svg .ln{stroke:var(--strong); stroke-width:1.4; fill:none}
+svg .arw{stroke:var(--strong); stroke-width:1.4; fill:none; marker-end:url(#arrow)}
+svg .arwa{stroke:var(--accent); stroke-width:1.6; fill:none; marker-end:url(#arrowa)}
+svg .dash{stroke:var(--strong); stroke-width:1.2; fill:none; stroke-dasharray:5 4}
+svg .acc{stroke:var(--accent); stroke-width:2.2; fill:none}
+svg .accf{fill:var(--accent)}
+svg .btn{fill:var(--text)}
+svg .btnt{fill:var(--bg); font-weight:700}
+svg .dot{fill:var(--accent)} svg .dott{fill:#000; font-weight:700; font-size:11px}
+footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); font-size:15px}
+@media print{ nav.toc,.seg,.democtl{display:none} body{font-size:11pt} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--strong)"/></marker>
+    <marker id="arrowa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--accent)"/></marker>
+  </defs>
+</svg>
+
+<div class="page">
+  <div class="topbar">
+    <div class="doc">Specification, draft 0.2, 22 November 2026</div>
+    <div class="seg" role="group" aria-label="Page background">
+      <button type="button" data-base="dark" aria-pressed="false">Dark background</button>
+      <button type="button" data-base="light" aria-pressed="false">Light background</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <h1>ThemeLens</h1>
+    <p class="lede">A window you place over anything on your screen. Whatever is underneath is shown in the colours you chose: a black page with soft off-white text, high contrast, reds and greens you can tell apart, or less blue in the evening. Clicks and typing go straight through to the app below.</p>
+
+    <div class="demo" id="demo">
+      <div class="scene">
+        <div class="bar">Results.docx</div>
+        <div class="body">
+          <h4>Weekly test results</h4>
+          <p>Two suites ran overnight. <span class="lnk">Open the full log</span> <span class="muted">(updated 06:10)</span></p>
+          <div class="rows">
+            <span>Colour mapping suite</span><span class="pill ok">Passed</span>
+            <span>Installer suite</span><span class="pill bad">Failed</span>
+          </div>
+        </div>
+      </div>
+      <div class="scene themed t-soft" id="themed" aria-hidden="true">
+        <div class="bar">Results.docx</div>
+        <div class="body">
+          <h4>Weekly test results</h4>
+          <p>Two suites ran overnight. <span class="lnk">Open the full log</span> <span class="muted">(updated 06:10)</span></p>
+          <div class="rows">
+            <span>Colour mapping suite</span><span class="pill ok">Passed</span>
+            <span>Installer suite</span><span class="pill bad">Failed</span>
+          </div>
+        </div>
+      </div>
+      <div class="lensframe" aria-hidden="true"><span>Lens</span></div>
+    </div>
+    <div class="democtl">
+      <label>Move the lens <input type="range" id="lensx" min="0" max="52" value="36" aria-label="Lens position"></label>
+      <div class="seg" role="group" aria-label="Lens theme" id="themeseg">
+        <button type="button" data-t="t-soft" aria-pressed="true">Soft dark</button>
+        <button type="button" data-t="t-hc" aria-pressed="false">High contrast</button>
+        <button type="button" data-t="t-rg" aria-pressed="false">Red–green</button>
+        <button type="button" data-t="t-warm" aria-pressed="false">Night warm</button>
+        <button type="button" data-t="t-paper" aria-pressed="false">Soft paper</button>
+      </div>
+    </div>
+    <p class="note">A mock-up of the idea, not the real engine. In the app the lens recolours live screen content.</p>
+
+    <dl class="meta">
+      <dt>Purpose of this document</dt><dd>Seed a new open-source repository: scope, UX, wireframes, architecture, tests, tooling, licence.</dd>
+      <dt>First platform</dt><dd>Windows 11, C# on .NET 10 (LTS).</dd>
+      <dt>Licence</dt><dd>GPL-3.0-or-later.</dd>
+      <dt>Name</dt><dd>“ThemeLens” is a working title. Check it for trademark conflicts before the first public commit.</dd>
+    </dl>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <details id="tocd">
+        <summary>Contents</summary>
+        <ol>
+          <li><a href="#s1">Summary</a></li>
+          <li><a href="#s2">Who it is for</a></li>
+          <li><a href="#s3">Scope and assumptions</a></li>
+          <li><a href="#s4">UX design and wireframes</a></li>
+          <li><a href="#s5">Themes</a></li>
+          <li><a href="#s6">Colour engine</a></li>
+          <li><a href="#s7">Architecture</a></li>
+          <li><a href="#s8">Requirements</a></li>
+          <li><a href="#s9">Testing</a></li>
+          <li><a href="#s10">Developer setup</a></li>
+          <li><a href="#s11">Install and release</a></li>
+          <li><a href="#s12">Licence and income</a></li>
+          <li><a href="#s13">Milestones</a></li>
+          <li><a href="#s14">Risks and open questions</a></li>
+          <li><a href="#s15">References</a></li>
+        </ol>
+      </details>
+    </nav>
+
+    <main>
+
+<section id="s1">
+<h2><span class="n">1</span>Summary</h2>
+<p>Many apps and web pages ignore the system theme. For someone with light sensitivity, low vision or red–green colour blindness, one bright white window can make the whole computer hard to use. Windows offers global colour filters and a magnifier, but nothing that maps arbitrary app colours onto a chosen theme.</p>
+<p>ThemeLens is a topmost, click-through window. It captures what is underneath it, works out which colours are the background, the text and the accents, and redraws the same content in the user's theme. The lens can be a movable rectangle or fill one screen.</p>
+<div class="call">
+<p><strong>The one rule that outranks every other.</strong> Inside the lens, the background is always the one the user chose. If the app cannot keep up, loses the capture, or is unsure, it shows the plain theme background rather than risk one bright frame on a dark theme.</p>
+</div>
+<p>The project is open source under GPL-3.0-or-later (<a href="#s12">section 12</a>). Two points are still open before the repo starts: Windows 11 as the only first platform (<a href="#s3">section 3</a>), and the name.</p>
+</section>
+
+<section id="s2">
+<h2><span class="n">2</span>Who it is for</h2>
+<div class="tw"><table>
+<thead><tr><th>Person</th><th>What they need from the lens</th><th>Theme behaviour</th></tr></thead>
+<tbody>
+<tr><td>Sensitive to light (photophobia, migraine, eye strain)</td><td>No large bright areas, ever. No flashes when switching windows.</td><td>Black background, warm off-white text with a brightness limit, muted accents.</td></tr>
+<tr><td>Low vision, needs contrast</td><td>Strong separation between text and background. Clear links and focus.</td><td>Text contrast of at least 15:1, saturated link colour, no subtle greys.</td></tr>
+<tr><td>Needs a white or light page</td><td>Dark apps and dark web pages turned into dark-on-light.</td><td>White or paper background, near-black text.</td></tr>
+<tr><td>Red–green colour blindness (protan, deutan)</td><td>Red and green status colours that look different from each other.</td><td>Reds move towards orange-yellow, greens towards blue, with a lightness gap as well.</td></tr>
+<tr><td>Working in the evening</td><td>Less blue light from the screen, on a schedule or on demand.</td><td>Blue channel reduced, white point warmed, contrast kept.</td></tr>
+</tbody></table></div>
+<p>These needs overlap, so a theme is a combination of settings (base, contrast, brightness limit, warmth, colour-blind remap), and the built-in themes are just good starting combinations.</p>
+<p>Wording in the app and on the website describes what the theme does to the screen. It makes no medical claims about migraine, sleep or eye health.</p>
+</section>
+
+<section id="s3">
+<h2><span class="n">3</span>Scope and assumptions</h2>
+<h3><span class="n">3.1</span>Goals for version 1</h3>
+<ul>
+<li>A lens window that sits above other apps, recolours what is under it, and passes all mouse, touch, pen and keyboard input to the apps below.</li>
+<li>Two lens shapes: a movable, resizable rectangle, and “fill this screen” on any one monitor.</li>
+<li>Live colour analysis: find the main colour clusters under the lens and map them onto the theme's roles.</li>
+<li>A control window that shows the detected colours and how each is mapped, and lets the user correct a mapping.</li>
+<li>A first-run choice that starts with one question: dark or light.</li>
+<li>A Passthrough theme that changes nothing, and optional contrast and sharpen settings on every theme.</li>
+<li>One-click installer, no administrator rights, automatic updates.</li>
+<li>Clone, open in VS Code, press F5, it runs.</li>
+<li>A test suite in which the colour rules are executable specifications (Reqnroll).</li>
+</ul>
+<h3><span class="n">3.2</span>Not in version 1</h3>
+<ul>
+<li>macOS and Linux. The colour engine is written without Windows dependencies so it can be reused, but capture and overlay are different work on each system.</li>
+<li>Understanding content: the lens does not know a photo from a button. Photos under a dark theme are recoloured like everything else (see <a href="#s14">risks</a>).</li>
+<li>Theming the lock screen, the UAC prompt, or exclusive full-screen games.</li>
+<li>Several lenses at once, per-app profiles, schedules. These are planned follow-ups.</li>
+</ul>
+<h3><span class="n">3.3</span>Assumptions</h3>
+<ul>
+<li>Windows 11 is the only platform for the first release.</li>
+<li>When the lens cannot show a picture it trusts, it fills with the theme's page colour: black on dark themes, the paper colour on light ones.</li>
+<li>A hardware GPU is expected but not required. Without one the lens still works, more slowly (<a href="#s7-6">7.6</a>).</li>
+</ul>
+</section>
+
+<section id="s4">
+<h2><span class="n">4</span>UX design and wireframes</h2>
+<h3><span class="n">4.1</span>Principles</h3>
+<ul>
+<li><b>Background first.</b> The chosen background colour is on screen before anything else and stays when things go wrong.</li>
+<li><b>No flashes.</b> Every change of theme or mapping is a short fade that moves straight to the target brightness. Nothing overshoots.</li>
+<li><b>One question at a time.</b> First run asks dark or light, then offers themes. Everything else has a sensible default.</li>
+<li><b>Never colour alone.</b> Every colour in the app's own UI has a name and a hex value next to it, so the control window is usable with any colour vision.</li>
+<li><b>Always a way out.</b> One shortcut turns everything off instantly. The lens handle is always visible while the lens is on.</li>
+<li><b>The app follows its own theme.</b> Installer splash, first-run window and control window open in the user's base, with black as the default before a choice exists.</li>
+</ul>
+
+<h3><span class="n">4.2</span>First run: choose a base</h3>
+<p>The first window has three large choices. Dark and Light change the background. “Keep my colours” leaves backgrounds alone, for someone who only wants red–green help, less blue, more contrast or sharper text. It is also where the Passthrough theme lives.</p>
+<figure>
+<svg viewBox="0 0 400 340" role="img" aria-labelledby="w1t w1d">
+<title id="w1t">Wireframe: first-run window</title>
+<desc id="w1d">A window titled “How should your screen look?” with three large stacked choices: Dark background, Light background and Keep my colours, followed by a Next button.</desc>
+<rect class="win" x="10" y="10" width="380" height="320" rx="8"/>
+<text class="t-l" x="30" y="44">How should your screen look?</text>
+<text class="t-d" x="30" y="63">You can change this at any time.</text>
+<rect class="sel" x="30" y="78" width="340" height="62" rx="6"/>
+<rect x="42" y="88" width="56" height="42" rx="3" fill="#000000" stroke="#6f6b62"/>
+<text x="56" y="116" style="fill:#C9C4B8;font-size:18px;font-weight:700">Aa</text>
+<text class="t-l" x="112" y="104">Dark background</text>
+<text class="t-d" x="112" y="124">Black, with soft off-white text</text>
+<rect class="box" x="30" y="148" width="340" height="62" rx="6"/>
+<rect x="42" y="158" width="56" height="42" rx="3" fill="#FFFFFF" stroke="#6f6b62"/>
+<text x="56" y="186" style="fill:#111111;font-size:18px;font-weight:700">Aa</text>
+<text class="t-l" x="112" y="174">Light background</text>
+<text class="t-d" x="112" y="194">White or paper, with dark text</text>
+<rect class="box" x="30" y="218" width="340" height="62" rx="6"/>
+<rect x="42" y="228" width="28" height="42" fill="#1a73e8" stroke="#6f6b62"/>
+<rect x="70" y="228" width="28" height="42" fill="#E0B98A" stroke="#6f6b62"/>
+<text class="t-l" x="112" y="244">Keep my colours</text>
+<text class="t-d" x="112" y="264">As is, or only red–green, less blue</text>
+<text class="t-s t-d" x="30" y="309">Esc closes. Nothing changes yet.</text>
+<rect class="btn" x="270" y="292" width="100" height="28" rx="4"/>
+<text class="btnt" x="320" y="311" text-anchor="middle">Next</text>
+</svg>
+<figcaption><b>Figure 1.</b> First run. Three targets, each at least 60 px tall, reachable with Tab and arrow keys. The selected one has a thick outline as well as a different fill.</figcaption>
+</figure>
+
+<h3><span class="n">4.3</span>First run: pick a theme</h3>
+<figure>
+<svg viewBox="0 0 400 410" role="img" aria-labelledby="w2t w2d">
+<title id="w2t">Wireframe: theme picker</title>
+<desc id="w2d">A list of four themes for the dark base, each with a name, a one-line description and five colour samples, then a checkbox to start with Windows and buttons Back and Start lens.</desc>
+<rect class="win" x="10" y="10" width="380" height="390" rx="8"/>
+<text class="t-l" x="30" y="44">Pick a theme</text>
+<text class="t-d" x="30" y="63">Dark background. Try each one, then start.</text>
+<g>
+<rect class="sel" x="30" y="76" width="340" height="56" rx="6"/>
+<circle cx="48" cy="104" r="7" class="ln"/><circle cx="48" cy="104" r="3.5" class="accf"/>
+<text class="t-b" x="64" y="99">Soft dark</text><text class="t-s t-d" x="64" y="117">Low glare, for light sensitivity</text>
+<g stroke="#6f6b62"><rect x="268" y="95" width="18" height="18" fill="#000000"/><rect x="287" y="95" width="18" height="18" fill="#C9C4B8"/><rect x="306" y="95" width="18" height="18" fill="#8FB4D9"/><rect x="325" y="95" width="18" height="18" fill="#7FB08A"/><rect x="344" y="95" width="18" height="18" fill="#D98A7E"/></g>
+</g>
+<g>
+<rect class="box" x="30" y="138" width="340" height="56" rx="6"/>
+<circle cx="48" cy="166" r="7" class="ln"/>
+<text class="t-b" x="64" y="161">High contrast</text><text class="t-s t-d" x="64" y="179">Strongest contrast, for low vision</text>
+<g stroke="#6f6b62"><rect x="268" y="157" width="18" height="18" fill="#000000"/><rect x="287" y="157" width="18" height="18" fill="#FFFFFF"/><rect x="306" y="157" width="18" height="18" fill="#FFFF00"/><rect x="325" y="157" width="18" height="18" fill="#00FF66"/><rect x="344" y="157" width="18" height="18" fill="#FF8A8A"/></g>
+</g>
+<g>
+<rect class="box" x="30" y="200" width="340" height="56" rx="6"/>
+<circle cx="48" cy="228" r="7" class="ln"/>
+<text class="t-b" x="64" y="223">Red–green assist</text><text class="t-s t-d" x="64" y="241">Tells reds and greens apart</text>
+<g stroke="#6f6b62"><rect x="268" y="219" width="18" height="18" fill="#000000"/><rect x="287" y="219" width="18" height="18" fill="#C9C4B8"/><rect x="306" y="219" width="18" height="18" fill="#C9C4B8"/><rect x="325" y="219" width="18" height="18" fill="#4EA3FF"/><rect x="344" y="219" width="18" height="18" fill="#FFB000"/></g>
+</g>
+<g>
+<rect class="box" x="30" y="262" width="340" height="56" rx="6"/>
+<circle cx="48" cy="290" r="7" class="ln"/>
+<text class="t-b" x="64" y="285">Night warm</text><text class="t-s t-d" x="64" y="303">Less blue for the evening</text>
+<g stroke="#6f6b62"><rect x="268" y="281" width="18" height="18" fill="#000000"/><rect x="287" y="281" width="18" height="18" fill="#E0B98A"/><rect x="306" y="281" width="18" height="18" fill="#E6A45C"/><rect x="325" y="281" width="18" height="18" fill="#B5A04A"/><rect x="344" y="281" width="18" height="18" fill="#D9774A"/></g>
+</g>
+<text class="t-s t-d" x="362" y="336" text-anchor="end">page, text, link, good, bad</text>
+<rect class="ln" x="30" y="352" width="16" height="16" rx="2"/>
+<text x="54" y="365">Start with Windows</text>
+<rect class="box" x="204" y="362" width="64" height="28" rx="4"/><text x="236" y="381" text-anchor="middle">Back</text>
+<rect class="btn" x="276" y="362" width="94" height="28" rx="4"/><text class="btnt" x="323" y="381" text-anchor="middle">Start lens</text>
+</svg>
+<figcaption><b>Figure 2.</b> Theme picker for the dark base. Selecting a row previews it on a small sample document inside this window, before any lens appears on the desktop.</figcaption>
+</figure>
+
+<h3><span class="n">4.4</span>The lens on the desktop</h3>
+<figure>
+<svg viewBox="0 0 400 270" role="img" aria-labelledby="w3t w3d">
+<title id="w3t">Wireframe: lens over an application</title>
+<desc id="w3d">A monitor showing a bright application window. A lens rectangle covers the right half of the application and part of the desktop. Inside the lens the same content is drawn with a black background and off-white text. A small handle sits on the lens's top edge.</desc>
+<defs><clipPath id="lensclip"><rect x="160" y="62" width="206" height="140"/></clipPath></defs>
+<rect class="ln" x="10" y="10" width="380" height="236" rx="6"/>
+<rect x="11" y="11" width="378" height="212" fill="#3b5a7a"/>
+<rect x="11" y="223" width="378" height="22" fill="#dfe3e8"/>
+<g id="appwin">
+<rect x="34" y="34" width="250" height="172" fill="#ffffff" stroke="#9aa0a6"/>
+<rect x="34" y="34" width="250" height="20" fill="#1a73e8"/>
+<rect x="46" y="66" width="120" height="9" fill="#222"/>
+<rect x="46" y="86" width="220" height="5" fill="#666"/><rect x="46" y="98" width="205" height="5" fill="#666"/><rect x="46" y="110" width="214" height="5" fill="#666"/>
+<rect x="46" y="126" width="90" height="5" fill="#1a73e8"/>
+<rect x="46" y="144" width="226" height="48" fill="#f1f3f5"/>
+<rect x="56" y="154" width="110" height="5" fill="#666"/><rect x="222" y="150" width="40" height="13" rx="6" fill="#2e9e44"/>
+<rect x="56" y="174" width="96" height="5" fill="#666"/><rect x="222" y="170" width="40" height="13" rx="6" fill="#d93025"/>
+</g>
+<g clip-path="url(#lensclip)">
+<rect x="160" y="62" width="206" height="140" fill="#000000"/>
+<rect x="34" y="34" width="250" height="172" fill="#000000" stroke="#55524b"/>
+<rect x="46" y="66" width="120" height="9" fill="#C9C4B8"/>
+<rect x="46" y="86" width="220" height="5" fill="#8F8A80"/><rect x="46" y="98" width="205" height="5" fill="#8F8A80"/><rect x="46" y="110" width="214" height="5" fill="#8F8A80"/>
+<rect x="46" y="144" width="226" height="48" fill="#0e0e0d"/>
+<rect x="56" y="154" width="110" height="5" fill="#8F8A80"/><rect x="222" y="150" width="40" height="13" rx="6" fill="#7FB08A"/>
+<rect x="56" y="174" width="96" height="5" fill="#8F8A80"/><rect x="222" y="170" width="40" height="13" rx="6" fill="#D98A7E"/>
+<rect x="284" y="62" width="82" height="140" fill="#050505"/>
+</g>
+<rect x="160" y="62" width="206" height="140" fill="none" stroke="#E0A44A" stroke-width="2"/>
+<rect x="160" y="44" width="124" height="18" fill="#E0A44A"/>
+<text x="166" y="57" style="fill:#000;font-size:11px;font-weight:700">Lens: Soft dark</text>
+<rect x="254" y="48" width="10" height="10" fill="none" stroke="#000"/><rect x="268" y="48" width="10" height="10" fill="none" stroke="#000"/>
+<path d="M236 118 l0 16 l4 -4 l3 7 l3 -1 l-3 -7 l6 0 z" fill="#ffffff" stroke="#000"/>
+<circle class="dot" cx="150" cy="53" r="9"/><text class="dott" x="150" y="57" text-anchor="middle">1</text>
+<circle class="dot" cx="340" cy="186" r="9"/><text class="dott" x="340" y="190" text-anchor="middle">2</text>
+<circle class="dot" cx="258" cy="122" r="9"/><text class="dott" x="258" y="126" text-anchor="middle">3</text>
+<circle class="dot" cx="90" cy="194" r="9"/><text class="dott" x="90" y="198" text-anchor="middle">4</text>
+<text class="t-s t-d" x="200" y="262" text-anchor="middle">One monitor. The lens covers part of an app and part of the desktop.</text>
+</svg>
+<figcaption><b>Figure 3.</b> The lens in window mode.
+<ol>
+<li>Handle: the only part of the lens that takes clicks. Drag to move; buttons for edit mode and fill-screen.</li>
+<li>Lens area: everything under it is recoloured, including the desktop.</li>
+<li>The pointer is drawn by Windows on top of the lens. A click here lands on the app underneath.</li>
+<li>Outside the lens nothing changes.</li>
+</ol></figcaption>
+</figure>
+
+<h3><span class="n">4.5</span>Moving, resizing and filling a screen</h3>
+<p>A window that passes every click through cannot be dragged by its body, so the lens has two states.</p>
+<figure>
+<svg viewBox="0 0 400 236" role="img" aria-labelledby="w5t w5d">
+<title id="w5t">Wireframe: locked lens and edit mode</title>
+<desc id="w5d">Left: a locked lens with a thin outline and a small handle; clicks pass through. Right: the lens in edit mode with a thick dashed outline, resize grips on corners and edges, and buttons Fill this screen and Done.</desc>
+<text class="t-b" x="20" y="24">Locked (normal)</text>
+<rect class="box" x="20" y="54" width="160" height="120"/>
+<rect class="acc" x="20" y="54" width="160" height="120" style="stroke-width:1.5"/>
+<rect class="accf" x="20" y="38" width="76" height="16"/><text x="26" y="50" style="fill:#000;font-size:11px;font-weight:700">Lens</text>
+<text class="t-s" x="100" y="110" text-anchor="middle">Clicks, scrolling and</text>
+<text class="t-s" x="100" y="126" text-anchor="middle">typing go to the app below</text>
+<text class="t-s t-d" x="20" y="194">Handle: drag to move</text>
+<text class="t-s t-d" x="20" y="209">Double-click handle:</text>
+<text class="t-s t-d" x="20" y="224">fill this screen</text>
+
+<text class="t-b" x="220" y="24">Edit mode</text>
+<rect class="box2" x="220" y="54" width="160" height="120"/>
+<rect x="220" y="54" width="160" height="120" fill="none" style="stroke:var(--accent);stroke-width:3;stroke-dasharray:8 5"/>
+<g class="accf"><rect x="215" y="49" width="10" height="10"/><rect x="295" y="49" width="10" height="10"/><rect x="375" y="49" width="10" height="10"/><rect x="215" y="109" width="10" height="10"/><rect x="375" y="109" width="10" height="10"/><rect x="215" y="169" width="10" height="10"/><rect x="295" y="169" width="10" height="10"/><rect x="375" y="169" width="10" height="10"/></g>
+<text class="t-s" x="300" y="86" text-anchor="middle">Drag anywhere to move</text>
+<rect class="box" x="238" y="100" width="124" height="26" rx="4"/><text class="t-s" x="300" y="117" text-anchor="middle">Fill this screen</text>
+<rect class="btn" x="238" y="134" width="124" height="26" rx="4"/><text class="btnt t-s" x="300" y="151" text-anchor="middle">Done</text>
+<text class="t-s t-d" x="220" y="194">Arrow keys: move</text>
+<text class="t-s t-d" x="220" y="209">Shift+arrow keys: resize</text>
+<text class="t-s t-d" x="220" y="224">Enter or Esc: lock again</text>
+</svg>
+<figcaption><b>Figure 4.</b> Locked and edit states. Edit mode is the only time the lens body takes input. The content stays themed while editing.</figcaption>
+</figure>
+<ul>
+<li>“Fill this screen” snaps the lens to the full bounds of the monitor it is mostly on, including the taskbar. The same command again restores the previous rectangle.</li>
+<li>With several monitors, the control window lists them by number and position (“Screen 2, right”). The lens covers one at a time in version 1.</li>
+<li>The lens remembers its last rectangle and mode per monitor layout.</li>
+<li>While moving or resizing, any part of the lens for which there is no fresh picture yet shows the theme background.</li>
+</ul>
+
+<h3><span class="n">4.6</span>Control window</h3>
+<p>The control window is an ordinary window, shown above the lens and never recoloured by it, so the “found” swatches show true screen colours.</p>
+<figure>
+<svg viewBox="0 0 400 618" role="img" aria-labelledby="w4t w4d">
+<title id="w4t">Wireframe: control window</title>
+<desc id="w4d">Control window with a lens on/off switch, area and theme selectors, a table mapping each colour found on screen to a role and to the colour shown, four sliders for brightness limit, warmth, contrast and sharpen, a keep-background setting, and a status line.</desc>
+<rect class="win" x="10" y="10" width="380" height="598" rx="8"/>
+<text class="t-l" x="28" y="40">ThemeLens</text>
+<rect class="box2" x="262" y="24" width="110" height="24" rx="12"/><circle class="accf" cx="277" cy="36" r="4"/><text class="t-s" x="287" y="40">Live, 9 ms</text>
+<line class="rule" x1="10" y1="58" x2="390" y2="58"/>
+
+<text x="28" y="84">Lens</text>
+<rect class="btn" x="70" y="68" width="52" height="24" rx="12"/><text class="btnt t-s" x="96" y="84" text-anchor="middle">On</text>
+<text x="148" y="84">Area</text>
+<rect class="box" x="186" y="68" width="186" height="24" rx="4"/><text x="194" y="84">Window</text><path class="ln" d="M354 77 l5 6 l5 -6"/>
+<text x="28" y="118">Theme</text>
+<rect class="box" x="70" y="102" width="302" height="24" rx="4"/><text x="78" y="118">Soft dark (dark base)</text><path class="ln" d="M354 111 l5 6 l5 -6"/>
+
+<text class="t-b" x="28" y="154">Colours on screen now, and what you see</text>
+<text class="t-s t-d" x="28" y="176">Found</text><text class="t-s t-d" x="140" y="176">Share</text><text class="t-s t-d" x="184" y="176">Used as</text><text class="t-s t-d" x="276" y="176">Shown as</text>
+<line class="ln" x1="28" y1="182" x2="372" y2="182"/>
+<g>
+<rect x="28" y="191" width="18" height="18" fill="#FFFFFF" stroke="#6f6b62"/><text class="t-s" x="52" y="199">White</text><text class="t-s t-d" x="52" y="212">#FFFFFF</text>
+<text class="t-s" x="140" y="205">71%</text>
+<rect class="box" x="184" y="192" width="82" height="20" rx="3"/><text class="t-s" x="190" y="206">Page</text><path class="ln" d="M252 199 l4 5 l4 -5"/>
+<rect x="276" y="191" width="18" height="18" fill="#000000" stroke="#6f6b62"/><text class="t-s" x="300" y="199">Black</text><text class="t-s t-d" x="300" y="212">#000000</text>
+<line class="rule" x1="28" y1="219" x2="372" y2="219"/>
+</g>
+<g>
+<rect x="28" y="227" width="18" height="18" fill="#222222" stroke="#6f6b62"/><text class="t-s" x="52" y="235">Near black</text><text class="t-s t-d" x="52" y="248">#222222</text>
+<text class="t-s" x="140" y="241">12%</text>
+<rect class="box" x="184" y="228" width="82" height="20" rx="3"/><text class="t-s" x="190" y="242">Text</text><path class="ln" d="M252 235 l4 5 l4 -5"/>
+<rect x="276" y="227" width="18" height="18" fill="#C9C4B8" stroke="#6f6b62"/><text class="t-s" x="300" y="235">Off-white</text><text class="t-s t-d" x="300" y="248">12.1 : 1</text>
+<line class="rule" x1="28" y1="255" x2="372" y2="255"/>
+</g>
+<g>
+<rect x="28" y="263" width="18" height="18" fill="#F1F3F5" stroke="#6f6b62"/><text class="t-s" x="52" y="271">Light grey</text><text class="t-s t-d" x="52" y="284">#F1F3F5</text>
+<text class="t-s" x="140" y="277">9%</text>
+<rect class="box" x="184" y="264" width="82" height="20" rx="3"/><text class="t-s" x="190" y="278">Panel</text><path class="ln" d="M252 271 l4 5 l4 -5"/>
+<rect x="276" y="263" width="18" height="18" fill="#0E0E0D" stroke="#6f6b62"/><text class="t-s" x="300" y="271">Charcoal</text><text class="t-s t-d" x="300" y="284">#0E0E0D</text>
+<line class="rule" x1="28" y1="291" x2="372" y2="291"/>
+</g>
+<g>
+<rect x="28" y="299" width="18" height="18" fill="#1A73E8" stroke="#6f6b62"/><text class="t-s" x="52" y="307">Blue</text><text class="t-s t-d" x="52" y="320">#1A73E8</text>
+<text class="t-s" x="140" y="313">4%</text>
+<rect class="box" x="184" y="300" width="82" height="20" rx="3"/><text class="t-s" x="190" y="314">Link</text><path class="ln" d="M252 307 l4 5 l4 -5"/>
+<rect x="276" y="299" width="18" height="18" fill="#8FB4D9" stroke="#6f6b62"/><text class="t-s" x="300" y="307">Pale blue</text><text class="t-s t-d" x="300" y="320">9.7 : 1</text>
+<line class="rule" x1="28" y1="327" x2="372" y2="327"/>
+</g>
+<g>
+<rect x="28" y="335" width="18" height="18" fill="#D93025" stroke="#6f6b62"/><text class="t-s" x="52" y="343">Red</text><text class="t-s t-d" x="52" y="356">#D93025</text>
+<text class="t-s" x="140" y="349">1%</text>
+<rect class="sel" x="184" y="336" width="82" height="20" rx="3"/><text class="t-s" x="190" y="350">Bad</text><path class="ln" d="M252 343 l4 5 l4 -5"/>
+<rect x="276" y="335" width="18" height="18" fill="#D98A7E" stroke="#6f6b62"/><text class="t-s" x="300" y="343">Soft red</text><text class="t-s t-a" x="300" y="356">Pinned</text>
+<line class="rule" x1="28" y1="363" x2="372" y2="363"/>
+</g>
+<g>
+<rect x="28" y="371" width="18" height="18" fill="#2E9E44" stroke="#6f6b62"/><text class="t-s" x="52" y="379">Green</text><text class="t-s t-d" x="52" y="392">#2E9E44</text>
+<text class="t-s" x="140" y="385">1%</text>
+<rect class="box" x="184" y="372" width="82" height="20" rx="3"/><text class="t-s" x="190" y="386">Good</text><path class="ln" d="M252 379 l4 5 l4 -5"/>
+<rect x="276" y="371" width="18" height="18" fill="#7FB08A" stroke="#6f6b62"/><text class="t-s" x="300" y="379">Soft green</text><text class="t-s t-d" x="300" y="392">#7FB08A</text>
+</g>
+<line class="ln" x1="28" y1="400" x2="372" y2="400"/>
+
+<text x="28" y="428">Brightness limit</text><line class="ln" x1="150" y1="424" x2="330" y2="424"/><circle class="accf" cx="250" cy="424" r="7"/><text class="t-s" x="342" y="428">55%</text>
+<text x="28" y="456">Warmth</text><line class="ln" x1="150" y1="452" x2="330" y2="452"/><circle class="accf" cx="186" cy="452" r="7"/><text class="t-s" x="342" y="456">20%</text>
+<text x="28" y="484">Contrast</text><line class="ln" x1="150" y1="480" x2="330" y2="480"/><circle class="accf" cx="204" cy="480" r="7"/><text class="t-s" x="342" y="484">30%</text>
+<text x="28" y="512">Sharpen</text><line class="ln" x1="150" y1="508" x2="330" y2="508"/><circle class="box" cx="150" cy="508" r="7"/><text class="t-s" x="342" y="512">Off</text>
+
+<text x="28" y="544">Keep background</text>
+<rect class="btn" x="150" y="528" width="74" height="24" rx="4"/><text class="btnt t-s" x="187" y="544" text-anchor="middle">Strict</text>
+<rect class="box" x="224" y="528" width="74" height="24"/><text class="t-s" x="261" y="544" text-anchor="middle">Balanced</text>
+<rect class="box" x="298" y="528" width="74" height="24" rx="4"/><text class="t-s" x="335" y="544" text-anchor="middle">Off</text>
+
+<line class="rule" x1="10" y1="564" x2="390" y2="564"/>
+<rect class="box" x="28" y="574" width="110" height="24" rx="4"/><text class="t-s" x="83" y="590" text-anchor="middle">Reset mapping</text>
+<rect class="box" x="146" y="574" width="110" height="24" rx="4"/><text class="t-s" x="201" y="590" text-anchor="middle">Save as theme</text>
+<text class="t-s t-d" x="372" y="590" text-anchor="end">60 fps, 6 colours</text>
+</svg>
+<figcaption><b>Figure 5.</b> Control window. Each row is one colour cluster found under the lens: its true colour with a name and hex value, how much of the lens it covers, the role it was given, and the colour it is shown as. Changing “Used as” pins that mapping. Contrast and Sharpen are off at zero; each has a mode switch (Standard, or the heavier Local and Strong) behind its label. The status pill reads “Live” with the current delay, “Live, reduced speed” when a heavier option or CPU rendering has pushed the lens past its standard budget, or “Holding background” when the lens is showing a plain fill.</figcaption>
+</figure>
+<p>The window also holds a Settings page (shortcuts, start with Windows, updates, language) and an About page (version, licence, third-party notices). The tray icon repeats the most common actions: lens on or off, theme, fill this screen, open control window, quit.</p>
+
+<h3><span class="n">4.7</span>Keyboard shortcuts</h3>
+<p>Defaults must not use Ctrl+Alt. On Polish and many other European keyboards Ctrl+Alt is the same as AltGr, so Ctrl+Alt+L would block typing “ł”. The proposed defaults use Win+Alt; each is checked at startup, and any that Windows or another app already owns is shown as “not set” for the user to choose.</p>
+<div class="tw two"><table>
+<thead><tr><th>Action</th><th>Proposed default</th></tr></thead>
+<tbody>
+<tr><td>Lens on or off</td><td><code>Win+Alt+L</code></td></tr>
+<tr><td>Edit mode (move and resize)</td><td><code>Win+Alt+E</code></td></tr>
+<tr><td>Fill this screen, or restore</td><td><code>Win+Alt+F</code></td></tr>
+<tr><td>Next theme</td><td><code>Win+Alt+T</code></td></tr>
+<tr><td>Open control window</td><td><code>Win+Alt+C</code></td></tr>
+<tr><td>Turn everything off now</td><td><code>Win+Alt+X</code></td></tr>
+</tbody></table></div>
+
+<h3><span class="n">4.8</span>Accessibility of the app itself</h3>
+<ul>
+<li>Every control reachable and operable by keyboard, with a visible focus outline at least 3 px thick.</li>
+<li>Every control has a UI Automation name and role, so Narrator and NVDA can drive the whole app. Changes of state (“Lens on, Soft dark”, “Holding background”) are announced.</li>
+<li>Click targets at least 44 by 44 px at 100% scale. The UI follows the Windows text-size setting up to 225% without clipping.</li>
+<li>The app's own UI passes 7:1 text contrast in every built-in theme.</li>
+<li>No animation longer than 250 ms, none at all when Windows has animations turned off.</li>
+<li>No sound, no toast notifications by default.</li>
+</ul>
+</section>
+
+<section id="s5">
+<h2><span class="n">5</span>Themes</h2>
+<h3><span class="n">5.1</span>Bases</h3>
+<div class="tw"><table>
+<thead><tr><th>Base</th><th>What the lens does</th><th>Fallback fill</th></tr></thead>
+<tbody>
+<tr><td>Dark</td><td>Whatever the app's background is, it is shown as the theme's dark page colour. Light apps are inverted in lightness; dark apps are left dark.</td><td>Theme page colour (black)</td></tr>
+<tr><td>Light</td><td>The mirror image: dark apps become dark-on-light, light apps stay light.</td><td>Theme page colour (white or paper)</td></tr>
+<tr><td>Keep my colours</td><td>Lightness is left as the app drew it. Only hue, blue level, saturation or overall brightness change, or nothing at all (Passthrough).</td><td>Last good frame, dimmed. Passthrough: the lens body is hidden.</td></tr>
+</tbody></table></div>
+
+<h3><span class="n">5.2</span>Roles</h3>
+<p>A theme does not list source colours. It defines a small set of roles, and the engine decides at run time which on-screen colour plays which role.</p>
+<div class="tw two"><table>
+<thead><tr><th>Role</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Page</td><td>The largest background area.</td></tr>
+<tr><td>Panel</td><td>Secondary backgrounds: toolbars, cards, table stripes.</td></tr>
+<tr><td>Text</td><td>Main reading text.</td></tr>
+<tr><td>Quiet text</td><td>Secondary text, borders, icons.</td></tr>
+<tr><td>Link</td><td>Interactive accent, usually blue in the source.</td></tr>
+<tr><td>Good, Warning, Bad</td><td>Status colours, usually green, yellow and red in the source.</td></tr>
+<tr><td>Other accent</td><td>Any remaining strong colour; keeps its hue, takes the theme's brightness and saturation limits.</td></tr>
+</tbody></table></div>
+
+<h3><span class="n">5.3</span>Built-in themes</h3>
+<p>Contrast figures are WCAG contrast ratios of text against page, calculated from the values shown.</p>
+<div class="tw"><table>
+<thead><tr><th>Theme</th><th>Base</th><th>Page</th><th>Text</th><th>Contrast</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Soft dark</td><td>Dark</td><td><span class="sw" style="background:#000"></span>#000000</td><td><span class="sw" style="background:#C9C4B8"></span>#C9C4B8</td><td>12.1 : 1</td><td>Brightness limit 55%. Muted accents. Default for the dark base.</td></tr>
+<tr><td>High contrast dark</td><td>Dark</td><td><span class="sw" style="background:#000"></span>#000000</td><td><span class="sw" style="background:#fff"></span>#FFFFFF</td><td>21 : 1</td><td>Links yellow <code>#FFFF00</code> (19.6 : 1). No brightness limit.</td></tr>
+<tr><td>Red–green assist dark</td><td>Dark</td><td><span class="sw" style="background:#000"></span>#000000</td><td><span class="sw" style="background:#C9C4B8"></span>#C9C4B8</td><td>12.1 : 1</td><td>Bad <code>#FFB000</code>, Good <code>#4EA3FF</code>: different in hue and in lightness.</td></tr>
+<tr><td>Night warm</td><td>Dark</td><td><span class="sw" style="background:#000"></span>#000000</td><td><span class="sw" style="background:#E0B98A"></span>#E0B98A</td><td>11.5 : 1</td><td>Blue output cut by about two thirds.</td></tr>
+<tr><td>Clear white</td><td>Light</td><td><span class="sw" style="background:#fff"></span>#FFFFFF</td><td><span class="sw" style="background:#111"></span>#111111</td><td>18.9 : 1</td><td>Default for the light base.</td></tr>
+<tr><td>Soft paper</td><td>Light</td><td><span class="sw" style="background:#EFEBDD"></span>#EFEBDD</td><td><span class="sw" style="background:#1E1D1A"></span>#1E1D1A</td><td>14.1 : 1</td><td>Lower glare than pure white.</td></tr>
+<tr><td>High contrast light</td><td>Light</td><td><span class="sw" style="background:#fff"></span>#FFFFFF</td><td><span class="sw" style="background:#000"></span>#000000</td><td>21 : 1</td><td>Links <code>#0000C8</code> (11.5 : 1).</td></tr>
+<tr><td>Evening paper</td><td>Light</td><td><span class="sw" style="background:#F2DFC2"></span>#F2DFC2</td><td><span class="sw" style="background:#2A2118"></span>#2A2118</td><td>12.1 : 1</td><td>Warm, reduced blue.</td></tr>
+<tr><td>Passthrough</td><td>Keep</td><td colspan="3">unchanged</td><td>No adjustment at all. Default for “Keep my colours”.</td></tr>
+<tr><td>Red–green assist</td><td>Keep</td><td colspan="3">unchanged</td><td>Remaps the red–green axis only.</td></tr>
+<tr><td>Less blue</td><td>Keep</td><td colspan="3">unchanged</td><td>Warmth slider only.</td></tr>
+<tr><td>Greyscale</td><td>Keep</td><td colspan="3">unchanged</td><td>Removes colour, keeps lightness.</td></tr>
+<tr><td>Dimmer</td><td>Keep</td><td colspan="3">unchanged</td><td>Brightness limit only.</td></tr>
+</tbody></table></div>
+
+<p>Passthrough shows the screen exactly as it is. It gives a quick before-and-after comparison, and it is the base for a lens that only adds contrast or sharpening. With both of those at zero the lens body is hidden and nothing is captured, so it costs nothing.</p>
+
+<h3><span class="n">5.4</span>Contrast and sharpen</h3>
+<p>Every theme, Passthrough included, has two optional settings. Both are off in the built-in themes, and the control window remembers the user's values per theme.</p>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Range</th><th>Modes</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td>Contrast</td><td>Off, or 1 to 100%</td><td>Standard, Local</td><td>Standard pushes light and dark further apart across the whole lens. Local also lifts faint detail against its immediate surroundings, such as grey text on a grey panel.</td></tr>
+<tr><td>Sharpen</td><td>Off, or 1 to 100%</td><td>Standard, Strong</td><td>Makes the edges of text and lines crisper. Strong uses a wider area and suits small or blurry text.</td></tr>
+</tbody></table></div>
+<p>Local contrast and Strong sharpen are the heavier modes. They are allowed to exceed the standard performance budgets (<a href="#s7-6">7.6</a>). Neither setting can break a theme's limits: the result is always clamped to the brightness limit and the page colour.</p>
+
+<h3><span class="n">5.5</span>Theme file</h3>
+<p>Themes are JSON files, validated against a published schema. Built-ins ship as files in <code>themes/</code>; user themes live in <code>%AppData%\ThemeLens\themes</code>. A theme is data only and cannot run code. <code>contrast</code> and <code>sharpen</code> are optional; leaving them out means off. Passthrough is a theme file with <code>"base": "keep"</code> and no roles.</p>
+<pre><code>{
+  "$schema": "https://example.org/themelens/theme-1.schema.json",
+  "id": "soft-dark",
+  "name": "Soft dark",
+  "base": "dark",
+  "roles": {
+    "page": "#000000", "panel": "#0E0E0D",
+    "text": "#C9C4B8", "quietText": "#8F8A80",
+    "link": "#8FB4D9", "good": "#7FB08A",
+    "warning": "#C9B36A", "bad": "#D98A7E"
+  },
+  "limits": {
+    "maxLuminance": 0.55,
+    "minTextContrast": 7.0,
+    "maxChroma": 0.10
+  },
+  "warmth": 0.2,
+  "colourVision": "none",
+  "keepBackground": "strict",
+  "contrast": { "amount": 0.0, "mode": "standard" },
+  "sharpen": { "amount": 0.0, "mode": "standard" }
+}</code></pre>
+</section>
+
+<section id="s6">
+<h2><span class="n">6</span>Colour engine</h2>
+<p>The engine is split in two so that slow work never delays a frame. Recolouring each pixel is a single table lookup on the GPU, every frame. Deciding what the table should contain happens on the CPU a few times a second.</p>
+
+<h3><span class="n">6.1</span>Finding colour clusters</h3>
+<ol>
+<li>A copy of the lens area is shrunk on the GPU to about 160 by 90 pixels and read back, 5 to 10 times a second, and immediately after a large change in average brightness.</li>
+<li>Pixels are converted to OKLab, a colour space where equal distances look roughly equally different.</li>
+<li>A coarse 3D histogram finds the peaks. K-means, seeded from those peaks with at most 8 clusters, refines them. Clusters closer than a small threshold are merged.</li>
+<li>Each cluster gets features: share of area, lightness, chroma, hue, how much of it touches the lens edges, and how “thin” it is (text and lines have a lot of edge per pixel).</li>
+<li>Small clusters are kept if they are strongly coloured, since links and status dots cover little area but matter.</li>
+</ol>
+
+<h3><span class="n">6.2</span>Assigning roles</h3>
+<ul>
+<li><b>Page:</b> largest share, low chroma, touches the edges.</li>
+<li><b>Text:</b> highest contrast against Page among thin clusters.</li>
+<li><b>Panel and Quiet text:</b> remaining low-chroma clusters, split by which side of the midpoint between Page and Text they fall on.</li>
+<li><b>Link, Good, Warning, Bad:</b> chromatic clusters by hue family (blue, green, yellow-orange, red).</li>
+<li>Anything else becomes Other accent.</li>
+</ul>
+<p>The user can override any row in the control window. A pinned row wins over the automatic choice until “Reset mapping”.</p>
+
+<h3><span class="n">6.3</span>Building the lookup table</h3>
+<p>The engine builds a 33×33×33 table that gives an output colour for every possible input colour, so colours that belong to no cluster (anti-aliased text edges, gradients, photos) are still handled smoothly.</p>
+<ul>
+<li><b>Lightness</b> follows one monotonic curve through the anchor pairs (source Page to theme Page, source Panel to theme Panel, source Text to theme Text). Because the curve never reverses, text edges stay smooth.</li>
+<li><b>Hue and chroma:</b> near-grey inputs take the theme's neutral tint. Coloured inputs are pulled towards the theme colour of the nearest accent cluster, weighted by distance, so in-between colours blend.</li>
+<li><b>Limits</b> are applied last: maximum luminance, minimum contrast for text-like lightness, maximum chroma, then the warmth and colour-vision transforms.</li>
+</ul>
+<p>A table has about 36,000 entries and is built in a few milliseconds. The shader samples it with interpolation.</p>
+
+<h3><span class="n">6.4</span>Keeping the picture steady</h3>
+<ul>
+<li>A cluster must win a role in three analyses in a row before the role changes.</li>
+<li>When the table changes, the shader cross-fades from the old one to the new one over 150 to 250 ms.</li>
+<li>Average lens brightness may only move towards its target during a fade.</li>
+<li>Pinned mappings never change on their own.</li>
+</ul>
+
+<h3><span class="n">6.5</span>Background first</h3>
+<p>The table is built from what was on screen a moment ago. If the user switches from a white document to a dark editor, a table that inverts lightness would, for a few frames, turn the dark editor white. That is exactly what a light-sensitive user must never see, so there are three protections, all of which work without waiting for the analysis.</p>
+<div class="tw"><table>
+<thead><tr><th>Protection</th><th>When it acts</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Polarity check</td><td>Same frame</td><td>The GPU reduces each frame to a handful of average values. The shader uses them to choose between two ready tables: one for light sources, one for dark sources.</td></tr>
+<tr><td>Area guard</td><td>Same frame</td><td>For each pixel the shader also looks up the average colour of its neighbourhood. If that average would come out brighter than the theme allows, it is a background area and not text, and the pixel is pulled to the Page colour. On light bases the test is mirrored.</td></tr>
+<tr><td>Hold</td><td>Within one frame of a fault</td><td>If capture fails, the display changes, or the render loop misses its deadline, the lens presents a solid Page fill and the status changes to “Holding background”.</td></tr>
+</tbody></table></div>
+<p>“Keep background” in the control window sets how hard the area guard works. Strict never lets a large bright area through on a dark theme, which also flattens bright photos. Balanced allows areas that look like images (many colours, soft edges). Off disables the guard.</p>
+<p>The lens is opaque, so pixels from the real desktop cannot leak through it. Delay can make the lens content lag by a frame, but it cannot show the unthemed screen.</p>
+
+<h3><span class="n">6.6</span>Red–green assist and less blue</h3>
+<ul>
+<li><b>Red–green assist</b> does not restore colour vision. It moves differences that sit on the red–green confusion axis onto lightness and the blue–yellow axis, and it maps the Good and Bad roles to a pair that stays distinct under simulated protanopia and deuteranopia. Tests use the Machado, Oliveira and Fernandes (2009) simulation matrices.</li>
+<li><b>Less blue</b> scales the blue channel in linear light and slightly lowers green, which is equivalent to moving the white point towards warm. Text lightness is then corrected to hold the theme's minimum contrast.</li>
+</ul>
+
+<h3><span class="n">6.7</span>Contrast and sharpen</h3>
+<div class="tw"><table>
+<thead><tr><th>Setting and mode</th><th>How it is done</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Contrast, Standard</td><td>Steepens the lightness curve around the midpoint between Page and Text. On the Keep base, around the median lightness of the picture. The curve stays monotonic and is baked into the lookup table.</td><td>None per frame</td></tr>
+<tr><td>Contrast, Local</td><td>Compares each pixel's lightness with a blurred copy of the frame and amplifies the difference.</td><td>One blur pass plus one extra pass</td></tr>
+<tr><td>Sharpen, Standard</td><td>Five samples per pixel, on lightness only so no colour fringes appear. Strength falls where an edge is already crisp.</td><td>One extra pass</td></tr>
+<tr><td>Sharpen, Strong</td><td>A wider two-pass kernel with halo limiting.</td><td>Two extra passes</td></tr>
+</tbody></table></div>
+<p>Order within a frame: recolour, local contrast, sharpen, then clamp to the theme's limits. Clamping last is what guarantees that sharpening halos on a dark theme can never exceed the brightness limit.</p>
+</section>
+
+<section id="s7">
+<h2><span class="n">7</span>Architecture</h2>
+<h3><span class="n">7.1</span>Layers</h3>
+<figure>
+<svg viewBox="0 0 400 452" role="img" aria-labelledby="a1t a1d">
+<title id="a1t">Diagram: project layers</title>
+<desc id="a1d">Four layers from top to bottom: App (WPF user interface), Engine (lens state and scheduling), then Core (pure colour logic) beside Platform.Windows (capture, rendering, windows), all resting on Windows and the GPU. Test projects attach at the side.</desc>
+<rect class="box" x="20" y="14" width="360" height="70" rx="6"/>
+<text class="t-l" x="34" y="38">ThemeLens.App</text><text class="t-s t-d" x="366" y="38" text-anchor="end">WPF</text>
+<text class="t-s" x="34" y="56">First run, control window, tray, settings.</text>
+<text class="t-s" x="34" y="71">Wires everything together at startup.</text>
+<path class="arw" d="M200 84 V104"/>
+<rect class="box" x="20" y="106" width="360" height="70" rx="6"/>
+<text class="t-l" x="34" y="130">ThemeLens.Engine</text><text class="t-s t-d" x="366" y="130" text-anchor="end">any OS</text>
+<text class="t-s" x="34" y="148">Lens state machine, frame loop, analysis schedule,</text>
+<text class="t-s" x="34" y="163">watchdog. Talks to interfaces only.</text>
+<path class="arw" d="M110 176 V198"/><path class="arw" d="M290 176 V198"/>
+<rect class="sel" x="20" y="200" width="172" height="138" rx="6"/>
+<text class="t-l" x="32" y="224">ThemeLens.Core</text>
+<text class="t-s t-d" x="32" y="240">any OS, no UI, no GPU</text>
+<text class="t-s" x="32" y="260">Colour spaces, contrast</text>
+<text class="t-s" x="32" y="275">Clustering, role rules</text>
+<text class="t-s" x="32" y="290">Lookup-table builder</text>
+<text class="t-s" x="32" y="305">Theme model and schema</text>
+<text class="t-s" x="32" y="320">Reference renderer (CPU)</text>
+<rect class="box" x="208" y="200" width="172" height="138" rx="6"/>
+<text class="t-l" x="220" y="224">Platform.Windows</text>
+<text class="t-s t-d" x="220" y="240">Windows only</text>
+<text class="t-s" x="220" y="260">Screen capture (two ways)</text>
+<text class="t-s" x="220" y="275">Direct3D 11 renderer, HLSL</text>
+<text class="t-s" x="220" y="290">Lens and handle windows</text>
+<text class="t-s" x="220" y="305">Hotkeys, monitors, DPI</text>
+<text class="t-s" x="220" y="320">Start with Windows</text>
+<path class="arw" d="M294 338 V360"/>
+<rect class="box2" x="20" y="362" width="360" height="36" rx="6"/>
+<text x="200" y="385" text-anchor="middle">Windows 11: desktop compositor, capture APIs, GPU</text>
+<text class="t-s t-d" x="20" y="420">Core.Tests and Specs use Core and Engine; they run on any OS.</text>
+<text class="t-s t-d" x="20" y="436">Platform.Tests and UiTests need a Windows runner.</text>
+</svg>
+<figcaption><b>Figure 6.</b> Dependencies point downwards. Core (outlined) holds every colour rule and has no Windows reference, which is what makes the rules testable in plain unit and BDD tests.</figcaption>
+</figure>
+
+<h3><span class="n">7.2</span>Frame pipeline</h3>
+<figure>
+<svg viewBox="0 0 400 600" role="img" aria-labelledby="a2t a2d">
+<title id="a2t">Diagram: frame pipeline</title>
+<desc id="a2d">Left column, every frame on the GPU: capture screen, crop to lens, brightness guard, recolour by lookup table, show in lens. Right column, a few times a second on the CPU: shrink to thumbnail, find clusters, assign roles, build table, which feeds back into the recolour step. A watchdog at the bottom can replace the output with a plain background fill.</desc>
+<text class="t-b" x="20" y="24">Every frame, on the GPU</text>
+<text class="t-b" x="232" y="24">A few times a second, CPU</text>
+
+<rect class="box2" x="20" y="38" width="190" height="46" rx="6"/><text class="t-b" x="32" y="58">Screen</text><text class="t-s t-d" x="32" y="74">drawn by Windows</text>
+<path class="arw" d="M115 84 V104"/>
+<rect class="box" x="20" y="106" width="190" height="46" rx="6"/><text class="t-b" x="32" y="126">Capture screen</text><text class="t-s t-d" x="32" y="142">lens itself is excluded</text>
+<path class="arw" d="M115 152 V172"/>
+<rect class="box" x="20" y="174" width="190" height="46" rx="6"/><text class="t-b" x="32" y="194">Crop to lens</text><text class="t-s t-d" x="32" y="210">plus small averaged copies</text>
+<path class="arw" d="M115 220 V240"/>
+<rect class="box" x="20" y="242" width="190" height="46" rx="6"/><text class="t-b" x="32" y="262">Brightness guard</text><text class="t-s t-d" x="32" y="278">polarity and area checks</text>
+<path class="arw" d="M115 288 V308"/>
+<rect class="sel" x="20" y="310" width="190" height="46" rx="6"/><text class="t-b" x="32" y="330">Recolour by table</text><text class="t-s t-d" x="32" y="346">one lookup per pixel</text>
+<path class="arw" d="M115 356 V376"/>
+<rect class="box" x="20" y="378" width="190" height="46" rx="6"/><text class="t-b" x="32" y="398">Show in lens</text><text class="t-s t-d" x="32" y="414">topmost, click-through</text>
+
+<path class="arw" d="M210 197 H221 V61 H230"/>
+<rect class="box" x="232" y="38" width="150" height="46" rx="6"/><text class="t-b" x="244" y="58">Shrink</text><text class="t-s t-d" x="244" y="74">to about 160 × 90</text>
+<path class="arw" d="M307 84 V104"/>
+<rect class="box" x="232" y="106" width="150" height="46" rx="6"/><text class="t-b" x="244" y="126">Find clusters</text><text class="t-s t-d" x="244" y="142">OKLab, up to 8</text>
+<path class="arw" d="M307 152 V172"/>
+<rect class="box" x="232" y="174" width="150" height="46" rx="6"/><text class="t-b" x="244" y="194">Assign roles</text><text class="t-s t-d" x="244" y="210">with user pins</text>
+<path class="arw" d="M307 220 V308"/>
+<rect class="box" x="232" y="310" width="150" height="46" rx="6"/><text class="t-b" x="244" y="330">Build table</text><text class="t-s t-d" x="244" y="346">33 × 33 × 33</text>
+<path class="arwa" d="M232 333 H212"/>
+
+<path class="arw" d="M307 356 V376"/>
+<rect class="box" x="232" y="378" width="150" height="46" rx="6"/><text class="t-b" x="244" y="398">Control window</text><text class="t-s t-d" x="244" y="414">shows the mapping</text>
+
+<rect x="20" y="478" width="362" height="62" rx="6" fill="none" style="stroke:var(--accent);stroke-width:2;stroke-dasharray:7 4"/>
+<text class="t-b" x="32" y="500">Watchdog</text>
+<text class="t-s" x="32" y="516">Capture fault, display change or a missed deadline:</text>
+<text class="t-s" x="32" y="531">replace the lens picture with the plain Page colour.</text>
+<path class="arwa" d="M115 478 V428"/>
+<text class="t-s t-d" x="20" y="566">Orange arrows are the only two things that change what the lens shows:</text>
+<text class="t-s t-d" x="20" y="582">a new table (cross-faded) and the watchdog's fill.</text>
+</svg>
+<figcaption><b>Figure 7.</b> Two loops. The left one runs at display rate and never waits for the right one. A slow analysis means a slightly out-of-date table, which the guard step covers. The control window receives the same clusters and mapping that the table was built from. When local contrast or sharpen is on, their extra passes run between “Recolour by table” and “Show in lens”.</figcaption>
+</figure>
+
+<h3><span class="n">7.3</span>The lens window on Windows</h3>
+<ul>
+<li><b>Click-through and topmost.</b> A borderless popup with the extended styles <code>WS_EX_LAYERED</code>, <code>WS_EX_TRANSPARENT</code>, <code>WS_EX_TOPMOST</code>, <code>WS_EX_NOACTIVATE</code> and <code>WS_EX_TOOLWINDOW</code>. Hit-testing skips it, so mouse, wheel, touch, pen and drag-and-drop reach the window below. It never takes focus, so the keyboard is unaffected.</li>
+<li><b>Drawing.</b> A Direct3D 11 flip-model swap chain attached through DirectComposition (<code>WS_EX_NOREDIRECTIONBITMAP</code>), cleared to the Page colour before the window is first shown.</li>
+<li><b>No feedback loop.</b> The lens, handle and control windows call <code>SetWindowDisplayAffinity</code> with <code>WDA_EXCLUDEFROMCAPTURE</code>, so the capture sees the desktop as if they were not there. A side effect to document for users: screenshots and screen sharing show the original, unthemed screen.</li>
+<li><b>Capture.</b> Primary: Windows.Graphics.Capture on the monitor under the lens, with the cursor and the capture border turned off. Fallback: DXGI Desktop Duplication. Both sit behind one <code>IFrameSource</code> interface, chosen at run time.</li>
+<li><b>Handle and edit mode.</b> The handle is a second small topmost window without the transparent style. Edit mode removes <code>WS_EX_TRANSPARENT</code> from the lens until the user finishes.</li>
+<li><b>DPI.</b> Per-monitor DPI awareness v2. The lens rectangle is stored in physical pixels per monitor.</li>
+</ul>
+
+<h3><span class="n">7.4</span>Lens states</h3>
+<figure>
+<svg viewBox="0 0 400 350" role="img" aria-labelledby="a3t a3d">
+<title id="a3t">Diagram: lens state machine</title>
+<desc id="a3d">Four states. Off goes to Holding background when the lens is turned on. Holding background goes to Live on the first fresh frame. Live returns to Holding background when frames stop, the loop stalls or the display changes. Live and Edit switch with the edit command. Any state returns to Off when the lens is turned off.</desc>
+<rect class="box" x="140" y="18" width="120" height="44" rx="22"/><text class="t-l" x="200" y="45" text-anchor="middle">Off</text>
+<rect class="sel" x="16" y="146" width="150" height="56" rx="8"/><text class="t-b" x="91" y="170" text-anchor="middle">Holding background</text><text class="t-s t-d" x="91" y="187" text-anchor="middle">plain Page colour</text>
+<rect class="box" x="254" y="146" width="130" height="56" rx="8"/><text class="t-l" x="319" y="170" text-anchor="middle">Live</text><text class="t-s t-d" x="319" y="187" text-anchor="middle">recoloured picture</text>
+<rect class="box" x="254" y="280" width="130" height="50" rx="8"/><text class="t-l" x="319" y="302" text-anchor="middle">Edit</text><text class="t-s t-d" x="319" y="318" text-anchor="middle">takes input</text>
+
+<path class="arw" d="M150 56 C100 76 91 110 91 144"/><text class="t-s" x="20" y="96">turn on</text>
+<path class="arw" d="M168 162 H252"/><text class="t-s" x="210" y="140" text-anchor="middle">first fresh</text><text class="t-s" x="210" y="154" text-anchor="middle">frame</text>
+<path class="arw" d="M252 188 H168"/><text class="t-s" x="210" y="206" text-anchor="middle">frames stop,</text><text class="t-s" x="210" y="220" text-anchor="middle">stall, display</text><text class="t-s" x="210" y="234" text-anchor="middle">change</text>
+<path class="arw" d="M300 204 V278"/><text class="t-s" x="294" y="246" text-anchor="end">edit</text>
+<path class="arw" d="M340 278 V204"/><text class="t-s" x="346" y="246">done</text>
+<path class="arw" d="M319 144 C319 100 290 62 262 48"/><text class="t-s" x="318" y="92">turn off</text>
+<text class="t-s t-d" x="16" y="262">Turn off and “everything off”</text>
+<text class="t-s t-d" x="16" y="277">work from every state.</text>
+<text class="t-s t-d" x="16" y="300">On the way to Off the lens</text>
+<text class="t-s t-d" x="16" y="315">fades out over 150 ms.</text>
+</svg>
+<figcaption><b>Figure 8.</b> The lens always passes through “Holding background” on the way to “Live”, so the first thing ever shown is the user's background.</figcaption>
+</figure>
+
+<h3><span class="n">7.5</span>Technology and licences</h3>
+<p>Everything shipped in the app must carry a licence on the allow-list in <a href="#s12">section 12</a>. Licences below are as I understand them today; M0 pins versions and records each licence, and CI then enforces the list.</p>
+<div class="tw"><table>
+<thead><tr><th>Purpose</th><th>Choice</th><th>Licence</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Runtime</td><td>.NET 10 (LTS), C#</td><td>MIT</td><td>Supported until November 2028. .NET 11 came out this month with the same end date, so there is no support gain in moving yet.</td></tr>
+<tr><td>App UI</td><td>WPF</td><td>MIT</td><td>Mature UI Automation support, which this audience depends on.</td></tr>
+<tr><td>Direct3D and DXGI bindings</td><td>Vortice.Windows</td><td>MIT</td><td>Thin, maintained C# bindings.</td></tr>
+<tr><td>Win32 calls</td><td>Microsoft.Windows.CsWin32</td><td>MIT</td><td>Generated P/Invoke, no hand-written signatures.</td></tr>
+<tr><td>Capture API</td><td>Windows SDK projection (CsWinRT)</td><td>MIT</td><td>Access to Windows.Graphics.Capture from C#.</td></tr>
+<tr><td>MVVM helpers</td><td>CommunityToolkit.Mvvm</td><td>MIT</td><td>Source-generated commands and properties.</td></tr>
+<tr><td>Installer and updates</td><td>Velopack</td><td>MIT</td><td>One-click, per-user, delta updates.</td></tr>
+<tr><td>BDD tests</td><td>Reqnroll with xUnit</td><td>BSD-3-Clause, Apache-2.0</td><td>Gherkin feature files bound to C#.</td></tr>
+<tr><td>Assertions, fakes</td><td>Shouldly, NSubstitute</td><td>BSD-3-Clause</td><td>Chosen over FluentAssertions and Moq, whose recent versions changed licence terms or drew trust concerns.</td></tr>
+<tr><td>Property tests</td><td>FsCheck</td><td>BSD-3-Clause</td><td>Random-input checks on colour maths.</td></tr>
+<tr><td>UI tests</td><td>FlaUI</td><td>MIT</td><td>Drives the app through UI Automation, the same way a screen reader does.</td></tr>
+</tbody></table></div>
+
+<h3 id="s7-6"><span class="n">7.6</span>Performance budgets</h3>
+<p>Budgets depend on what the user has switched on and on the hardware. Three tiers apply.</p>
+<ul>
+<li><b>Standard:</b> hardware GPU, with contrast and sharpen off or in Standard mode.</li>
+<li><b>Heavier options:</b> hardware GPU, with Local contrast or Strong sharpen on.</li>
+<li><b>CPU only:</b> no usable GPU, for example a basic display driver, some virtual machines and some remote sessions. The same shader runs on Windows' software rasteriser.</li>
+</ul>
+<div class="tw"><table>
+<thead><tr><th>Measure</th><th>Standard</th><th>Heavier options</th><th>CPU only</th></tr></thead>
+<tbody>
+<tr><td>Extra delay, screen change to lens update</td><td>1 frame typical, 2 at the 95th percentile</td><td>2 frames typical, 3 at the 95th percentile</td><td>Best effort</td></tr>
+<tr><td>Lens update rate</td><td>Display rate</td><td>May fall to half the display rate</td><td>Target of 15 a second or better</td></tr>
+<tr><td>Render time per frame, full-screen 1440p, integrated graphics</td><td>Under 2 ms</td><td>Under 6 ms</td><td>Not limited</td></tr>
+<tr><td>CPU, static screen</td><td>Under 1% of one core</td><td>Under 1% of one core</td><td>Under 5% of one core</td></tr>
+<tr><td>CPU, while scrolling</td><td>Under 5% of one core</td><td>Under 5% of one core</td><td>Up to one full core</td></tr>
+<tr><td>Analysis plus table build, off the render thread</td><td>Under 15 ms</td><td>Under 15 ms</td><td>May run less often</td></tr>
+<tr><td>Memory</td><td>Under 200 MB</td><td>Under 300 MB</td><td>Under 300 MB</td></tr>
+<tr><td>Turn on to background shown</td><td colspan="3">Under 100 ms in every tier</td></tr>
+<tr><td>Fault to background fill</td><td colspan="3">The lens's next frame in every tier</td></tr>
+</tbody></table></div>
+<p>Outside the Standard tier the budgets are targets, and missing them is not a defect. The rules that keep the lens safe are not budgets and never relax: background first (FR-10 to FR-12), no flashes (FR-13) and click-through (FR-02, FR-03) hold in every tier.</p>
+<ul>
+<li>The app never switches an option off by itself. When the lens runs past the Standard budget the status pill reads “Live, reduced speed”, and the control window names the option that costs most and offers one button to return to Standard modes.</li>
+<li>On a CPU-only machine the heavier modes start off. The user can still turn them on.</li>
+<li>A slow frame is always a complete frame: the lens shows the previous finished picture until the next one is ready, never a half-processed one.</li>
+</ul>
+
+<h3><span class="n">7.7</span>Platform limits to design around</h3>
+<ul>
+<li>Turning off the capture border needs build 20348 or later, which in practice means Windows 11. On older systems the fallback capture path is used.</li>
+<li>Excluding a window from capture needs Windows 10 version 2004 or later. Older versions are not supported.</li>
+<li>Windows shows some surfaces above every normal topmost window: Start, notifications, the lock screen and the UAC prompt. They appear unthemed. A later, separately installed build with the <code>uiAccess</code> manifest flag can go above most of them, but that requires a signed app installed for all users.</li>
+<li>Protected video is captured as black. Exclusive full-screen games bypass the compositor.</li>
+<li>Screen capture can be blocked by Windows privacy settings or by an organisation's policy. The app must detect a refused capture and say so plainly.</li>
+<li>No hardware GPU: rendering falls back to the software rasteriser (CPU-only tier in 7.6). M0 confirms that screen capture works in this configuration.</li>
+<li>HDR displays: version 1 processes in SDR. On an HDR desktop the lens area is tone-mapped to SDR, and the control window says so.</li>
+</ul>
+</section>
+
+<section id="s8">
+<h2><span class="n">8</span>Requirements</h2>
+<h3><span class="n">8.1</span>Functional</h3>
+<div class="tw two"><table>
+<thead><tr><th>ID</th><th>Requirement</th></tr></thead>
+<tbody>
+<tr><td class="id">FR-01</td><td>The lens stays above normal application windows on its monitor.</td></tr>
+<tr><td class="id">FR-02</td><td>Mouse, wheel, touch, pen and drag-and-drop input over the locked lens reaches the window underneath unchanged.</td></tr>
+<tr><td class="id">FR-03</td><td>The lens never takes keyboard focus while locked.</td></tr>
+<tr><td class="id">FR-04</td><td>The lens can be moved and resized with pointer and keyboard in edit mode.</td></tr>
+<tr><td class="id">FR-05</td><td>The lens can fill any one monitor and return to its previous rectangle.</td></tr>
+<tr><td class="id">FR-06</td><td>First run offers Dark, Light and Keep my colours, then themes for that base.</td></tr>
+<tr><td class="id">FR-07</td><td>The engine detects up to 8 colour clusters under the lens and assigns each a role.</td></tr>
+<tr><td class="id">FR-08</td><td>The control window lists every cluster with name, hex value, share, role and output colour, and updates at least twice a second.</td></tr>
+<tr><td class="id">FR-09</td><td>The user can change a cluster's role; the change is pinned until reset.</td></tr>
+<tr><td class="id">FR-10</td><td>On a dark base, no frame shows a connected area larger than 0.5% of the lens brighter than the theme's limit while Keep background is Strict.</td></tr>
+<tr><td class="id">FR-11</td><td>On any capture or render fault the lens shows the Page colour within one frame.</td></tr>
+<tr><td class="id">FR-12</td><td>When turned on, the lens shows the Page colour before its first recoloured frame.</td></tr>
+<tr><td class="id">FR-13</td><td>Theme and mapping changes are cross-faded; lens brightness never overshoots its target.</td></tr>
+<tr><td class="id">FR-14</td><td>Brightness limit, warmth, contrast, sharpen and Keep background are adjustable live.</td></tr>
+<tr><td class="id">FR-15</td><td>The current settings can be saved as a named theme file and loaded again.</td></tr>
+<tr><td class="id">FR-16</td><td>Global shortcuts exist for the actions in 4.7; all can be changed; none uses Ctrl+Alt by default.</td></tr>
+<tr><td class="id">FR-17</td><td>One shortcut removes the lens instantly from any state.</td></tr>
+<tr><td class="id">FR-18</td><td>The app can start with Windows and restore the last lens position, mode and theme.</td></tr>
+<tr><td class="id">FR-19</td><td>The lens survives sleep and resume, display connect and disconnect, resolution and DPI changes, by passing through “Holding background”.</td></tr>
+<tr><td class="id">FR-20</td><td>If capture is blocked by policy or unsupported, the app explains why and does not show a lens.</td></tr>
+<tr><td class="id">FR-21</td><td>A Passthrough theme exists. With contrast and sharpen at zero, what the user sees through the lens is identical to the screen.</td></tr>
+<tr><td class="id">FR-22</td><td>Every theme, including Passthrough, has optional contrast (Standard or Local) and sharpen (Standard or Strong) settings, off by default and stored in the theme file.</td></tr>
+<tr><td class="id">FR-23</td><td>Contrast and sharpen output is clamped to the theme's limits; neither can produce a pixel the theme would not allow.</td></tr>
+<tr><td class="id">FR-24</td><td>Without a hardware GPU the lens runs on the CPU with the same visible result.</td></tr>
+<tr><td class="id">FR-25</td><td>When the lens runs slower than the Standard budget, the status says so and names the option responsible; no option is switched off automatically.</td></tr>
+</tbody></table></div>
+<h3><span class="n">8.2</span>Quality</h3>
+<div class="tw two"><table>
+<thead><tr><th>ID</th><th>Requirement</th></tr></thead>
+<tbody>
+<tr><td class="id">NFR-01</td><td>Standard-tier budgets in 7.6 are met on a reference laptop with integrated graphics. Budgets in the other two tiers are targets and may be exceeded.</td></tr>
+<tr><td class="id">NFR-02</td><td>Screen content never leaves the process: no frames on disk, none over the network, none in logs.</td></tr>
+<tr><td class="id">NFR-03</td><td>No telemetry. The only network call is the update check, which can be turned off.</td></tr>
+<tr><td class="id">NFR-04</td><td>The app's own UI meets the points in 4.8, checked by automated UI Automation tests and one manual screen-reader pass per release.</td></tr>
+<tr><td class="id">NFR-05</td><td>Install and update need no administrator rights.</td></tr>
+<tr><td class="id">NFR-06</td><td>A crash of the app removes the lens; it never leaves a frozen rectangle on screen.</td></tr>
+<tr><td class="id">NFR-07</td><td>Core and Engine build and pass their tests on Windows and Linux.</td></tr>
+<tr><td class="id">NFR-08</td><td>All text in the UI comes from resource files, ready for translation.</td></tr>
+<tr><td class="id">NFR-09</td><td>Every shipped dependency has a licence on the allow-list; CI fails otherwise.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s9">
+<h2><span class="n">9</span>Testing</h2>
+<p>Because every colour rule lives in Core and Core has a CPU reference renderer, most of the behaviour that matters can be tested with still images and no screen, GPU or Windows session.</p>
+<h3><span class="n">9.1</span>Test layers</h3>
+<div class="tw"><table>
+<thead><tr><th>Project</th><th>What it proves</th><th>Runs on</th></tr></thead>
+<tbody>
+<tr><td><code>Core.Tests</code></td><td>Colour maths, clustering, table building. Unit tests plus property tests (round trips, monotonic lightness, determinism).</td><td>Any OS</td></tr>
+<tr><td><code>Specs</code> (Reqnroll)</td><td>User-visible rules, written in Gherkin, for every theme against a library of screen fixtures. Engine state machine with a fake clock and fake frame source.</td><td>Any OS</td></tr>
+<tr><td><code>Platform.Tests</code></td><td>The GPU shader gives the same pixels as the reference renderer within tolerance (software Direct3D). Capture excludes the lens. Window styles are as specified.</td><td>Windows</td></tr>
+<tr><td><code>UiTests</code> (FlaUI)</td><td>First run, control window and shortcuts work by keyboard and expose names and roles. A click on the lens reaches a test window underneath.</td><td>Windows, interactive</td></tr>
+</tbody></table></div>
+
+<h3><span class="n">9.2</span>Fixtures and measurements</h3>
+<p>Fixtures are small PNG files in the repo, drawn for the project (no screenshots of third-party apps): light document, dark editor, light and dark spreadsheets, a web page with coloured buttons, a red and green status dashboard, a chart, a photo on a white page, a gradient, a terminal, mixed light and dark halves. Each feature runs over a theme by fixture matrix.</p>
+<div class="tw two"><table>
+<thead><tr><th>Measurement</th><th>Definition used in steps</th></tr></thead>
+<tbody>
+<tr><td>Bright area</td><td>Largest connected region above the theme's luminance limit, as a share of lens pixels.</td></tr>
+<tr><td>Text contrast</td><td>WCAG contrast ratio between the output of the Text cluster and the output of the Page cluster.</td></tr>
+<tr><td>Distinct under colour blindness</td><td>OKLab distance and lightness gap between two outputs after simulating protanopia and deuteranopia.</td></tr>
+<tr><td>Blue share</td><td>Blue channel's share of total linear-light output, compared with the source.</td></tr>
+<tr><td>Flash</td><td>Change in mean lens luminance between consecutive frames, and its direction relative to the target.</td></tr>
+<tr><td>Smooth edges</td><td>Output lightness is monotonic along a ramp from source Page to source Text.</td></tr>
+<tr><td>Identical</td><td>Every output pixel equals the input pixel.</td></tr>
+<tr><td>Edge strength</td><td>Mean lightness step across text edges in the output, compared with the same frame with sharpen off.</td></tr>
+</tbody></table></div>
+
+<h3><span class="n">9.3</span>Example features</h3>
+<pre><code>Feature: The background stays the one I chose
+
+  Rule: A dark theme never shows a large bright area
+
+    Scenario Outline: Bright content under a dark theme
+      Given the theme "&lt;theme&gt;" with keep background "Strict"
+      And the screen shows "&lt;fixture&gt;"
+      When the lens renders the frame
+      Then the page colour on screen is the theme's page colour
+      And the largest bright area is at most 0.5% of the lens
+
+      Examples:
+        | theme              | fixture               |
+        | Soft dark          | light-document.png    |
+        | Soft dark          | light-spreadsheet.png |
+        | Soft dark          | photo-on-white.png    |
+        | High contrast dark | light-document.png    |
+        | Night warm         | web-buttons.png       |
+        | Red–green assist dark | status-dashboard.png |
+
+    Scenario: Switching from a light app to a dark app
+      Given the theme "Soft dark"
+      And the lens has shown "light-document.png" for 2 seconds
+      When the screen changes to "dark-editor.png"
+      Then the very next frame has no large bright area
+      And text in that frame is lighter than its background
+
+  Rule: When the picture cannot be trusted, show the background
+
+    Scenario: Capture stops working
+      Given the lens is live with the theme "Soft dark"
+      When the frame source reports a fault
+      Then the next presented frame is entirely the theme's page colour
+      And the status is "Holding background"
+
+    Scenario: Turning the lens on
+      Given the theme "Clear white"
+      When I turn the lens on
+      Then the first presented frame is entirely the theme's page colour
+      And the status becomes "Live" after the first fresh frame</code></pre>
+
+<pre><code>Feature: Text is readable in every theme
+
+  Scenario Outline: Minimum text contrast
+    Given the theme "&lt;theme&gt;"
+    And the screen shows "&lt;fixture&gt;"
+    When the lens renders the frame
+    Then text contrast is at least &lt;ratio&gt; to 1
+    And text edges stay smooth
+
+    Examples:
+      | theme               | fixture            | ratio |
+      | Soft dark           | light-document.png | 7     |
+      | Soft dark           | dark-editor.png    | 7     |
+      | High contrast dark  | light-document.png | 15    |
+      | High contrast light | dark-editor.png    | 15    |
+      | Soft paper          | terminal.png       | 7     |
+      | Evening paper       | light-document.png | 7     |</code></pre>
+
+<pre><code>Feature: Reds and greens can be told apart
+
+  Scenario Outline: Status colours under simulated colour blindness
+    Given the theme "&lt;theme&gt;"
+    And the screen shows "status-dashboard.png"
+    When the lens renders the frame
+    And the result is viewed with simulated "&lt;vision&gt;"
+    Then the "passed" and "failed" markers differ by at least 0.12 in OKLab
+    And their lightness differs by at least 0.08
+
+    Examples:
+      | theme                 | vision       |
+      | Red–green assist dark | protanopia   |
+      | Red–green assist dark | deuteranopia |
+      | Red–green assist      | protanopia   |
+      | Red–green assist      | deuteranopia |</code></pre>
+
+<pre><code>Feature: Less blue in the evening
+
+  Scenario Outline: Blue output is reduced and text stays readable
+    Given the theme "&lt;theme&gt;" with warmth &lt;warmth&gt;%
+    And the screen shows "light-document.png"
+    When the lens renders the frame
+    Then the blue share is at most &lt;share&gt;% of the source's
+    And text contrast is at least 7 to 1
+
+    Examples:
+      | theme         | warmth | share |
+      | Night warm    | 100    | 35    |
+      | Evening paper | 60     | 60    |
+      | Less blue     | 40     | 75    |</code></pre>
+
+<pre><code>Feature: Passthrough, contrast and sharpen
+
+  Scenario Outline: Passthrough changes nothing
+    Given the theme "Passthrough" with contrast 0% and sharpen 0%
+    And the screen shows "&lt;fixture&gt;"
+    When the lens renders the frame
+    Then the lens picture is identical to the screen
+
+    Examples:
+      | fixture            |
+      | light-document.png |
+      | dark-editor.png    |
+      | photo-on-white.png |
+      | gradient.png       |
+
+  Scenario Outline: Sharpening stays inside the theme's limits
+    Given the theme "&lt;theme&gt;" with sharpen &lt;amount&gt;% in "&lt;mode&gt;" mode
+    And the screen shows "light-document.png"
+    When the lens renders the frame
+    Then edges are stronger than with sharpen off
+    And no pixel is brighter than the theme's brightness limit
+    And the largest bright area is at most 0.5% of the lens
+
+    Examples:
+      | theme      | amount | mode     |
+      | Soft dark  | 50     | Standard |
+      | Soft dark  | 100    | Strong   |
+      | Night warm | 100    | Strong   |
+
+  Scenario Outline: Contrast never makes text harder to read
+    Given the theme "&lt;theme&gt;" with contrast &lt;amount&gt;% in "&lt;mode&gt;" mode
+    And the screen shows "light-document.png"
+    When the lens renders the frame
+    Then text contrast is at least as high as with contrast off
+    And text edges stay smooth
+
+    Examples:
+      | theme       | amount | mode     |
+      | Passthrough | 50     | Standard |
+      | Passthrough | 50     | Local    |
+      | Soft paper  | 30     | Standard |
+      | Soft dark   | 100    | Local    |
+
+  Scenario: A slow renderer is allowed, an unsafe frame is not
+    Given the theme "Soft dark" with sharpen 100% in "Strong" mode
+    And a renderer that needs 60 ms for each frame
+    When the screen changes from "dark-editor.png" to "light-document.png"
+    Then the status is "Live, reduced speed"
+    And sharpen is still on
+    And no presented frame has a large bright area</code></pre>
+
+<pre><code>Feature: The picture stays steady
+
+  Scenario: A small moving element does not reshuffle the colours
+    Given the theme "Soft dark"
+    And a 5 second recording "blinking-cursor-and-spinner"
+    When the lens processes the recording
+    Then no role changes its cluster
+    And mean lens luminance changes by less than 2% between any two frames
+
+  Scenario: Changing theme does not flash
+    Given the lens is live with the theme "Soft dark" on "light-document.png"
+    When I switch to the theme "Night warm"
+    Then mean lens luminance moves only towards its new value
+    And the change completes within 250 ms
+
+@windows @ui
+Feature: Input passes through the lens
+
+  Scenario: Clicking a button under the lens
+    Given a test window with a button "Count" is on screen
+    And the lens covers the test window
+    When I click the centre of the button
+    Then the test window reports 1 click
+    And the test window has keyboard focus</code></pre>
+
+<h3><span class="n">9.4</span>Making it hard to break</h3>
+<ul>
+<li>CI runs build, Core tests and Specs on Windows and Linux for every pull request; Platform tests on Windows.</li>
+<li>Line coverage of Core at least 90%. Mutation testing on Core weekly, with a floor that only goes up.</li>
+<li>Golden images for each theme and fixture pair, compared with a perceptual tolerance, so an unintended colour change shows up as a diff a reviewer can look at.</li>
+<li>A benchmark job tracks table build time and reference-render time and fails on a 20% regression. GPU frame-time checks apply to the Standard tier only; the heavier modes and the CPU-only path are measured and reported without failing the build.</li>
+<li>Platform tests run the whole lens once on the software rasteriser to prove the CPU-only path gives the same picture.</li>
+<li>A new theme cannot be merged unless it passes the full feature matrix.</li>
+<li>Target for the first release: at least 150 scenario examples in Specs.</li>
+</ul>
+</section>
+
+<section id="s10">
+<h2><span class="n">10</span>Developer setup</h2>
+<h3><span class="n">10.1</span>Repository layout</h3>
+<pre><code>themelens/
+├─ src/
+│  ├─ ThemeLens.Core/               colour rules, no OS dependencies
+│  ├─ ThemeLens.Engine/             state machine, frame loop, interfaces
+│  ├─ ThemeLens.Platform.Windows/   capture, Direct3D, windows, hotkeys
+│  │  └─ Shaders/                   lens.hlsl
+│  └─ ThemeLens.App/                WPF app, the startup project
+├─ tests/
+│  ├─ ThemeLens.Core.Tests/
+│  ├─ ThemeLens.Specs/              Features/*.feature, Steps/, Fixtures/
+│  ├─ ThemeLens.Platform.Tests/
+│  └─ ThemeLens.UiTests/
+├─ themes/                          built-in *.theme.json, theme schema
+├─ docs/                            this spec, architecture notes, decisions
+├─ build/                           pack.ps1, signing notes
+├─ .vscode/                         launch.json, tasks.json, extensions.json
+├─ .github/workflows/               ci.yml, release.yml
+├─ global.json                      pins the .NET SDK
+├─ Directory.Build.props            warnings as errors, nullable, analyzers
+├─ Directory.Packages.props         central package versions
+├─ ThemeLens.slnx
+├─ LICENSE  NOTICE  THIRD-PARTY-NOTICES.md
+└─ README.md  CONTRIBUTING.md  CLA.md  TRADEMARKS.md  SECURITY.md</code></pre>
+
+<h3><span class="n">10.2</span>Clone and press F5</h3>
+<p>Needs: Windows 11, the .NET 10 SDK, VS Code with the C# extension. The repo recommends the extension through <code>extensions.json</code> and must not depend on C# Dev Kit, which has its own licence terms.</p>
+<pre><code>// .vscode/launch.json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ThemeLens",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
+      "args": ["--dev"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "ThemeLens (test pattern, no capture)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
+      "args": ["--dev", "--source", "pattern"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    }
+  ]
+}</code></pre>
+<pre><code>// .vscode/tasks.json
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "build", "type": "process", "command": "dotnet",
+      "args": ["build", "ThemeLens.slnx", "-c", "Debug", "--nologo"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile" },
+    { "label": "test", "type": "process", "command": "dotnet",
+      "args": ["test", "ThemeLens.slnx", "--filter", "Category!=Ui"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": "$msCompile" },
+    { "label": "specs", "type": "process", "command": "dotnet",
+      "args": ["test", "tests/ThemeLens.Specs"],
+      "problemMatcher": "$msCompile" },
+    { "label": "pack", "type": "process", "command": "pwsh",
+      "args": ["build/pack.ps1"], "problemMatcher": [] }
+  ]
+}</code></pre>
+<p><code>--dev</code> matters for debugging an overlay. In dev mode the lens is not topmost and is limited to a quarter of the screen, so stopping at a breakpoint cannot leave a frozen rectangle over the editor.</p>
+</section>
+
+<section id="s11">
+<h2><span class="n">11</span>Install and release</h2>
+<ul>
+<li><b>Main installer:</b> a single <code>ThemeLens-Setup.exe</code> built with Velopack. One click, per user, no administrator prompt, no wizard pages. The app is published self-contained, so there is no separate .NET install.</li>
+<li><b>Dark from the first pixel:</b> the installer splash is a dark image with off-white text. The app's first window opens on black.</li>
+<li><b>Updates:</b> checked at startup, downloaded in the background as small delta packages, applied on next start. Can be switched off.</li>
+<li><b>Other channels:</b> a portable zip, and a winget manifest so <code>winget install</code> works.</li>
+<li><b>Later:</b> an MSI for organisations that deploy per machine, which is also the route to the <code>uiAccess</code> build; and a Microsoft Store listing.</li>
+<li><b>Signing:</b> unsigned installers trigger Windows SmartScreen warnings, which is a real barrier for this audience. Two routes: a free certificate through the SignPath Foundation programme for open-source projects (the publisher shown is SignPath Foundation, and the programme has its own conditions, so check them against the contributor agreement and any plan to sell commercial licences in section 12), or your own certificate, which costs money and shows your name.</li>
+<li><b>Release pipeline:</b> a tag on <code>main</code> triggers build, all tests, publish, pack, sign, and a GitHub Release with checksums.</li>
+<li><b>Uninstall</b> removes the app and the start-with-Windows entry and asks whether to keep user themes.</li>
+</ul>
+</section>
+
+<section id="s12">
+<h2><span class="n">12</span>Licence and income</h2>
+<p>ThemeLens is free software under the GNU General Public License, version 3 or any later version (<code>GPL-3.0-or-later</code>). Anyone may use, study, change and redistribute it, including for money, as long as they pass on the same freedoms and the source code. Closed-source forks are not permitted.</p>
+<ul>
+<li><code>LICENSE</code> holds the GPL text. Every source file starts with <code>// SPDX-License-Identifier: GPL-3.0-or-later</code>.</li>
+<li>Contributors sign a short contributor agreement: they keep their copyright and allow the project owner to relicense their contribution. This is what keeps commercial licensing possible later; without it, every contributor would have to agree to each deal.</li>
+<li>Built-in theme files are released under CC0 so they can be shared and adapted freely.</li>
+<li>The name and logo are not covered by the GPL. A one-page trademark policy says forks are welcome, but not under the ThemeLens name.</li>
+</ul>
+<p>This section is not legal advice. Have the contributor agreement checked by a lawyer before accepting outside contributions or selling licences.</p>
+<h3><span class="n">12.1</span>Income routes</h3>
+<p>The GPL allows all of these.</p>
+<ul>
+<li>A paid Microsoft Store build of the same code, for people who prefer Store installs. Other GPL desktop apps already do this.</li>
+<li>Sponsorship through GitHub Sponsors or Open Collective.</li>
+<li>Paid deployment and support for schools and employers who provide it as a workplace adjustment.</li>
+<li>Commercial licences for organisations that cannot accept the GPL. This route depends on the contributor agreement.</li>
+</ul>
+<h3><span class="n">12.2</span>Dependency allow-list</h3>
+<p>Shipped dependencies: MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC, Zlib. These are generally accepted as compatible with GPL-3.0. Anything else needs a recorded decision, including GPL and LGPL libraries, because someone else's copyleft code would limit the commercial-licence route. CI generates <code>THIRD-PARTY-NOTICES.md</code> and fails on an unlisted licence.</p>
+<p>Build tools are checked separately. For example, Inno Setup now asks commercial users to buy a licence, which is one reason the installer uses Velopack.</p>
+</section>
+
+<section id="s13">
+<h2><span class="n">13</span>Milestones</h2>
+<div class="tw"><table>
+<thead><tr><th>Milestone</th><th>Delivers</th><th>Done when</th></tr></thead>
+<tbody>
+<tr><td class="id">M0 Proof</td><td>Throwaway prototype: topmost click-through window showing an inverted live capture of what is under it. Repo skeleton with F5 and CI. A run on the software rasteriser.</td><td>Measured delay of 2 frames or less on integrated graphics; clicks reach the app below; no capture border; no feedback loop.</td></tr>
+<tr><td class="id">M1 Colour core</td><td>Core library, reference renderer, theme files, first 60 scenario examples.</td><td>All built-in themes pass the background, contrast and colour-vision features on all fixtures.</td></tr>
+<tr><td class="id">M2 Lens</td><td>Real lens window with GPU shader, guard, watchdog, contrast and sharpen passes, edit mode, fill screen.</td><td>Shader matches reference renderer; fault scenarios pass on Windows.</td></tr>
+<tr><td class="id">M3 App</td><td>First run, control window with live mapping, tray, shortcuts, settings.</td><td>Whole app usable by keyboard and screen reader.</td></tr>
+<tr><td class="id">M4 Hardening</td><td>Multi-monitor, DPI, sleep and resume, HDR handling, performance work, crash safety.</td><td>Standard-tier budgets in 7.6 met; heavier modes and CPU-only path measured; a week of daily use without a bright frame.</td></tr>
+<tr><td class="id">M5 Release 0.1</td><td>Signed installer, updates, winget, user guide, website page.</td><td>Clean install and update on a fresh Windows 11 machine without warnings.</td></tr>
+</tbody></table></div>
+<p>After 0.1: per-app profiles, schedules for warmth, image protection, several lenses, the per-machine build with <code>uiAccess</code>, Store listing, and a feasibility study for macOS and Linux.</p>
+</section>
+
+<section id="s14">
+<h2><span class="n">14</span>Risks and open questions</h2>
+<div class="tw"><table>
+<thead><tr><th>Risk</th><th>Effect</th><th>Response</th></tr></thead>
+<tbody>
+<tr><td>The lens content trails fast scrolling by a frame or two</td><td>Feels slightly soft during motion; could bother some users</td><td>M0 measures it. Keep the GPU path to one pass. Offer a full-screen linear filter mode through the Magnification API, which has no delay but can only do simple matrix effects such as inversion or less blue.</td></tr>
+<tr><td>The window style combination behaves differently across GPU drivers</td><td>Clicks blocked or lens not drawn</td><td>M0 tests on Intel, AMD and Nvidia. Fallback to a classic layered window without the composition swap chain.</td></tr>
+<tr><td>System surfaces above the lens (Start, UAC, lock screen)</td><td>Unthemed bright moments outside the app's control</td><td>Say so in the first-run text. Recommend Windows dark mode alongside. Per-machine <code>uiAccess</code> build later.</td></tr>
+<tr><td>Photos and video are recoloured</td><td>Images look wrong under dark themes</td><td>Balanced guard mode in 0.1. Image detection after 0.1.</td></tr>
+<tr><td>Security or anti-cheat software distrusts a capturing overlay</td><td>Blocked or flagged</td><td>Signed builds, open source, no input hooks, no injection into other processes. Document known conflicts.</td></tr>
+<tr><td>Wrong role assignment on unusual layouts</td><td>Odd colours until corrected</td><td>Pinning in the control window. Collect failing layouts as new fixtures.</td></tr>
+</tbody></table></div>
+<h3><span class="n">14.1</span>Questions for you</h3>
+<ol>
+<li>Is Windows 11 only acceptable for 0.1, or must Windows 10 work?</li>
+<li>Final name, and who holds the trademark?</li>
+<li>Should the app show the lens automatically at sign-in, or wait for the shortcut?</li>
+<li>Which languages should the UI ship in first?</li>
+</ol>
+</section>
+
+<section id="s15">
+<h2><span class="n">15</span>References</h2>
+<ul>
+<li>Microsoft Learn, <a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity">SetWindowDisplayAffinity</a> (excluding a window from capture).</li>
+<li>Microsoft Learn, <a href="https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired">GraphicsCaptureSession.IsBorderRequired</a> (capture without a border).</li>
+<li>Microsoft Learn, <a href="https://learn.microsoft.com/en-us/windows/apps/develop/media-authoring-processing/screen-capture">Screen capture</a> (Windows.Graphics.Capture overview).</li>
+<li>Microsoft, <a href="https://dotnet.microsoft.com/platform/support/policy/dotnet-core">.NET support policy</a> (.NET 10 and .NET 11 support dates).</li>
+<li>Reqnroll, <a href="https://docs.reqnroll.net/latest/help/faq.html">Frequently asked questions</a> (origin and licence).</li>
+<li>Velopack, <a href="https://docs.velopack.io/packaging/installer">Windows installer overview</a> (one-click setup, install location, MSI option).</li>
+<li>SignPath Foundation, <a href="https://signpath.org/terms">conditions for open-source projects</a>.</li>
+<li>Inno Setup, <a href="https://jrsoftware.org/isorder.php">commercial licences</a>.</li>
+<li>W3C, Web Content Accessibility Guidelines 2.2: contrast (1.4.3, 1.4.6) and flashing (2.3.1).</li>
+<li>Machado, Oliveira and Fernandes, “A physiologically-based model for simulation of color vision deficiency”, 2009.</li>
+<li>Björn Ottosson, “A perceptual color space for image processing” (OKLab), 2020.</li>
+</ul>
+</section>
+
+<footer>
+<p>ThemeLens specification, draft 0.2. Intended location in the repository: <code>docs/spec.html</code>.</p>
+</footer>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  var baseBtns=document.querySelectorAll('[data-base]');
+  function current(){
+    return root.getAttribute('data-base') ||
+      (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  }
+  function paint(){
+    var c=current();
+    baseBtns.forEach(function(b){ if(b.tagName==='BUTTON'){ b.setAttribute('aria-pressed', String(b.dataset.base===c)); }});
+  }
+  baseBtns.forEach(function(b){
+    if(b.tagName!=='BUTTON') return;
+    b.addEventListener('click',function(){ root.setAttribute('data-base', b.dataset.base); paint(); });
+  });
+  paint();
+
+  var demo=document.getElementById('demo'), range=document.getElementById('lensx');
+  range.addEventListener('input',function(){ demo.style.setProperty('--x', range.value+'%'); });
+  var themed=document.getElementById('themed');
+  var tbtns=document.querySelectorAll('#themeseg button');
+  tbtns.forEach(function(b){
+    b.addEventListener('click',function(){
+      themed.className='scene themed '+b.dataset.t;
+      tbtns.forEach(function(o){ o.setAttribute('aria-pressed', String(o===b)); });
+    });
+  });
+
+  var toc=document.getElementById('tocd');
+  function tocState(){ toc.open = window.matchMedia('(min-width:1080px)').matches; }
+  tocState(); window.addEventListener('resize', tocState);
+})();
+</script>
+</body>
+</html>

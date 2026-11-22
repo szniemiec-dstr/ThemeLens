@@ -1,0 +1,23 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "soft-dark",
+  "name": "Soft dark",
+  "description": "Low glare, for light sensitivity",
+  "base": "dark",
+  "roles": {
+    "page": "#000000", "panel": "#0E0E0D",
+    "text": "#C9C4B8", "quietText": "#8F8A80",
+    "link": "#8FB4D9", "good": "#7FB08A",
+    "warning": "#C9B36A", "bad": "#D98A7E"
+  },
+  "limits": {
+    "maxLuminance": 0.554,
+    "minTextContrast": 7.0,
+    "maxChroma": 0.10
+  },
+  "warmth": 0.2,
+  "colourVision": "none",
+  "keepBackground": "strict",
+  "contrast": { "amount": 0.0, "mode": "standard" },
+  "sharpen": { "amount": 0.0, "mode": "standard" }
+}
