@@ -64,6 +64,9 @@ DrawTextW
 CreateFontW
 GetDC
 ReleaseDC
+CreateRectRgn
+CombineRgn
+SetWindowRgn
 
 // Monitors and DPI
 EnumDisplayMonitors

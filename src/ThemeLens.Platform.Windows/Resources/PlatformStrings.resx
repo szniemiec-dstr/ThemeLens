@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CaptureBlocked" xml:space="preserve">
+    <value>Windows is not letting ThemeLens capture the screen, so the lens has nothing to show and stays off. Screen capture may be switched off in Settings, under Privacy and security, or by a policy of your organisation.</value>
+    <comment>Shown in the control window when capture is refused (FR-20).</comment>
+  </data>
+  <data name="CaptureUnsupported" xml:space="preserve">
+    <value>This computer cannot capture the screen in a way the lens can use, so the lens stays off. ThemeLens needs Windows 10 version 2004 or later and a display that Windows can capture.</value>
+    <comment>Shown in the control window when no capture method works (FR-20).</comment>
+  </data>
+  <data name="CaptureFailed" xml:space="preserve">
+    <value>The screen could not be captured, so the lens stays off. Windows reported: {0}</value>
+    <comment>Shown in the control window when capture keeps failing. {0} is the error text from Windows.</comment>
+  </data>
+  <data name="CaptureRotated" xml:space="preserve">
+    <value>This screen is rotated, and on this version of Windows the lens can only capture screens that are not. The lens stays off.</value>
+    <comment>Shown when only the fallback capture is available and the monitor is rotated.</comment>
+  </data>
+</root>

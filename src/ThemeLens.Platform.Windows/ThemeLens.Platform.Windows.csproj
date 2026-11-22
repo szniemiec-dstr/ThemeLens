@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>$(ThemeLensWindowsTfm)</TargetFramework>
+    <!-- The oldest Windows the lens can run on: version 2004, the first that can keep a window out of capture (section 7.7). -->
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <RootNamespace>ThemeLens.Platform.Windows</RootNamespace>
+    <!-- Win32 and Direct3D interop: window procedures, COM pointers and mapped GPU memory. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
@@ -13,7 +16,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ThemeLens.Engine\ThemeLens.Engine.csproj" />
+    <!-- Compiled at run time with the compiler that ships with Windows, so nothing is needed at build time. -->
     <EmbeddedResource Include="Shaders\lens.hlsl" LogicalName="ThemeLens.Shaders.lens.hlsl" />
+    <EmbeddedResource Update="Resources\PlatformStrings.resx" LogicalName="ThemeLens.Platform.Windows.PlatformStrings.resources" />
     <InternalsVisibleTo Include="ThemeLens.Platform.Tests" />
   </ItemGroup>
 </Project>

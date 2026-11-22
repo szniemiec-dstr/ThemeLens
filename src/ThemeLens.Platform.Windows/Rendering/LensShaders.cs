@@ -18,7 +18,6 @@ internal enum LensPass
     BlurRows,
     Finish,
     Copy,
-    Outline,
 }
 
 /// <summary>

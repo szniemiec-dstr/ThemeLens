@@ -13,7 +13,7 @@ namespace ThemeLens.Platform.Windows;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 internal struct FrameConstants
 {
-    public const int SizeInBytes = 9 * 16;
+    public const int SizeInBytes = 8 * 16;
 
     // Row 0
     public Vector3 PageEncoded;
@@ -54,14 +54,10 @@ internal struct FrameConstants
     public int WideHeight;
 
     // Row 7
-    public Vector3 OutlineColour;
-    public float OutlineWidth;
-
-    // Row 8
-    public float OutlineDash;
     public float OneTable;
     public float Unused0;
     public float Unused1;
+    public float Unused2;
 }
 
 /// <summary>The <c>Rules</c> constant buffer of <c>lens.hlsl</c>: every number the shader takes from <see cref="LensConstants"/>.</summary>

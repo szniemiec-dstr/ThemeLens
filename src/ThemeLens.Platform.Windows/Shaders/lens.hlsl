@@ -53,11 +53,8 @@ cbuffer Frame : register(b0)
     int2 FineSize;                  // quarter-size level: ceil(LensSize / 4)
     int2 CoarseSize;                // sixteenth-size level: ceil(FineSize / 4)
     int2 WideSize;                  // sixty-fourth-size level: ceil(CoarseSize / 4)
-    float3 OutlineColour;           // edit-mode outline, drawn by the window, not part of the reference
-    float OutlineWidth;
-    float OutlineDash;
     float OneTable;                 // 1 when the light and dark tables are the same table
-    float2 FrameUnused;
+    float3 FrameUnused;
 };
 
 // LensConstants. Filled once.
@@ -561,19 +558,4 @@ float4 PsFinish(float4 position : SV_Position) : SV_Target
 float4 PsCopy(float4 position : SV_Position) : SV_Target
 {
     return float4(LoadSource(int2(position.xy)), 1.0);
-}
-
-// The outline of the lens, drawn over the finished picture. It goes through the same clamp as the picture,
-// so it cannot be brighter than the theme allows either.
-float4 PsOutline(float4 position : SV_Position) : SV_Target
-{
-    float2 inset = min(position.xy, float2(LensSize) - position.xy);
-    clip(OutlineWidth - min(inset.x, inset.y));
-    float3 colour = OutlineColour;
-    if (OutlineDash > 0.0 && frac((position.x + position.y) / OutlineDash) > 0.6)
-    {
-        colour = PageEncoded;
-    }
-
-    return float4(FinishClamp(colour), 1.0);
 }

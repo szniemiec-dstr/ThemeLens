@@ -14,14 +14,6 @@ using Vortice.Mathematics;
 
 namespace ThemeLens.Platform.Windows;
 
-/// <summary>An outline drawn just inside the edge of the lens, over the finished picture. Width and dash are in pixels.</summary>
-public readonly record struct LensOutline(Rgb8 Colour, float Width, float Dash)
-{
-    public static readonly LensOutline None;
-
-    public bool IsVisible => Width > 0f;
-}
-
 /// <summary>
 /// The lens on the GPU: Direct3D 11 and the passes of <c>lens.hlsl</c>. It shows what
 /// <see cref="ReferenceRenderer"/> defines, pass for pass; the platform tests compare the two.
@@ -139,8 +131,7 @@ public sealed class D3D11LensRenderer : IDisposable
     /// <param name="region">Where the lens is inside the frame, in the frame's pixels.</param>
     /// <param name="tables">The look.</param>
     /// <param name="target">A view of a target at least as large as the region.</param>
-    /// <param name="outline">An optional outline along the edge of the lens.</param>
-    public void Render(ID3D11Texture2D source, PixelRect region, LensTables tables, ID3D11RenderTargetView target, LensOutline outline = default)
+    public void Render(ID3D11Texture2D source, PixelRect region, LensTables tables, ID3D11RenderTargetView target)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(tables);
@@ -155,7 +146,7 @@ public sealed class D3D11LensRenderer : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             try
             {
-                RenderLocked(source, region, tables, target, outline);
+                RenderLocked(source, region, tables, target);
             }
             catch (SharpGenException e)
             {
@@ -589,7 +580,7 @@ public sealed class D3D11LensRenderer : IDisposable
         _height = 0;
     }
 
-    private void RenderLocked(ID3D11Texture2D source, PixelRect region, LensTables tables, ID3D11RenderTargetView target, LensOutline outline)
+    private void RenderLocked(ID3D11Texture2D source, PixelRect region, LensTables tables, ID3D11RenderTargetView target)
     {
         int width = region.Width;
         int height = region.Height;
@@ -650,9 +641,6 @@ public sealed class D3D11LensRenderer : IDisposable
             CoarseHeight = coarseHeight,
             WideWidth = wideWidth,
             WideHeight = wideHeight,
-            OutlineColour = Srgb.ToEncoded(outline.Colour),
-            OutlineWidth = outline.Width,
-            OutlineDash = outline.Dash,
             OneTable = oneTable ? 1f : 0f,
         };
         _context.UpdateSubresource(in constants, _frameBuffer);
@@ -778,12 +766,6 @@ public sealed class D3D11LensRenderer : IDisposable
 
                 Draw(LensPass.Finish, target, width, height);
             }
-        }
-
-        if (outline.IsVisible)
-        {
-            Array.Clear(_resources);
-            Draw(LensPass.Outline, target, width, height);
         }
     }
 

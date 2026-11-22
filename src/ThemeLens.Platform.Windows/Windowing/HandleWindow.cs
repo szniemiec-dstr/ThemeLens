@@ -120,8 +120,11 @@ internal sealed unsafe class HandleWindow : NativeWindow
 
     public void SetVisible(bool visible)
     {
-        _wanted = visible;
-        Layout();
+        if (_wanted != visible)
+        {
+            _wanted = visible;
+            Layout();
+        }
     }
 
     /// <summary>Puts the handle back above the lens after the lens has been raised.</summary>
