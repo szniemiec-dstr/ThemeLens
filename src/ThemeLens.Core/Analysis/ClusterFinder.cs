@@ -91,12 +91,11 @@ public static class ClusterFinder
         centres = Refine(bins, centres);
         centres = Merge(bins, centres);
 
-        // Label every unique colour, drop the weakest clusters until at most eight remain, and label again.
-        List<Accumulator> clusters;
+        // Drop the weakest clusters until at most eight remain. The histogram is enough to decide that, and is
+        // far smaller than the list of unique colours when the screen shows a photo.
         while (true)
         {
-            clusters = Label(uniques, centres);
-            int weakest = Weakest(clusters, n);
+            int weakest = Weakest(centres, bins, n);
             if (weakest < 0)
             {
                 break;
@@ -104,6 +103,9 @@ public static class ClusterFinder
 
             centres.RemoveAt(weakest);
         }
+
+        List<Accumulator> clusters = Label(uniques, centres);
+        clusters.RemoveAll(static c => c.Count == 0);
 
         // The commonest flat colour of the light regions and of the dark regions: the backgrounds text sits on.
         Unique? lightBackground = null;
@@ -430,27 +432,35 @@ public static class ClusterFinder
     }
 
     /// <summary>Returns the index of a cluster that should be dropped, or −1 when the set is acceptable.</summary>
-    private static int Weakest(List<Accumulator> clusters, int total)
+    private static int Weakest(List<Oklab> centres, List<Bin> bins, int total)
     {
-        if (clusters.Count <= 1)
+        if (centres.Count <= 1)
         {
             return -1;
+        }
+
+        long[] count = new long[centres.Count];
+        double[] chromaSum = new double[centres.Count];
+        foreach (Bin bin in bins)
+        {
+            int nearest = Nearest(centres, bin.Mean);
+            count[nearest] += bin.Count;
+            chromaSum[nearest] += bin.Mean.Chroma * bin.Count;
         }
 
         int weakestSmall = -1;
         float weakestSmallScore = float.MaxValue;
         int weakest = -1;
         float weakestScore = float.MaxValue;
-        for (int i = 0; i < clusters.Count; i++)
+        for (int i = 0; i < centres.Count; i++)
         {
-            Accumulator c = clusters[i];
-            if (c.Count == 0)
+            if (count[i] == 0)
             {
                 return i;
             }
 
-            float share = (float)c.Count / total;
-            float chroma = c.MeanLab().Chroma;
+            float share = (float)count[i] / total;
+            float chroma = (float)(chromaSum[i] / count[i]);
             bool strong = chroma >= StrongChroma;
 
             // Strongly coloured clusters are worth more than their area: links and status dots are small but matter.
@@ -473,7 +483,7 @@ public static class ClusterFinder
             return weakestSmall;
         }
 
-        return clusters.Count > MaxClusters ? weakest : -1;
+        return centres.Count > MaxClusters ? weakest : -1;
     }
 
     private static int Nearest(List<Oklab> centres, Oklab lab)

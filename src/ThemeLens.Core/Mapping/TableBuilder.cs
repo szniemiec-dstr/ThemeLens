@@ -116,12 +116,15 @@ public static class TableBuilder
         // the current warmth and that one is applied on top of them.
         Vector3 authored = Vector3.Max(WarmGains(theme.AuthoredWarmth), new Vector3(0.05f));
         var context = new RoleContext(theme, WarmGains(theme.Warmth) / authored);
-        Lut3D light = BuildRoleTable(context, roles, RegionPolarity.Light);
-        Lut3D dark = BuildRoleTable(context, roles, RegionPolarity.Dark);
+        Lut3D? light = null;
+        Lut3D? dark = null;
+        Parallel.Invoke(
+            () => light = BuildRoleTable(context, roles, RegionPolarity.Light),
+            () => dark = BuildRoleTable(context, roles, RegionPolarity.Dark));
 
         return new LensTables(
-            light,
-            dark,
+            light!,
+            dark!,
             common with
             {
                 Direction = theme.Base == ThemeBase.Dark ? 1f : -1f,
@@ -133,6 +136,20 @@ public static class TableBuilder
             },
             theme,
             roles);
+    }
+
+    /// <summary>Runs <paramref name="body"/> for every table entry, one slice of the table per task.</summary>
+    private static void ForEachEntry(Action<int> body)
+    {
+        const int slice = Lut3D.Size * Lut3D.Size;
+        Parallel.For(0, Lut3D.Size, b =>
+        {
+            int end = (b + 1) * slice;
+            for (int n = b * slice; n < end; n++)
+            {
+                body(n);
+            }
+        });
     }
 
     private static Vector3 WarmGains(float warmth) =>
@@ -182,7 +199,7 @@ public static class TableBuilder
         float pivot = Math.Clamp(scene.MedianLightness, 0.05f, 0.95f);
         float gamma = 1f + theme.Contrast.Amount;
 
-        Parallel.For(0, Lut3D.EntryCount, n =>
+        ForEachEntry(n =>
         {
             Vector3 linear = Nodes.Linear[n];
             float y = Nodes.Luminance[n];
@@ -219,7 +236,7 @@ public static class TableBuilder
             linear *= maxLum;
             linear *= warmGains;
 
-            Vector3 encoded = Srgb.Encode(Vector3.Clamp(linear, Vector3.Zero, Vector3.One));
+            Vector3 encoded = Srgb.EncodeFast(linear);
             int i = n * 3;
             lut.Data[i] = encoded.X;
             lut.Data[i + 1] = encoded.Y;
@@ -237,7 +254,7 @@ public static class TableBuilder
     {
         var mapper = new RegionMapper(context, roles, region);
         var lut = new Lut3D();
-        Parallel.For(0, Lut3D.EntryCount, n =>
+        ForEachEntry(n =>
         {
             Vector3 encoded = mapper.Map(Nodes.Lab[n], Nodes.Luminance[n]);
             int i = n * 3;
@@ -383,7 +400,7 @@ public static class TableBuilder
                 linear = warm;
             }
 
-            return Srgb.Encode(Vector3.Clamp(linear, Vector3.Zero, Vector3.One));
+            return Srgb.EncodeFast(linear);
         }
 
         private float SignedContrast(float luminance, float page) =>
@@ -569,6 +586,11 @@ public static class TableBuilder
                         // The weight grows without bound towards the anchor, so each anchor's own colour lands
                         // exactly on its target however close the next anchor is.
                         float d2 = ((l * l) + (a * a) + (b * b)) / (AccentReach * AccentReach);
+                        if (d2 > 12f)
+                        {
+                            continue;   // further than three and a half reaches: the pull is below one in a million
+                        }
+
                         float w = MathF.Exp(-d2) / (d2 + 0.02f);
                         total += w;
                         dj += w * accent.DeltaJ;

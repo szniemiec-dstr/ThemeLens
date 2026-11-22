@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  portable:
+    # Core and Engine have no Windows dependency and must build and pass on both systems (NFR-07).
+    name: Build, Core tests and Specs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build everything
+        run: dotnet build ThemeLens.slnx -c Release
+
+      - name: Core tests
+        run: dotnet test --project tests/ThemeLens.Core.Tests -c Release --no-build
+
+      - name: Specs
+        run: dotnet test --project tests/ThemeLens.Specs -c Release --no-build
+
+      - name: Keep the pictures of failed golden comparisons
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-differences-${{ matrix.os }}
+          path: tests/ThemeLens.Specs/Goldens/**/*.received.png
+          if-no-files-found: ignore
