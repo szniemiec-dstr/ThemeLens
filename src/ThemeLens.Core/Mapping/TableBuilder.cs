@@ -152,6 +152,18 @@ public static class TableBuilder
         });
     }
 
+    /// <summary>
+    /// The colour a role colour of <paramref name="theme"/> is shown as at the theme's current warmth. Used when
+    /// the current settings are saved as a new theme, whose file then lists the colours as they look.
+    /// </summary>
+    public static Rgb8 ShownAtCurrentWarmth(Theme theme, Rgb8 roleColour)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        Vector3 authored = Vector3.Max(WarmGains(theme.AuthoredWarmth), new Vector3(0.05f));
+        Vector3 linear = Srgb.ToLinear(roleColour) * (WarmGains(theme.Warmth) / authored);
+        return Srgb.FromLinear(linear);
+    }
+
     private static Vector3 WarmGains(float warmth) =>
         new(1f, 1f - (WarmthGreenCut * warmth), 1f - (WarmthBlueCut * warmth));
 
