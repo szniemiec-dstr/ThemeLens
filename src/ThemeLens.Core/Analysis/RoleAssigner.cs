@@ -121,7 +121,9 @@ public static class RoleAssigner
 
         foreach (ColourCluster coloured in all)
         {
-            if (ReferenceEquals(coloured, c) || coloured.Share < c.Share || coloured.Chroma <= c.Chroma)
+            // The other end of the blend is a purer version of the same colour. With thin text it can cover less
+            // area than its own edges do, so it only has to be present, not larger.
+            if (ReferenceEquals(coloured, c) || coloured.Share < c.Share * 0.15f || coloured.Chroma <= c.Chroma * 1.1f)
             {
                 continue;
             }

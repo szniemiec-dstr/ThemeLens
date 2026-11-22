@@ -105,10 +105,31 @@ public static class ClusterFinder
             centres.RemoveAt(weakest);
         }
 
+        // The commonest flat colour of the light regions and of the dark regions: the backgrounds text sits on.
+        Unique? lightBackground = null;
+        Unique? darkBackground = null;
+        foreach (Unique u in uniques)
+        {
+            if (u.Thin * 2 > u.Count)
+            {
+                continue;
+            }
+
+            if (u.InLightRegion * 2 >= u.Count)
+            {
+                lightBackground = lightBackground is null || u.Count > lightBackground.Count ? u : lightBackground;
+            }
+            else
+            {
+                darkBackground = darkBackground is null || u.Count > darkBackground.Count ? u : darkBackground;
+            }
+        }
+
         var result = new List<ColourCluster>(clusters.Count);
         foreach (Accumulator c in clusters)
         {
-            Rgb8 colour = c.Representative();
+            Unique? background = c.InLightRegion * 2 >= c.Count ? lightBackground ?? darkBackground : darkBackground ?? lightBackground;
+            Rgb8 colour = c.Representative(background?.Lab);
             result.Add(new ColourCluster
             {
                 Colour = colour,
@@ -518,6 +539,7 @@ public static class ClusterFinder
         private double _sumL;
         private double _sumA;
         private double _sumB;
+        private readonly List<Unique> _members = [];
         private Unique? _mostCommon;
 
         public int Count { get; private set; }
@@ -530,6 +552,7 @@ public static class ClusterFinder
 
         public void Add(Unique u)
         {
+            _members.Add(u);
             Count += u.Count;
             Thin += u.Thin;
             InLightRegion += u.InLightRegion;
@@ -550,11 +573,41 @@ public static class ClusterFinder
 
         /// <summary>
         /// Flat user-interface colours are exact, so the most common one is the true colour of the cluster and
-        /// is not pulled towards its anti-aliased edges. Photos and gradients have no dominant colour; the mean stands in.
+        /// is not pulled towards its anti-aliased edges. Thin text is different: most of its pixels are edge
+        /// blends, so the member furthest from the background it sits on is the true colour. Photos and
+        /// gradients have no dominant colour; the mean stands in.
         /// </summary>
-        public Rgb8 Representative() =>
-            _mostCommon is not null && _mostCommon.Count >= Count * 0.10f
-                ? _mostCommon.Colour
-                : Srgb.FromLinear(MeanLab().ToLinear());
+        public Rgb8 Representative(Oklab? background)
+        {
+            if (_mostCommon is null)
+            {
+                return Srgb.FromLinear(MeanLab().ToLinear());
+            }
+
+            if (background is { } bg && Thin * 10 >= Count * 6)
+            {
+                // Rank the members by distance from the background and take the one with a seventh of the
+                // pixels beyond it: far enough out to be the core of the strokes, not so far that a handful of
+                // stray pixels in another colour decide it.
+                var ranked = new List<(float Distance, Unique Member)>(_members.Count);
+                foreach (Unique u in _members)
+                {
+                    ranked.Add((Oklab.Distance(u.Lab, bg), u));
+                }
+
+                ranked.Sort(static (x, y) => y.Distance.CompareTo(x.Distance));
+                int beyond = 0;
+                foreach ((float _, Unique member) in ranked)
+                {
+                    beyond += member.Count;
+                    if (beyond * 7 >= Count)
+                    {
+                        return member.Colour;
+                    }
+                }
+            }
+
+            return _mostCommon.Count >= Count * 0.10f ? _mostCommon.Colour : Srgb.FromLinear(MeanLab().ToLinear());
+        }
     }
 }

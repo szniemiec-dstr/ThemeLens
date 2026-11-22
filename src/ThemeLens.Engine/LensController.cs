@@ -65,7 +65,7 @@ public sealed class LensController : IDisposable
     private bool _sourceRunning;
     private bool _editWanted;
     private int _framesSinceAnalysis;
-    private TimeSpan _lastAnalysisRequest = TimeSpan.MinValue;
+    private TimeSpan? _lastAnalysisRequest;
     private bool _slow;
     private int _fastFrames;
     private double _delayMs;
@@ -275,7 +275,7 @@ public sealed class LensController : IDisposable
         {
             _analyser.SetPins(pins);
             _framesSinceAnalysis = Math.Max(_framesSinceAnalysis, 1);
-            _lastAnalysisRequest = TimeSpan.MinValue;
+            _lastAnalysisRequest = null;
         }
     }
 
@@ -383,7 +383,8 @@ public sealed class LensController : IDisposable
                 Measure(finished - started, finished - _lastFrame.CapturedAt);
             }
 
-            if (_framesSinceAnalysis > 0 && !_runner.IsBusy && now - _lastAnalysisRequest >= AnalysisInterval)
+            bool analysisDue = _lastAnalysisRequest is not { } last || now - last >= AnalysisInterval;
+            if (_framesSinceAnalysis > 0 && !_runner.IsBusy && analysisDue)
             {
                 Thumbnail? thumbnail = _surface.TryReadThumbnail();
                 if (thumbnail is not null)

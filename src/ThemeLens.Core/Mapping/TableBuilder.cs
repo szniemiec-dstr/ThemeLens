@@ -46,9 +46,9 @@ public static class TableBuilder
     private const float DefaultDarkText = 0.80f;
 
     /// <summary>Red–green assist: how far the red–green axis is moved onto blue–yellow and onto lightness.</summary>
-    private const float RedGreenKeep = 0.60f;
-    private const float RedGreenToBlueYellow = 1.30f;
-    private const float RedGreenToLightness = 0.90f;
+    private const float RedGreenKeep = 0.35f;
+    private const float RedGreenToBlueYellow = 1.80f;
+    private const float RedGreenToLightness = 1.50f;
 
     /// <summary>Warmth 1 removes this share of blue and of green, in linear light.</summary>
     private const float WarmthBlueCut = 1.0f;
@@ -59,6 +59,13 @@ public static class TableBuilder
     /// before the area guard would consider it.
     /// </summary>
     private const float AreaCeiling = 0.75f;
+
+    /// <summary>
+    /// Colours within this log-contrast of the source page are shown exactly as the page. Without it the table
+    /// entries on either side of the page colour would both be lifted slightly, and a page that falls between
+    /// two entries would come out a shade off.
+    /// </summary>
+    private const float PageDeadZone = 0.07f;
 
     private const float Flare = Wcag.Flare;
 
@@ -405,13 +412,13 @@ public static class TableBuilder
 
             _sourcePage = roles.Anchor(region, Role.Page)?.Cluster.Luminance
                 ?? (_sourceTextIsDarker ? DefaultLightPage : DefaultDarkPage);
-            float logFarthest = SourceLog(_sourceTextIsDarker ? 0f : 1f);
+            float logFarthest = SourceDistance(_sourceTextIsDarker ? 0f : 1f);
 
             // Text anchor. A source "text" with very little contrast is not allowed to stretch the curve without limit.
-            float logSourceText = roles.Anchor(region, Role.Text) is { } text ? SourceLog(text.Cluster.Luminance) : -1f;
+            float logSourceText = roles.Anchor(region, Role.Text) is { } text ? SourceDistance(text.Cluster.Luminance) : -1f;
             if (logSourceText <= 0.05f)
             {
-                logSourceText = SourceLog(_sourceTextIsDarker ? DefaultLightText : DefaultDarkText);
+                logSourceText = SourceDistance(_sourceTextIsDarker ? DefaultLightText : DefaultDarkText);
             }
 
             logSourceText = Math.Clamp(MathF.Max(logSourceText, context.LogText / MaxSlope), 0.05f, MathF.Max(logFarthest, 0.05f));
@@ -430,7 +437,7 @@ public static class TableBuilder
 
             if (roles.Anchor(region, Role.Panel) is { } panel && context.LogPanel > 0f)
             {
-                float x = SourceLog(panel.Cluster.Luminance);
+                float x = SourceDistance(panel.Cluster.Luminance);
                 if (x > 0f && x < logSourceText * 0.6f)
                 {
                     points.Add((x, context.LogPanel));
@@ -439,7 +446,7 @@ public static class TableBuilder
 
             if (roles.Anchor(region, Role.QuietText) is { } quiet && context.LogQuiet < context.LogText)
             {
-                float x = SourceLog(quiet.Cluster.Luminance);
+                float x = SourceDistance(quiet.Cluster.Luminance);
                 if (x > 0f && x < logSourceText * 0.95f)
                 {
                     points.Add((x, context.LogQuiet));
@@ -492,12 +499,23 @@ public static class TableBuilder
                 ? MathF.Log((_sourcePage + Flare) / (luminance + Flare))
                 : MathF.Log((luminance + Flare) / (_sourcePage + Flare));
 
+        /// <summary><see cref="SourceLog"/> with the dead zone around the page taken out, so that it still starts at zero.</summary>
+        private float SourceDistance(float luminance)
+        {
+            float x = SourceLog(luminance);
+            return MathF.Sign(x) * MathF.Max(0f, MathF.Abs(x) - PageDeadZone);
+        }
+
         /// <summary>The rule for a colour that belongs to no accent cluster.</summary>
         private LumLab General(LumLab source, float sourceLuminance)
         {
-            float x = SourceLog(sourceLuminance);
+            float x = SourceDistance(sourceLuminance);
             float chroma = source.Chroma;
-            float colourAsContrast = ChromaAsContrast * chroma;
+            float coloured = Smooth.Step(GreyChroma, ColouredChroma, chroma);
+
+            // Only real colour counts as contrast. Near-greys must not, or the table entries just beside the grey
+            // axis would be lifted and put a bump into every grey ramp that passes between them.
+            float colourAsContrast = ChromaAsContrast * chroma * coloured;
 
             float log = x >= 0f
                 ? _curve.Evaluate(MathF.Sqrt((x * x) + (colourAsContrast * colourAsContrast)))
@@ -514,7 +532,6 @@ public static class TableBuilder
 
             float j = MathF.Cbrt(_c.LuminanceAt(log));
             (float tintA, float tintB) = _c.TintAt(log);
-            float coloured = Smooth.Step(GreyChroma, ColouredChroma, chroma);
             float keep = chroma > 1e-6f ? SoftLimit(chroma, _c.Theme.Limits.MaxChroma) / chroma : 0f;
             var result = new LumLab(
                 j,
