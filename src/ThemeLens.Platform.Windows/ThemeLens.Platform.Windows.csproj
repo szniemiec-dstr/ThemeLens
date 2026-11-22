@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(ThemeLensWindowsTfm)</TargetFramework>
+    <RootNamespace>ThemeLens.Platform.Windows</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+    <PackageReference Include="Vortice.D3DCompiler" />
+    <PackageReference Include="Vortice.Direct3D11" />
+    <PackageReference Include="Vortice.DirectComposition" />
+    <PackageReference Include="Vortice.DXGI" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ThemeLens.Engine\ThemeLens.Engine.csproj" />
+    <EmbeddedResource Include="Shaders\lens.hlsl" LogicalName="ThemeLens.Shaders.lens.hlsl" />
+    <InternalsVisibleTo Include="ThemeLens.Platform.Tests" />
+  </ItemGroup>
+</Project>
