@@ -134,6 +134,8 @@ public sealed class LensAnalyser
 
         lock (_gate)
         {
+            // The theme may have been changed while this analysis ran; build for the one that is current now.
+            theme = _theme;
             _scene = scene;
             bool rolesChanged = false;
             if (_accepted is null || force || sceneChanged)
