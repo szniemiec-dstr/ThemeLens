@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(ThemeLensTfm)</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ThemeLens.Testing</RootNamespace>
+    <!-- Shared helpers for the test projects: not a test project itself, and never shipped. -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ThemeLens.Core\ThemeLens.Core.csproj" />
+  </ItemGroup>
+</Project>

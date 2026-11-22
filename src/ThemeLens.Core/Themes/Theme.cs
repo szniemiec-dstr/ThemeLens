@@ -108,7 +108,17 @@ public sealed record ThemeLimits
     /// area guard treats it as a background that came out wrong. On a dark theme this is what stops a large
     /// bright rectangle; on a light theme, a large dark one.
     /// </summary>
-    public float MaxAreaContrast { get; init; } = 6f;
+    public float MaxAreaContrast { get; init; } = DefaultMaxAreaContrastDark;
+
+    /// <summary>
+    /// On a dark base anything much brighter than the page is glare, so the default is tight. On a light base a
+    /// dark button is ordinary and harmless; only something close to a dark page needs to be caught.
+    /// </summary>
+    public const float DefaultMaxAreaContrastDark = 6f;
+    public const float DefaultMaxAreaContrastLight = 12f;
+
+    public static float DefaultMaxAreaContrast(ThemeBase themeBase) =>
+        themeBase == ThemeBase.Light ? DefaultMaxAreaContrastLight : DefaultMaxAreaContrastDark;
 }
 
 /// <summary>
@@ -131,6 +141,12 @@ public sealed record Theme
 
     /// <summary>0 leaves the white point alone; 1 removes almost all blue.</summary>
     public float Warmth { get; init; }
+
+    /// <summary>
+    /// The warmth at which <see cref="Roles"/> were written down. Role colours are what the lens shows at this
+    /// warmth, so a theme file is what-you-see: moving the warmth slider shifts the colours relative to it.
+    /// </summary>
+    public float AuthoredWarmth { get; init; }
 
     public ColourVisionMode ColourVision { get; init; } = ColourVisionMode.None;
 

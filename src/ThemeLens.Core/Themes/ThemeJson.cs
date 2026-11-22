@@ -168,8 +168,9 @@ public static class ThemeJson
             MaxLuminance = InRange(lf.MaxLuminance ?? 1f, 0.02f, 1f, "limits.maxLuminance"),
             MinTextContrast = InRange(lf.MinTextContrast ?? 4.5f, 1f, 21f, "limits.minTextContrast"),
             MaxChroma = lf.MaxChroma is { } c ? InRange(c, 0f, 0.5f, "limits.maxChroma") : null,
-            MaxAreaContrast = InRange(lf.MaxAreaContrast ?? 6f, 1.5f, 21f, "limits.maxAreaContrast"),
+            MaxAreaContrast = InRange(lf.MaxAreaContrast ?? ThemeLimits.DefaultMaxAreaContrast(themeBase), 1.5f, 21f, "limits.maxAreaContrast"),
         };
+        float warmth = InRange(file.Warmth ?? 0f, 0f, 1f, "warmth");
 
         return new Theme
         {
@@ -179,7 +180,8 @@ public static class ThemeJson
             Base = themeBase,
             Roles = roles,
             Limits = limits,
-            Warmth = InRange(file.Warmth ?? 0f, 0f, 1f, "warmth"),
+            Warmth = warmth,
+            AuthoredWarmth = warmth,
             ColourVision = file.ColourVision ?? ColourVisionMode.None,
             KeepBackground = file.KeepBackground
                 ?? (themeBase == ThemeBase.Keep ? KeepBackgroundMode.Off : KeepBackgroundMode.Strict),
