@@ -13,3 +13,6 @@ Releases/
 tests/**/Diffs/
 # Reqnroll code-behind, regenerated on every build
 *.feature.cs
+
+# Local agent worktrees
+.claude/worktrees/
