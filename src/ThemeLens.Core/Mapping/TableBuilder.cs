@@ -408,8 +408,9 @@ public static class TableBuilder
             _sourceTextIsDarker = region == RegionPolarity.Light;
             _redGreen = context.Theme.ColourVision == ColourVisionMode.RedGreen;
             _contrastGamma = context.Theme.Contrast.IsOn ? 1f + (1.5f * context.Theme.Contrast.Amount) : 1f;
-            _otherSideCap = context.LogPanel;
 
+            // With no page found for this region, everything from the assumed page colour outwards counts as page.
+            _otherSideCap = roles.Anchor(region, Role.Page) is null ? 0f : context.LogPanel;
             _sourcePage = roles.Anchor(region, Role.Page)?.Cluster.Luminance
                 ?? (_sourceTextIsDarker ? DefaultLightPage : DefaultDarkPage);
             float logFarthest = SourceDistance(_sourceTextIsDarker ? 0f : 1f);
@@ -533,11 +534,17 @@ public static class TableBuilder
             float j = MathF.Cbrt(_c.LuminanceAt(log));
             (float tintA, float tintB) = _c.TintAt(log);
             float keep = chroma > 1e-6f ? SoftLimit(chroma, _c.Theme.Limits.MaxChroma) / chroma : 0f;
-            var result = new LumLab(
-                j,
-                Smooth.Lerp(tintA, source.A * keep, coloured),
-                Smooth.Lerp(tintB, source.B * keep, coloured));
-            return _redGreen ? RedGreenAssist(result) : result;
+            var own = new LumLab(j, source.A * keep, source.B * keep);
+            if (_redGreen)
+            {
+                // Applied to the source's own colour only. The theme's neutral tint is not a red or a green.
+                own = RedGreenAssist(own);
+            }
+
+            return new LumLab(
+                Smooth.Lerp(j, own.J, coloured),
+                Smooth.Lerp(tintA, own.A, coloured),
+                Smooth.Lerp(tintB, own.B, coloured));
         }
 
         public Vector3 Map(LumLab source, float sourceLuminance)
