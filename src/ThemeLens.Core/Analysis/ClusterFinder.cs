@@ -245,10 +245,12 @@ public static class ClusterFinder
         var map = new Dictionary<int, Bin>();
         foreach (Unique u in uniques)
         {
+            // Greys have a and b of zero up to rounding noise, and that noise differs between operating systems.
+            // The half-bin shift puts zero in the middle of a bin, so every grey lands in the same bin everywhere.
             int l = Math.Clamp((int)(u.Lab.L * BinsL), 0, BinsL - 1);
-            int a = Math.Clamp((int)((u.Lab.A + AbExtent) / (2 * AbExtent) * BinsAb), 0, BinsAb - 1);
-            int b = Math.Clamp((int)((u.Lab.B + AbExtent) / (2 * AbExtent) * BinsAb), 0, BinsAb - 1);
-            int key = (((l * BinsAb) + a) * BinsAb) + b;
+            int a = Math.Clamp((int)MathF.Floor(((u.Lab.A + AbExtent) / (2 * AbExtent) * BinsAb) + 0.5f), 0, BinsAb);
+            int b = Math.Clamp((int)MathF.Floor(((u.Lab.B + AbExtent) / (2 * AbExtent) * BinsAb) + 0.5f), 0, BinsAb);
+            int key = (((l * (BinsAb + 1)) + a) * (BinsAb + 1)) + b;
             if (!map.TryGetValue(key, out Bin? bin))
             {
                 bin = new Bin(key);

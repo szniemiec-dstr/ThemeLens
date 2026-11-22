@@ -56,6 +56,11 @@ public class GoldenImageTests
 
         double sum = 0;
         int clearlyDifferent = 0;
+        int left = int.MaxValue;
+        int top = int.MaxValue;
+        int right = -1;
+        int bottom = -1;
+        var pairs = new Dictionary<(Rgb8 Golden, Rgb8 Rendered), int>();
         for (int y = 0; y < golden.Height; y++)
         {
             for (int x = 0; x < golden.Width; x++)
@@ -72,9 +77,20 @@ public class GoldenImageTests
                 if (difference > ClearlyDifferent)
                 {
                     clearlyDifferent++;
+                    left = Math.Min(left, x);
+                    top = Math.Min(top, y);
+                    right = Math.Max(right, x);
+                    bottom = Math.Max(bottom, y);
+                    pairs[(a, b)] = pairs.GetValueOrDefault((a, b)) + 1;
                 }
             }
         }
+
+        // Enough to find the cause from a build log alone: where the pictures differ, and the commonest changes.
+        string where = clearlyDifferent == 0
+            ? "no pixel differs clearly"
+            : $"clear differences lie within x {left}..{right}, y {top}..{bottom}; commonest: "
+              + string.Join(", ", pairs.OrderByDescending(p => p.Value).Take(4).Select(p => $"{p.Key.Golden} is now {p.Key.Rendered} ({p.Value} px)"));
 
         float mean = (float)(sum / golden.PixelCount);
         float share = (float)clearlyDifferent / golden.PixelCount;
@@ -84,7 +100,7 @@ public class GoldenImageTests
             Png.Write(Path.ChangeExtension(path, ".received.png"), rendered);
         }
 
-        mean.ShouldBeLessThanOrEqualTo(MeanTolerance, $"{themeId} on {screen} has drifted from its golden image");
-        share.ShouldBeLessThanOrEqualTo(ClearlyDifferentShare, $"{themeId} on {screen} differs clearly from its golden image in places");
+        mean.ShouldBeLessThanOrEqualTo(MeanTolerance, $"{themeId} on {screen} has drifted from its golden image; {where}");
+        share.ShouldBeLessThanOrEqualTo(ClearlyDifferentShare, $"{themeId} on {screen} differs clearly from its golden image in places; {where}");
     }
 }
