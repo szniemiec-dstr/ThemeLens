@@ -45,6 +45,7 @@ static const float Flare = 0.05;    // Wcag.Flare
 static const float3 LuminanceWeights = float3(0.2126, 0.7152, 0.0722);  // Wcag.LuminanceWeights
 static const int CoreRadius = 2;    // LensConstants.CoreRadius
 static const int SpreadReach = 255; // LensConstants.SpreadReach
+static const float WindowTotal = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1)) * 255.0;    // RegionMap.Build: windowTotal
 
 // One-to-one with FrameParameters, plus where the lens sits in the captured frame. Filled once per frame.
 cbuffer Frame : register(b0)
@@ -408,14 +409,14 @@ float4 PsCore(float4 position : SV_Position) : SV_Target
     {
         for (int dx = -CoreRadius; dx <= CoreRadius; dx++)
         {
-            float4 f = Fine.Load(FineTexel(xy + int2(dx, dy)));
+            // Whole bytes are added, as in RegionMap, so that the sum is exact in any order.
+            float4 f = round(Fine.Load(FineTexel(xy + int2(dx, dy))) * 255.0);
             light += f.r;
             dark += f.g;
         }
     }
 
-    float count = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1));
-    return float4(Core(light / count, dark / count), 0.0, 0.0);
+    return float4(Core(light / WindowTotal, dark / WindowTotal), 0.0, 0.0);
 }
 
 // RegionMap.Build, seed: blocks a core's window covers, as far as they are of the core's kind.
@@ -492,7 +493,7 @@ RegionOutput PsRegion(float4 position : SV_Position)
         for (int dx = -CoreRadius; dx <= CoreRadius; dx++)
         {
             float2 home = Spreading.Load(FineTexel(xy + int2(dx, dy))).rg;
-            sum += home;
+            sum += round(home * 255.0);
             if (abs(dx) <= 1 && abs(dy) <= 1 && (dx != 0 || dy != 0))
             {
                 beside = max(beside, home);
@@ -500,10 +501,9 @@ RegionOutput PsRegion(float4 position : SV_Position)
         }
     }
 
-    float count = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1));
     RegionOutput result;
     result.Homes = float4(Spreading.Load(int3(xy, 0)).rg, beside);
-    result.Nearby = float4(Verdict(sum.r / count, sum.g / count), 0.0, 0.0);
+    result.Nearby = float4(Verdict(sum.r / WindowTotal, sum.g / WindowTotal), 0.0, 0.0);
     return result;
 }
 

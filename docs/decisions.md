@@ -221,5 +221,5 @@ xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ s
   light document) can show a lighter stretch of about 30 pixels at that end.
 - Gradients and photographs that run from clearly light to clearly dark are cut into regions along straight
   lines.
-- Table building takes about 10 ms and analysis 2 to 5 ms on a 4-core machine: at the edge of the 15 ms
-  budget of section 7.6. Both run off the frame loop.
+- Analysis takes 4 to 8 ms and table building 5 to 10 ms on a 4-core machine: together at the edge of the
+  15 ms budget of section 7.6. Both run off the frame loop.

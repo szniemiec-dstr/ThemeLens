@@ -56,65 +56,44 @@ public sealed class RegionMap
         ArgumentNullException.ThrowIfNull(light);
         ArgumentNullException.ThrowIfNull(dark);
         int n = width * height;
-        float count = ((2 * radius) + 1) * ((2 * radius) + 1);
+
+        // Window sums are sums of whole bytes, divided once: exact whatever order they are added in, so the
+        // GPU and this class agree to the last bit and the sums can come from a summed-area table.
+        float windowTotal = ((2 * radius) + 1) * ((2 * radius) + 1) * 255f;
 
         // Core.
+        long[] lightSums = PaddedSums(light, width, height, radius);
+        long[] darkSums = PaddedSums(dark, width, height, radius);
         byte[] coreLight = new byte[n];
         byte[] coreDark = new byte[n];
         Parallel.For(0, height, j =>
         {
             for (int i = 0; i < width; i++)
             {
-                float lightSum = 0;
-                float darkSum = 0;
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    int row = Math.Clamp(j + dy, 0, height - 1) * width;
-                    for (int dx = -radius; dx <= radius; dx++)
-                    {
-                        int c = row + Math.Clamp(i + dx, 0, width - 1);
-                        lightSum += light[c] / 255f;
-                        darkSum += dark[c] / 255f;
-                    }
-                }
-
-                (float lightCore, float darkCore) = LensConstants.Core(lightSum / count, darkSum / count);
+                (float lightCore, float darkCore) = LensConstants.Core(
+                    WindowSum(lightSums, width, radius, i, j) / windowTotal,
+                    WindowSum(darkSums, width, radius, i, j) / windowTotal);
                 coreLight[(j * width) + i] = Srgb.ToByte(lightCore);
                 coreDark[(j * width) + i] = Srgb.ToByte(darkCore);
             }
         });
 
         // Seed. "Through" is how freely a region of each kind may pass through the cell.
+        byte[] lightReach = WindowMax(coreLight, width, height, radius);
+        byte[] darkReach = WindowMax(coreDark, width, height, radius);
         byte[] throughLight = new byte[n];
         byte[] throughDark = new byte[n];
         byte[] homeLight = new byte[n];
         byte[] homeDark = new byte[n];
-        Parallel.For(0, height, j =>
+        for (int index = 0; index < n; index++)
         {
-            for (int i = 0; i < width; i++)
-            {
-                float lightReach = 0;
-                float darkReach = 0;
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    int row = Math.Clamp(j + dy, 0, height - 1) * width;
-                    for (int dx = -radius; dx <= radius; dx++)
-                    {
-                        int c = row + Math.Clamp(i + dx, 0, width - 1);
-                        lightReach = MathF.Max(lightReach, coreLight[c] / 255f);
-                        darkReach = MathF.Max(darkReach, coreDark[c] / 255f);
-                    }
-                }
-
-                int index = (j * width) + i;
-                float lightThrough = LensConstants.Through(light[index] / 255f);
-                float darkThrough = LensConstants.Through(dark[index] / 255f);
-                throughLight[index] = Srgb.ToByte(lightThrough);
-                throughDark[index] = Srgb.ToByte(darkThrough);
-                homeLight[index] = Srgb.ToByte(lightReach * lightThrough);
-                homeDark[index] = Srgb.ToByte(darkReach * darkThrough);
-            }
-        });
+            float lightThrough = LensConstants.Through(light[index] / 255f);
+            float darkThrough = LensConstants.Through(dark[index] / 255f);
+            throughLight[index] = Srgb.ToByte(lightThrough);
+            throughDark[index] = Srgb.ToByte(darkThrough);
+            homeLight[index] = Srgb.ToByte(lightReach[index] / 255f * lightThrough);
+            homeDark[index] = Srgb.ToByte(darkReach[index] / 255f * darkThrough);
+        }
 
         // Spread, along rows and along columns in turn.
         for (int pass = 0; pass < LensConstants.SpreadPasses; pass++)
@@ -125,42 +104,21 @@ public sealed class RegionMap
         }
 
         // Edge and local.
-        byte[] edgeLight = new byte[n];
-        byte[] edgeDark = new byte[n];
+        long[] homeLightSums = PaddedSums(homeLight, width, height, radius);
+        long[] homeDarkSums = PaddedSums(homeDark, width, height, radius);
+        byte[] lightAround = WindowMax(homeLight, width, height, 1, skipCentre: true);
+        byte[] darkAround = WindowMax(homeDark, width, height, 1, skipCentre: true);
         byte[] localLight = new byte[n];
         byte[] localDark = new byte[n];
         Parallel.For(0, height, j =>
         {
             for (int i = 0; i < width; i++)
             {
-                float lightBeside = 0;
-                float darkBeside = 0;
-                float lightSum = 0;
-                float darkSum = 0;
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    int row = Math.Clamp(j + dy, 0, height - 1) * width;
-                    for (int dx = -radius; dx <= radius; dx++)
-                    {
-                        int c = row + Math.Clamp(i + dx, 0, width - 1);
-                        float lightHome = homeLight[c] / 255f;
-                        float darkHome = homeDark[c] / 255f;
-                        lightSum += lightHome;
-                        darkSum += darkHome;
-                        if (Math.Abs(dx) <= 1 && Math.Abs(dy) <= 1 && (dx != 0 || dy != 0))
-                        {
-                            lightBeside = MathF.Max(lightBeside, lightHome);
-                            darkBeside = MathF.Max(darkBeside, darkHome);
-                        }
-                    }
-                }
-
-                int index = (j * width) + i;
-                edgeLight[index] = Srgb.ToByte(lightBeside);
-                edgeDark[index] = Srgb.ToByte(darkBeside);
-                (float lightVerdict, float darkVerdict) = LensConstants.Verdict(lightSum / count, darkSum / count);
-                localLight[index] = Srgb.ToByte(lightVerdict);
-                localDark[index] = Srgb.ToByte(darkVerdict);
+                (float lightVerdict, float darkVerdict) = LensConstants.Verdict(
+                    WindowSum(homeLightSums, width, radius, i, j) / windowTotal,
+                    WindowSum(homeDarkSums, width, radius, i, j) / windowTotal);
+                localLight[(j * width) + i] = Srgb.ToByte(lightVerdict);
+                localDark[(j * width) + i] = Srgb.ToByte(darkVerdict);
             }
         });
 
@@ -168,11 +126,113 @@ public sealed class RegionMap
         {
             HomeLight = homeLight,
             HomeDark = homeDark,
-            EdgeLight = edgeLight,
-            EdgeDark = edgeDark,
+            EdgeLight = lightAround,
+            EdgeDark = darkAround,
             LocalLight = localLight,
             LocalDark = localDark,
         };
+    }
+
+    /// <summary>
+    /// A summed-area table of the grid with its edge cells repeated <paramref name="radius"/> times outwards,
+    /// which is what clamp addressing reads. One row and one column larger than the padded grid.
+    /// </summary>
+    private static long[] PaddedSums(byte[] values, int width, int height, int radius)
+    {
+        int paddedWidth = width + (2 * radius);
+        int paddedHeight = height + (2 * radius);
+        long[] sums = new long[(paddedWidth + 1) * (paddedHeight + 1)];
+        for (int y = 0; y < paddedHeight; y++)
+        {
+            int row = Math.Clamp(y - radius, 0, height - 1) * width;
+            long along = 0;
+            for (int x = 0; x < paddedWidth; x++)
+            {
+                along += values[row + Math.Clamp(x - radius, 0, width - 1)];
+                sums[((y + 1) * (paddedWidth + 1)) + x + 1] = sums[(y * (paddedWidth + 1)) + x + 1] + along;
+            }
+        }
+
+        return sums;
+    }
+
+    /// <summary>The sum of the window of the given radius around cell (i, j), from <see cref="PaddedSums"/>.</summary>
+    private static float WindowSum(long[] sums, int width, int radius, int i, int j)
+    {
+        int stride = width + (2 * radius) + 1;
+        int size = (2 * radius) + 1;
+        return sums[((j + size) * stride) + i + size] - sums[(j * stride) + i + size] - sums[((j + size) * stride) + i] + sums[(j * stride) + i];
+    }
+
+    /// <summary>
+    /// The largest value in the window around each cell, with clamp addressing. A largest value does not care
+    /// in which order it is looked for, so rows are done first and columns after.
+    /// </summary>
+    /// <param name="skipCentre">
+    /// True to leave the cell itself out, as the edge test does. At the edge of the grid clamping still reads
+    /// the cell in place of the neighbours that are not there, which is what the shader's loads do.
+    /// </param>
+    private static byte[] WindowMax(byte[] values, int width, int height, int radius, bool skipCentre = false)
+    {
+        byte[] output = new byte[values.Length];
+        if (skipCentre)
+        {
+            Parallel.For(0, height, j =>
+            {
+                for (int i = 0; i < width; i++)
+                {
+                    byte best = 0;
+                    for (int dy = -radius; dy <= radius; dy++)
+                    {
+                        int row = Math.Clamp(j + dy, 0, height - 1) * width;
+                        for (int dx = -radius; dx <= radius; dx++)
+                        {
+                            if (dx != 0 || dy != 0)
+                            {
+                                best = Math.Max(best, values[row + Math.Clamp(i + dx, 0, width - 1)]);
+                            }
+                        }
+                    }
+
+                    output[(j * width) + i] = best;
+                }
+            });
+            return output;
+        }
+
+        byte[] rows = new byte[values.Length];
+        Parallel.For(0, height, j =>
+        {
+            int row = j * width;
+            for (int i = 0; i < width; i++)
+            {
+                byte best = 0;
+                int from = Math.Max(i - radius, 0);
+                int to = Math.Min(i + radius, width - 1);
+                for (int x = from; x <= to; x++)
+                {
+                    best = Math.Max(best, values[row + x]);
+                }
+
+                rows[row + i] = best;
+            }
+        });
+        Parallel.For(0, height, j =>
+        {
+            int from = Math.Max(j - radius, 0);
+            int to = Math.Min(j + radius, height - 1);
+            for (int i = 0; i < width; i++)
+            {
+                byte best = 0;
+                for (int y = from; y <= to; y++)
+                {
+                    best = Math.Max(best, rows[(y * width) + i]);
+                }
+
+                output[(j * width) + i] = best;
+            }
+        });
+        return output;
     }
 
     /// <summary>
