@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ThemeLens.Core.Themes;
 using ThemeLens.Engine;
 using ThemeLens.Platform.Windows;
@@ -19,6 +20,12 @@ public sealed record ThemeChoice(Theme Theme, string Group)
     public override string ToString() => Theme.Name;
 }
 
+/// <summary>One way of keeping the background (section 6.5), as the drop-down list shows it.</summary>
+public sealed record KeepChoice(KeepBackgroundMode Mode, string Name)
+{
+    public override string ToString() => Name;
+}
+
 /// <summary>One line of the shortcut list: the action, and its keys or "not set".</summary>
 public sealed record ShortcutRow(string Action, string Keys, bool IsSet)
 {
@@ -27,18 +34,25 @@ public sealed record ShortcutRow(string Action, string Keys, bool IsSet)
 }
 
 /// <summary>
-/// The control window of milestone M0: lens on and off, theme, fill-screen, edit mode, status, frame rate and
-/// the shortcut list. It lives on the UI thread; the lens reports from its own threads, and everything it
-/// reports is brought over here before it touches a property.
+/// The control window: lens on and off, theme and the user's own values for it, fill-screen, edit mode, status,
+/// frame rate and the shortcut list. It lives on the UI thread; the lens reports from its own threads, and
+/// everything it reports is brought over here before it touches a property.
 /// </summary>
 /// <remarks>
-/// The first-run flow, the mapping table, the sliders, the tray icon and the settings page of section 4 are
-/// not here yet. They attach to <see cref="LensRuntime"/> and <see cref="LensController"/> the same way this
-/// class does.
+/// <para>
+/// Two things stand behind it. <see cref="LensRuntime"/> is the lens on screen: its windows, its place, on and
+/// off. <see cref="LensSession"/> is what the app knows and remembers: the chosen theme with the user's values,
+/// where the lens was, whether it was on. The runtime moves and switches the lens by itself when its handle or
+/// a shortcut is used, so this class tells the session afterwards.
+/// </para>
+/// <para>
+/// The first-run flow, the mapping table, the tray icon and the settings page of section 4 are not here yet.
+/// </para>
 /// </remarks>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly LensRuntime _runtime;
+    private readonly LensSession _session;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _refresh;
     private LensStatus _latestStatus;
@@ -46,31 +60,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool _syncing;
     private bool _disposed;
 
-    public MainViewModel(LensRuntime runtime, AppOptions options, Dispatcher dispatcher)
+    public MainViewModel(LensRuntime runtime, LensSession session, AppOptions options, Dispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _runtime = runtime;
+        _session = session;
         _dispatcher = dispatcher;
 
-        Themes = [.. BuiltInThemes.All.Select(static theme => new ThemeChoice(theme, GroupName(theme.Base)))];
+        Themes = [.. session.Catalogue.All.Select(static theme => new ThemeChoice(theme, GroupName(theme.Base)))];
         var view = new ListCollectionView(Themes.ToList());
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ThemeChoice.Group)));
         ThemesView = view;
-        string currentId = runtime.Controller.Theme.Id;
-        SelectedTheme = Themes.FirstOrDefault(choice => choice.Theme.Id == currentId) ?? Themes.FirstOrDefault();
+        KeepChoices =
+        [
+            new KeepChoice(KeepBackgroundMode.Strict, Strings.KeepStrict),
+            new KeepChoice(KeepBackgroundMode.Balanced, Strings.KeepBalanced),
+            new KeepChoice(KeepBackgroundMode.Off, Strings.KeepOff),
+        ];
 
         Shortcuts = [.. runtime.HotkeyStatus.Select(ToRow)];
         Notes = [.. BuildNotes(runtime, options)];
 
         _latestStatus = runtime.Controller.Status;
         _syncing = true;
+        string currentId = session.SelectedTheme.Id;
+        SelectedTheme = Themes.FirstOrDefault(choice => choice.Theme.Id == currentId) ?? Themes.FirstOrDefault();
+        ShowAdjustments();
         Apply(_latestStatus);
         IsEditMode = runtime.IsEditMode;
         FillsScreen = runtime.Placement.FillsScreen;
         FrameRateText = Strings.Format(Strings.FrameRate, 0);
         _syncing = false;
+        runtime.SetHandleText(HandleText(session.SelectedTheme.Name));
 
         runtime.Controller.StatusChanged += OnStatusChanged;
         runtime.EditModeChanged += OnLensChanged;
@@ -88,6 +112,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public ICollectionView ThemesView { get; }
 
     public IReadOnlyList<ShortcutRow> Shortcuts { get; }
+
+    /// <summary>The ways of keeping the background, for the drop-down list.</summary>
+    public IReadOnlyList<KeepChoice> KeepChoices { get; }
 
     /// <summary>Things worth knowing about this run: development mode, the test pattern, rendering on the CPU.</summary>
     public IReadOnlyList<string> Notes { get; }
@@ -125,6 +152,54 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string FrameRateText { get; set; } = string.Empty;
 
+    // The user's own values for the selected theme (FR-14). They change the lens while the slider moves and
+    // are remembered per theme.
+
+    /// <summary>Brightness limit, 0.05 to 1: no pixel of the lens is brighter than this share of white.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BrightnessText))]
+    public partial double BrightnessLimit { get; set; } = 1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WarmthText))]
+    public partial double Warmth { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContrastText))]
+    public partial double Contrast { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SharpenText))]
+    public partial double Sharpen { get; set; }
+
+    [ObservableProperty]
+    public partial KeepChoice? SelectedKeep { get; set; }
+
+    /// <summary>False for a theme that keeps the screen's own colours: it has no background of its own to keep.</summary>
+    [ObservableProperty]
+    public partial bool CanKeepBackground { get; set; }
+
+    /// <summary>True when the user has changed something on this theme, so there is something to go back from.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ResetAdjustmentsCommand))]
+    public partial bool HasAdjustments { get; set; }
+
+    public string BrightnessText => Percent(BrightnessLimit);
+
+    public string WarmthText => Percent(Warmth);
+
+    public string ContrastText => Percent(Contrast);
+
+    public string SharpenText => Percent(Sharpen);
+
+    /// <summary>Returns the selected theme to the values in its file.</summary>
+    [RelayCommand(CanExecute = nameof(HasAdjustments))]
+    private void ResetAdjustments()
+    {
+        _session.ResetAdjustments();
+        Sync(ShowAdjustments);
+    }
+
     /// <summary>Moves to the theme after the current one, and round to the first again.</summary>
     public void SelectNextTheme()
     {
@@ -146,6 +221,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         _disposed = true;
         _refresh.Stop();
+        _session.Flush();
         _runtime.Controller.StatusChanged -= OnStatusChanged;
         _runtime.EditModeChanged -= OnLensChanged;
         _runtime.PlacementChanged -= OnLensChanged;
@@ -196,12 +272,60 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         yield return Strings.CaptureNote;
     }
 
+    private static string Percent(double share) =>
+        Strings.Format(Strings.PercentValue, Math.Round(share * 100).ToString("0", CultureInfo.CurrentCulture));
+
+    private string HandleText(string themeName) =>
+        Strings.Format(IsDevMode ? Strings.HandleTextDev : Strings.HandleText, themeName);
+
+    /// <summary>Puts the values the lens is using now into the sliders. Call inside <see cref="Sync"/>.</summary>
+    private void ShowAdjustments()
+    {
+        Theme shown = _session.EffectiveTheme;
+        BrightnessLimit = shown.Limits.MaxLuminance;
+        Warmth = shown.Warmth;
+        Contrast = shown.Contrast.Amount;
+        Sharpen = shown.Sharpen.Amount;
+        CanKeepBackground = shown.HasRoles;
+        SelectedKeep = KeepChoices.FirstOrDefault(choice => choice.Mode == shown.KeepBackground);
+        HasAdjustments = !_session.Adjustments.IsEmpty;
+    }
+
+    private void Adjust(Func<ThemeAdjustments, ThemeAdjustments> change)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        _session.Adjust(change);
+        HasAdjustments = !_session.Adjustments.IsEmpty;
+    }
+
+    partial void OnBrightnessLimitChanged(double value) => Adjust(a => a with { BrightnessLimit = (float)value });
+
+    partial void OnWarmthChanged(double value) => Adjust(a => a with { Warmth = (float)value });
+
+    partial void OnContrastChanged(double value) => Adjust(a => a with { ContrastAmount = (float)value });
+
+    partial void OnSharpenChanged(double value) => Adjust(a => a with { SharpenAmount = (float)value });
+
+    partial void OnSelectedKeepChanged(KeepChoice? value)
+    {
+        if (value is not null)
+        {
+            Adjust(a => a with { KeepBackground = value.Mode });
+        }
+    }
+
     partial void OnIsLensOnChanged(bool value)
     {
         if (_syncing)
         {
             return;
         }
+
+        _session.NoteLensSwitched(value);
 
         // Starting capture can take a moment; the window stays responsive meanwhile. The status line follows.
         LensController controller = _runtime.Controller;
@@ -241,11 +365,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _runtime.SetHandleText(Strings.Format(IsDevMode ? Strings.HandleTextDev : Strings.HandleText, value.Name));
-        if (!ReferenceEquals(_runtime.Controller.Theme, value.Theme))
+        if (_syncing)
         {
-            _runtime.Controller.SetTheme(value.Theme);
+            return;
         }
+
+        // The session puts the theme on the lens, with the values the user last chose for it.
+        _session.SelectTheme(value.Theme.Id);
+        _runtime.SetHandleText(HandleText(value.Name));
+        Sync(ShowAdjustments);
     }
 
     /// <summary>Called on one of the lens's threads, many times a second while it is live: keep the newest, queue one update.</summary>
@@ -270,6 +398,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             if (!_disposed)
             {
+                // The lens was moved, resized or filled by its handle, by a shortcut or from here: remember where it is.
+                _session.NotePlacement(_runtime.Placement);
                 Sync(() =>
                 {
                     IsEditMode = _runtime.IsEditMode;
@@ -287,7 +417,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             // The lens has already carried out its own shortcuts; these two are the app's.
-            if (action == HotkeyAction.NextTheme)
+            if (action is HotkeyAction.ToggleLens or HotkeyAction.EverythingOff)
+            {
+                _session.NoteLensSwitched(_runtime.Controller.State != LensState.Off);
+            }
+            else if (action == HotkeyAction.NextTheme)
             {
                 SelectNextTheme();
             }
@@ -299,6 +433,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnRefresh(object? sender, EventArgs e)
     {
+        // Twice a second is often enough to write down what a slider did, and seldom enough for the disk.
+        _session.Flush();
         double rate = _runtime.Controller.State == LensState.Off ? 0 : _runtime.FramesPerSecond;
         FrameRateText = Strings.Format(Strings.FrameRate, Math.Round(rate).ToString("0", CultureInfo.CurrentCulture));
     }

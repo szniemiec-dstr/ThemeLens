@@ -206,6 +206,96 @@
                Style="{StaticResource Quiet}"
                Text="{x:Static app:Strings.EditModeHelp}" />
 
+    <!-- The user's own values for the selected theme (FR-14). They change the lens while a slider moves. -->
+    <TextBlock Margin="0,20,0,2"
+               Style="{StaticResource Heading}"
+               Text="{x:Static app:Strings.AdjustHeading}" />
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="130" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="56" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.BrightnessLabel}" />
+      <Slider x:Name="BrightnessSlider"
+              Grid.Row="0"
+              Grid.Column="1"
+              AutomationProperties.Name="{x:Static app:Strings.BrightnessLabel}"
+              Minimum="0.05"
+              Maximum="1"
+              SmallChange="0.01"
+              LargeChange="0.1"
+              Value="{Binding BrightnessLimit, Mode=TwoWay}" />
+      <TextBlock Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding BrightnessText}" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.WarmthLabel}" />
+      <Slider x:Name="WarmthSlider"
+              Grid.Row="1"
+              Grid.Column="1"
+              AutomationProperties.Name="{x:Static app:Strings.WarmthLabel}"
+              Minimum="0"
+              Maximum="1"
+              SmallChange="0.01"
+              LargeChange="0.1"
+              Value="{Binding Warmth, Mode=TwoWay}" />
+      <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding WarmthText}" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.ContrastLabel}" />
+      <Slider x:Name="ContrastSlider"
+              Grid.Row="2"
+              Grid.Column="1"
+              AutomationProperties.Name="{x:Static app:Strings.ContrastLabel}"
+              Minimum="0"
+              Maximum="1"
+              SmallChange="0.01"
+              LargeChange="0.1"
+              Value="{Binding Contrast, Mode=TwoWay}" />
+      <TextBlock Grid.Row="2" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding ContrastText}" />
+
+      <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.SharpenLabel}" />
+      <Slider x:Name="SharpenSlider"
+              Grid.Row="3"
+              Grid.Column="1"
+              AutomationProperties.Name="{x:Static app:Strings.SharpenLabel}"
+              Minimum="0"
+              Maximum="1"
+              SmallChange="0.01"
+              LargeChange="0.1"
+              Value="{Binding Sharpen, Mode=TwoWay}" />
+      <TextBlock Grid.Row="3" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding SharpenText}" />
+
+      <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,6,0,0" Style="{StaticResource Label}" Text="{x:Static app:Strings.KeepBackgroundLabel}" />
+      <ComboBox x:Name="KeepList"
+                Grid.Row="4"
+                Grid.Column="1"
+                Grid.ColumnSpan="2"
+                Margin="0,6,0,0"
+                AutomationProperties.Name="{x:Static app:Strings.KeepBackgroundLabel}"
+                IsEnabled="{Binding CanKeepBackground}"
+                ItemsSource="{Binding KeepChoices}"
+                SelectedItem="{Binding SelectedKeep, Mode=TwoWay}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:KeepChoice}">
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+    </Grid>
+    <Button x:Name="ResetButton"
+            Margin="0,12,0,0"
+            HorizontalAlignment="Left"
+            AutomationProperties.Name="{x:Static app:Strings.ResetAdjustments}"
+            Command="{Binding ResetAdjustmentsCommand}"
+            Content="{x:Static app:Strings.ResetAdjustments}" />
+
     <!-- Keyboard shortcuts -->
     <TextBlock Margin="0,20,0,6"
                Style="{StaticResource Heading}"

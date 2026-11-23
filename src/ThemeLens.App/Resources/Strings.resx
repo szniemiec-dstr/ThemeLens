@@ -162,6 +162,50 @@
     <value>{0}: {1}</value>
     <comment>How a shortcut row is read out. {0} is the action, {1} the keys or "not set".</comment>
   </data>
+  <data name="AdjustHeading" xml:space="preserve">
+    <value>Adjust this theme</value>
+    <comment>Heading above the sliders in the control window.</comment>
+  </data>
+  <data name="BrightnessLabel" xml:space="preserve">
+    <value>Brightness limit</value>
+    <comment>Label of the slider that limits how bright anything in the lens may be.</comment>
+  </data>
+  <data name="WarmthLabel" xml:space="preserve">
+    <value>Warmth</value>
+    <comment>Label of the slider that removes blue light.</comment>
+  </data>
+  <data name="ContrastLabel" xml:space="preserve">
+    <value>Contrast</value>
+    <comment>Label of the contrast slider.</comment>
+  </data>
+  <data name="SharpenLabel" xml:space="preserve">
+    <value>Sharpen</value>
+    <comment>Label of the sharpen slider.</comment>
+  </data>
+  <data name="KeepBackgroundLabel" xml:space="preserve">
+    <value>Keep background</value>
+    <comment>Label of the list that chooses how strictly large areas are held to the theme's background.</comment>
+  </data>
+  <data name="KeepStrict" xml:space="preserve">
+    <value>Strict</value>
+    <comment>Keep background: every large area that differs from the page becomes the page colour.</comment>
+  </data>
+  <data name="KeepBalanced" xml:space="preserve">
+    <value>Balanced (lets pictures through)</value>
+    <comment>Keep background: areas that look like photographs are left alone.</comment>
+  </data>
+  <data name="KeepOff" xml:space="preserve">
+    <value>Off</value>
+    <comment>Keep background: no area is changed.</comment>
+  </data>
+  <data name="ResetAdjustments" xml:space="preserve">
+    <value>Back to the theme's own values</value>
+    <comment>Button that undoes the user's slider changes for the selected theme.</comment>
+  </data>
+  <data name="PercentValue" xml:space="preserve">
+    <value>{0}%</value>
+    <comment>A slider's value in per cent. {0} is the number.</comment>
+  </data>
   <data name="HandleText" xml:space="preserve">
     <value>Lens: {0}</value>
     <comment>Text on the handle of the lens. {0} is the name of the theme.</comment>

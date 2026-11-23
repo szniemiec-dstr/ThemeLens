@@ -297,6 +297,33 @@ public sealed class LensSessionTests : IDisposable
     }
 
     [Fact]
+    public void What_the_host_did_by_itself_is_remembered_without_being_done_again()
+    {
+        // The Windows runtime moves the lens when its handle is dragged, and switches it on and off on a
+        // shortcut, without asking the session first. The session is told afterwards.
+        (LensSession session, EngineHarness engine) = Start();
+        session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
+        PixelRect areaBefore = session.Controller.Area;
+        int moves = 0;
+        session.PlacementChanged += _ => moves++;
+
+        var dragged = new LensPlacement(new PixelRect(300, 200, 640, 480), FillsScreen: false);
+        session.NotePlacement(dragged);
+        session.NoteLensSwitched(on: true);
+
+        session.Placement.ShouldBe(dragged);
+        moves.ShouldBe(0, "the lens is where the host put it already; it must not be moved again");
+        session.Controller.Area.ShouldBe(areaBefore, "the host owns the lens area while it moves the lens itself");
+        engine.Controller.State.ShouldBe(LensState.Off, "noting that the lens is on does not switch it on");
+        session.Dispose();
+
+        // The next start finds the lens where it was left, and knows it was on.
+        (LensSession next, _) = Start();
+        next.Placement.ShouldBe(dragged);
+        next.Settings.LensWasOn.ShouldBeTrue();
+    }
+
+    [Fact]
     public void A_display_change_while_the_lens_is_on_goes_through_the_page_colour()
     {
         (LensSession session, EngineHarness engine) = Start();

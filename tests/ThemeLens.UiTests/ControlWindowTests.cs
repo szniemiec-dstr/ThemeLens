@@ -105,6 +105,84 @@ public sealed partial class ControlWindowTests
         session.Process.HasExited.ShouldBeFalse();
     }
 
+    /// <summary>FR-14: the sliders change the lens while it is live, and one button goes back to the theme's own values.</summary>
+    [WindowsFact]
+    public void A_slider_changes_the_theme_and_the_reset_button_takes_it_back()
+    {
+        using var session = AppSession.Start();
+        session.Find("LensSwitch").Patterns.Toggle.Pattern.Toggle();
+        WaitFor(() => session.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
+            $"the status should read Live, but reads '{session.Status()}'");
+
+        AutomationElement brightness = session.Find("BrightnessSlider");
+        brightness.Properties.Name.ValueOrDefault.ShouldBe("Brightness limit");
+        AutomationElement reset = session.Find("ResetButton");
+        reset.Properties.IsEnabled.ValueOrDefault.ShouldBeFalse("nothing has been changed yet, so there is nothing to take back");
+        double original = brightness.Patterns.RangeValue.Pattern.Value.Value;
+
+        brightness.Patterns.RangeValue.Pattern.SetValue(0.3);
+
+        WaitFor(() => reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("after a change the reset button should be available");
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+        session.Status().ShouldStartWith("Live");
+
+        reset.Patterns.Invoke.Pattern.Invoke();
+
+        WaitFor(() => Math.Abs(brightness.Patterns.RangeValue.Pattern.Value.Value - original) < 0.005).ShouldBeTrue(
+            $"the slider should be back at {original:0.00}, but is at {brightness.Patterns.RangeValue.Pattern.Value.Value:0.00}");
+        WaitFor(() => !reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("after going back there is nothing to take back");
+    }
+
+    /// <summary>FR-18: the theme, and that the lens was on, are remembered from one run to the next.</summary>
+    [WindowsFact]
+    public void The_next_start_brings_back_the_theme_and_the_lens()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "ThemeLens.UiTests." + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string chosen;
+            using (var first = AppSession.Start(folder))
+            {
+                AutomationElement themes = first.Find("ThemeList");
+                themes.Patterns.ExpandCollapse.Pattern.Expand();
+                AutomationElement[] items = [];
+                WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
+                    $"the list should offer the thirteen built-in themes, but offers {items.Length}");
+                AutomationElement last = items[^1];
+                chosen = last.Properties.Name.ValueOrDefault ?? string.Empty;
+                last.Patterns.SelectionItem.Pattern.Select();
+                themes.Patterns.ExpandCollapse.Pattern.Collapse();
+
+                first.Find("LensSwitch").Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => first.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
+                    $"the status should read Live, but reads '{first.Status()}'");
+
+                // Closing the app is not switching the lens off.
+                first.Window.Close();
+                WaitFor(() => first.Process.HasExited).ShouldBeTrue("the app should end when its control window is closed");
+            }
+
+            using var second = AppSession.Start(folder);
+            WaitFor(() => second.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
+                $"the lens was on when the app was closed, so it should come back by itself; the status reads '{second.Status()}'");
+            AutomationElement list = second.Find("ThemeList");
+            list.Patterns.ExpandCollapse.Pattern.Expand();
+            AutomationElement[] again = [];
+            WaitFor(() => (again = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
+                "the list should offer the themes again");
+            again[^1].Properties.Name.ValueOrDefault.ShouldBe(chosen);
+            again[^1].Patterns.SelectionItem.Pattern.IsSelected.Value.ShouldBeTrue($"the theme '{chosen}' should still be the chosen one");
+            list.Patterns.ExpandCollapse.Pattern.Collapse();
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
     [WindowsFact]
     public void Closing_the_control_window_ends_the_app_and_removes_the_lens()
     {
@@ -153,13 +231,15 @@ public sealed partial class ControlWindowTests
     {
         private readonly Application _app;
         private readonly UIA3Automation _automation;
+        private readonly string? _ownFolder;
 
-        private AppSession(Process process, Application app, UIA3Automation automation, Window window)
+        private AppSession(Process process, Application app, UIA3Automation automation, Window window, string? ownFolder)
         {
             Process = process;
             _app = app;
             _automation = automation;
             Window = window;
+            _ownFolder = ownFolder;
         }
 
         /// <summary>The app's process, started here, so that its end and its exit code can be asked for.</summary>
@@ -167,13 +247,19 @@ public sealed partial class ControlWindowTests
 
         public Window Window { get; }
 
-        public static AppSession Start()
+        /// <param name="dataFolder">
+        /// Where this run of the app keeps its settings. Left out, the run gets a folder of its own that is
+        /// removed afterwards, so a test never sees, or changes, what the person at this machine has set.
+        /// </param>
+        public static AppSession Start(string? dataFolder = null)
         {
             string executable = AppPath();
             File.Exists(executable).ShouldBeTrue($"the app has not been built: {executable}");
 
-            Process process = Process.Start(new ProcessStartInfo(executable, "--dev --source pattern") { UseShellExecute = false })
-                ?? throw new InvalidOperationException("The app could not be started.");
+            string? ownFolder = dataFolder is null ? Path.Combine(Path.GetTempPath(), "ThemeLens.UiTests." + Guid.NewGuid().ToString("N")) : null;
+            var start = new ProcessStartInfo(executable, "--dev --source pattern") { UseShellExecute = false };
+            start.Environment["THEMELENS_DATA"] = dataFolder ?? ownFolder;
+            Process process = Process.Start(start) ?? throw new InvalidOperationException("The app could not be started.");
             var automation = new UIA3Automation();
             Application? app = null;
             try
@@ -188,7 +274,7 @@ public sealed partial class ControlWindowTests
                     throw new InvalidOperationException($"The control window did not appear within {Patience.TotalSeconds:0} seconds; {ended}.");
                 }
 
-                return new AppSession(process, app, automation, window);
+                return new AppSession(process, app, automation, window, ownFolder);
             }
             catch
             {
@@ -213,6 +299,17 @@ public sealed partial class ControlWindowTests
             _app.Dispose();
             _automation.Dispose();
             Process.Dispose();
+            if (_ownFolder is not null && Directory.Exists(_ownFolder))
+            {
+                try
+                {
+                    Directory.Delete(_ownFolder, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // A file still held for a moment by the app that was just stopped. The folder is in the temporary directory.
+                }
+            }
         }
 
         private static void Stop(Process process)

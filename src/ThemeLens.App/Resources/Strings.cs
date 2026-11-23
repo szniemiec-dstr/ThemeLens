@@ -90,6 +90,28 @@ public static class Strings
 
     public static string ShortcutRowName => Get();
 
+    public static string AdjustHeading => Get();
+
+    public static string BrightnessLabel => Get();
+
+    public static string WarmthLabel => Get();
+
+    public static string ContrastLabel => Get();
+
+    public static string SharpenLabel => Get();
+
+    public static string KeepBackgroundLabel => Get();
+
+    public static string KeepStrict => Get();
+
+    public static string KeepBalanced => Get();
+
+    public static string KeepOff => Get();
+
+    public static string ResetAdjustments => Get();
+
+    public static string PercentValue => Get();
+
     public static string HandleText => Get();
 
     public static string StartFailed => Get();

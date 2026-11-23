@@ -3,6 +3,7 @@ using System.Windows;
 using ThemeLens.App.ViewModels;
 using ThemeLens.App.Views;
 using ThemeLens.Core.Themes;
+using ThemeLens.Engine;
 using ThemeLens.Platform.Windows;
 
 namespace ThemeLens.App;
@@ -16,6 +17,7 @@ public partial class App : Application
 {
     private readonly AppOptions _options;
     private LensRuntime? _runtime;
+    private LensSession? _session;
     private MainViewModel? _viewModel;
 
     public App(AppOptions options)
@@ -28,17 +30,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // The lens starts with the default dark theme and switched off. First run, saved settings and the tray
-        // icon come later; they plug in here.
-        Theme theme = BuiltInThemes.ById(BuiltInThemes.DefaultDarkId);
         try
         {
             _runtime = new LensRuntime(new LensRuntimeOptions
             {
                 DevMode = _options.DevMode,
                 Source = _options.Source,
-                InitialTheme = theme,
-                HandleText = Strings.Format(_options.DevMode ? Strings.HandleTextDev : Strings.HandleText, theme.Name),
             });
         }
         catch (Exception failure)
@@ -50,15 +47,38 @@ public partial class App : Application
             return;
         }
 
-        _viewModel = new MainViewModel(_runtime, _options, Dispatcher);
-        var window = new MainWindow(_viewModel, _runtime);
+        // What the app remembers (FR-18): the theme with the user's own values for it, where the lens was on
+        // this arrangement of monitors, and whether it was on. The session puts the theme on the lens; the lens
+        // itself is put where it was here, because the runtime owns its place on screen.
+        LensRuntime runtime = _runtime;
+        _session = new LensSession(
+            runtime.Controller,
+            new ThemeCatalogue(AppPaths.ThemesDirectory),
+            new SettingsStore(AppPaths.SettingsFile),
+            () => runtime.Screens)
+        {
+            EditModeSwitch = runtime.SetEditMode,
+            EverythingOffSwitch = runtime.EverythingOff,
+        };
+        runtime.SetPlacement(_session.Placement);
+        runtime.Controller.SetArea(runtime.LensBounds);
+
+        _viewModel = new MainViewModel(runtime, _session, _options, Dispatcher);
+        var window = new MainWindow(_viewModel, runtime);
         MainWindow = window;
         window.Show();
+
+        if (_session.Settings.LensWasOn)
+        {
+            // The lens was on when the app was last closed: it comes back by itself.
+            _ = Task.Run(runtime.Controller.TurnOn);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         _viewModel?.Dispose();
+        _session?.Dispose();
         _runtime?.Dispose();
         base.OnExit(e);
     }

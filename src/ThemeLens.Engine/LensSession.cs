@@ -289,6 +289,36 @@ public sealed class LensSession : IDisposable
     public void ToggleFillScreen() => SetPlacement(Placement.ToggleFill());
 
     /// <summary>
+    /// The host has already moved, resized or filled the lens itself (its handle was dragged, a shortcut was
+    /// pressed while the app's window was busy): remember where it is now for the current monitor layout.
+    /// Nothing is moved and <see cref="PlacementChanged"/> is not raised.
+    /// </summary>
+    public void NotePlacement(LensPlacement placement)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+        if (placement == Placement)
+        {
+            return;
+        }
+
+        Placement = placement;
+        Update(Settings.WithPlacement(LensGeometry.LayoutKey(_screens()), placement));
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// The host has already switched the lens on or off itself: remember it, so that the lens comes back at
+    /// the next start if it was on (FR-18). Closing the app is not "off": the host does not call this then.
+    /// </summary>
+    public void NoteLensSwitched(bool on)
+    {
+        if (Settings.LensWasOn != on)
+        {
+            Update(Settings with { LensWasOn = on });
+        }
+    }
+
+    /// <summary>
     /// The entries of the control window's Area list: "Window" first, then every screen by number and position
     /// ("Screen 2, right"). The lens covers one screen at a time.
     /// </summary>
