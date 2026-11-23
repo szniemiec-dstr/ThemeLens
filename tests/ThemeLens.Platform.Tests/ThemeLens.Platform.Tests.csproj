@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <!-- The smoke tests ask Windows a few questions directly (user32), and the generated calls are unsafe code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Windows only: these tests need Direct3D and real windows. They build anywhere and skip themselves elsewhere. -->
     <TargetFramework>$(ThemeLensWindowsTfm)</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
