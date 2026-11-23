@@ -24,6 +24,7 @@ Feature: The background stays the one I chose
         | Soft dark             | dark-spreadsheet.png  |
         | Soft dark             | terminal.png          |
         | Soft dark             | mixed-halves.png      |
+        | Soft dark             | dark-buttons.png      |
         | High contrast dark    | light-document.png    |
         | High contrast dark    | light-spreadsheet.png |
         | High contrast dark    | web-buttons.png       |

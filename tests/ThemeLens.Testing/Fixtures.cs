@@ -48,6 +48,7 @@ public static class Fixtures
         ["gradient.png"] = Gradient,
         ["terminal.png"] = Terminal,
         ["mixed-halves.png"] = MixedHalves,
+        ["dark-buttons.png"] = DarkButtons,
     };
 
     public static IReadOnlyCollection<string> Names => Builders.Keys;
@@ -502,6 +503,78 @@ public static class Fixtures
         {
             ["light-half"] = new(0, 0, Width / 2, Height),
             ["dark-half"] = new(Width / 2, 0, Width / 2, Height),
+        });
+    }
+
+    /// <summary>
+    /// A light page with dark shapes on it that are not text: buttons, chips, tiles in a grid, a toolbar with
+    /// light controls. The shapes are regions of their own; the gaps between them are page.
+    /// </summary>
+    private static Fixture DarkButtons()
+    {
+        Rgb8 black = Rgb8.FromHex("#111111");
+        Rgb8 night = Rgb8.FromHex("#1E1E1E");
+        Rgb8 soft = Rgb8.FromHex("#D4D4D4");
+        var c = new Canvas(Width, Height, White);
+        c.Text(24, 36, "Choose a plan", 14, 2.1f, Ink);
+        Paragraph(c, 24, 62, 400, 2, 8, 1.25f, 19, Grey, seed: 21);
+
+        // Buttons in a row, 8 pixels apart.
+        string[] plans = ["Starter", "Team", "Business", "Talk to us"];
+        int x = 24;
+        foreach (string plan in plans)
+        {
+            int width = (int)c.MeasureText(plan, 8) + 40;
+            c.RoundRect(x, 104, width, 34, 6, black);
+            c.Text(x + 20, 126, plan, 8, 1.5f, White);
+            x += width + 8;
+        }
+
+        // Chips, small icons and a thick rule: the icons and the rule are content, the chips are not.
+        x = 24;
+        foreach (string tag in (string[])["monthly", "yearly", "students", "open source"])
+        {
+            int width = (int)c.MeasureText(tag, 7) + 22;
+            c.RoundRect(x, 152, width, 22, 11, night);
+            c.Text(x + 11, 167, tag, 7, 1.3f, soft);
+            x += width + 6;
+        }
+
+        c.Fill(x + 16, 156, 14, 14, night);
+        c.Disc(x + 52, 163, 6, night);
+        c.Fill(x + 70, 160, 120, 6, night);
+
+        // Tiles in a grid with 10-pixel gutters.
+        string[] captions = ["Colour", "Engine", "Capture", "Themes", "Updates", "Tests"];
+        for (int i = 0; i < captions.Length; i++)
+        {
+            int tx = 24 + ((i % 3) * 126);
+            int ty = 190 + ((i / 3) * 74);
+            c.Fill(tx, ty, 116, 64, night);
+            c.Text(tx + 12, ty + 24, captions[i], 8, 1.5f, White);
+            c.Text(tx + 12, ty + 46, "ready", 7, 1.2f, soft);
+        }
+
+        c.Text(420, 210, "Tiles sit close together.", 8, 1.25f, Ink);
+        c.Text(420, 232, "The gaps between them", 8, 1.25f, Ink);
+        c.Text(420, 254, "are still the page.", 8, 1.25f, Ink);
+
+        // A dark toolbar with light controls on it.
+        c.Fill(0, 352, Width, 48, night);
+        c.Text(20, 381, "Toolbar", 8, 1.5f, soft);
+        c.RoundRect(110, 362, 180, 28, 4, White);
+        c.Text(122, 381, "Search", 8, 1.25f, Grey);
+        c.Fill(310, 373, 120, 6, soft);
+        c.Disc(380, 376, 7, White);
+        c.Fill(600, 362, 10, 28, soft);
+
+        return new Fixture("dark-buttons.png", c.Image, White, Ink, new Dictionary<string, Rect>
+        {
+            ["first-button"] = new(24, 104, (int)c.MeasureText(plans[0], 8) + 40, 34),
+            ["gap-between-buttons"] = new(24 + (int)c.MeasureText(plans[0], 8) + 41, 110, 6, 22),
+            ["tile-gutter"] = new(141, 196, 8, 52),
+            ["toolbar-label"] = new(12, 364, 90, 26),
+            ["slider"] = new(310, 369, 120, 14),
         });
     }
 

@@ -64,6 +64,26 @@ public sealed class MeasurementSteps(LensWorld world)
         (share * 100f).ShouldBeLessThanOrEqualTo(percent);
     }
 
+    [Then("the {string} is shown close to the page colour")]
+    public void ThenTheAreaIsShownCloseToThePageColour(string area)
+    {
+        LensResult result = world.RequireResult();
+        (List<float> ground, _) = SplitArea(result, area);
+        float shown = Median(ground);
+        float page = result.Tables.Parameters.PageLuminance;
+        Wcag.Contrast(shown, page).ShouldBeLessThanOrEqualTo(
+            1.5f, $"the {area} should all but merge with the page, not stand out as a block");
+    }
+
+    [Then("what is written on the {string} has a contrast of at least {float} to 1")]
+    public void ThenWhatIsWrittenOnTheAreaHasAContrastOfAtLeast(string area, float ratio)
+    {
+        LensResult result = world.RequireResult();
+        (List<float> ground, List<float> written) = SplitArea(result, area);
+        written.Count.ShouldBeGreaterThan(0, $"the {area} should have something written or drawn on it");
+        Wcag.Contrast(Median(written), Median(ground)).ShouldBeGreaterThanOrEqualTo(ratio);
+    }
+
     [Then("text contrast is at least {float} to 1")]
     public void ThenTextContrastIsAtLeast(float ratio) =>
         LensWorld.TextContrast(world.RequireResult(), world.RequireFixture()).ShouldBeGreaterThanOrEqualTo(ratio);
@@ -213,5 +233,54 @@ public sealed class MeasurementSteps(LensWorld world)
         }
 
         return Oklab.FromLinear(sum / (region.Width * region.Height));
+    }
+
+    /// <summary>
+    /// Splits a named area of the fixture into its ground (the colour most of it has in the source) and what
+    /// is written or drawn on it (source pixels that stand out from the ground by 4.5 to 1 or more), and
+    /// returns the luminance the lens shows for each.
+    /// </summary>
+    private (List<float> Ground, List<float> Written) SplitArea(LensResult result, string area)
+    {
+        Fixture fixture = world.RequireFixture();
+        fixture.Regions.TryGetValue(area, out Rect rect).ShouldBeTrue($"the fixture has no area called '{area}'");
+
+        var counts = new Dictionary<Rgb8, int>();
+        for (int y = rect.Y; y < rect.Y + rect.Height; y++)
+        {
+            for (int x = rect.X; x < rect.X + rect.Width; x++)
+            {
+                Rgb8 colour = result.Source[x, y];
+                counts[colour] = counts.GetValueOrDefault(colour) + 1;
+            }
+        }
+
+        Rgb8 groundColour = counts.MaxBy(pair => pair.Value).Key;
+        float groundLuminance = Wcag.Luminance(groundColour);
+        var ground = new List<float>();
+        var written = new List<float>();
+        for (int y = rect.Y; y < rect.Y + rect.Height; y++)
+        {
+            for (int x = rect.X; x < rect.X + rect.Width; x++)
+            {
+                Rgb8 source = result.Source[x, y];
+                if (source == groundColour)
+                {
+                    ground.Add(Wcag.Luminance(result.Output[x, y]));
+                }
+                else if (Wcag.Contrast(Wcag.Luminance(source), groundLuminance) >= 4.5f)
+                {
+                    written.Add(Wcag.Luminance(result.Output[x, y]));
+                }
+            }
+        }
+
+        return (ground, written);
+    }
+
+    private static float Median(List<float> values)
+    {
+        values.Sort();
+        return values[values.Count / 2];
     }
 }
