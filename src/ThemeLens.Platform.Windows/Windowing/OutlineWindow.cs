@@ -19,13 +19,16 @@ internal sealed unsafe class OutlineWindow : NativeWindow
     private const int LockedDip = 1;
     private const int EditDip = 3;
 
+    /// <summary>Side of a resize grip in edit mode. The lens takes a drag as a resize within the same distance of its edge.</summary>
+    private const int GripDip = 12;
+
     private readonly bool _devMode;
     private readonly Rgb8 _colour;
     private PixelRect _lens;
     private bool _wanted;
     private bool _edit;
     private bool _shown;
-    private (int Width, int Height, int Line) _shape;
+    private (int Width, int Height, int Line, int Grip) _shape;
 
     public OutlineWindow(bool devMode, Rgb8 colour)
     {
@@ -132,7 +135,9 @@ internal sealed unsafe class OutlineWindow : NativeWindow
         float scale = Monitors.ScaleFor(_lens);
         int line = Math.Max(1, (int)MathF.Round((_edit ? EditDip : LockedDip) * scale));
         line = Math.Min(line, Math.Min(_lens.Width, _lens.Height) / 2);
-        var shape = (_lens.Width, _lens.Height, line);
+        int grip = _edit ? Math.Max(line, (int)MathF.Round(GripDip * scale)) : 0;
+        grip = Math.Min(grip, Math.Min(_lens.Width, _lens.Height) / 4);
+        var shape = (_lens.Width, _lens.Height, line, grip);
         if (shape != _shape)
         {
             // Everything but a frame along the edge is cut out of the window; the region belongs to Windows once set.
@@ -140,6 +145,28 @@ internal sealed unsafe class OutlineWindow : NativeWindow
             HRGN hole = PInvoke.CreateRectRgn(line, line, _lens.Width - line, _lens.Height - line);
             PInvoke.CombineRgn(frame, frame, hole, RGN_COMBINE_MODE.RGN_DIFF);
             PInvoke.DeleteObject(hole);
+            if (grip > 0)
+            {
+                // Edit mode (figure 4): a grip on every corner and in the middle of every edge shows where the
+                // lens can be dragged to resize it. The outline stays click-through; the lens underneath takes the drag.
+                int right = _lens.Width - grip;
+                int bottom = _lens.Height - grip;
+                int centre = right / 2;
+                int middle = bottom / 2;
+                ReadOnlySpan<(int X, int Y)> grips =
+                [
+                    (0, 0), (centre, 0), (right, 0),
+                    (0, middle), (right, middle),
+                    (0, bottom), (centre, bottom), (right, bottom),
+                ];
+                foreach ((int x, int y) in grips)
+                {
+                    HRGN square = PInvoke.CreateRectRgn(x, y, x + grip, y + grip);
+                    PInvoke.CombineRgn(frame, frame, square, RGN_COMBINE_MODE.RGN_OR);
+                    PInvoke.DeleteObject(square);
+                }
+            }
+
             if (PInvoke.SetWindowRgn(Hwnd, frame, true) == 0)
             {
                 PInvoke.DeleteObject(frame);
