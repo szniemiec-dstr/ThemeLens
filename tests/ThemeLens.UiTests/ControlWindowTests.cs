@@ -178,7 +178,9 @@ public sealed partial class ControlWindowTests
             Application? app = null;
             try
             {
-                app = Application.Attach(process);
+                // By its id: the automation library then keeps a process object of its own, and closes that one,
+                // not ours, when it is done.
+                app = Application.Attach(process.Id);
                 Window? window = app.GetMainWindow(automation, Patience);
                 if (window is null)
                 {
