@@ -109,8 +109,16 @@
     <comment>Note shown when rendering runs on the CPU.</comment>
   </data>
   <data name="DevModeNote" xml:space="preserve">
-    <value>Development mode: the lens is not kept on top and covers at most a quarter of the screen.</value>
-    <comment>Note shown when the app was started with --dev.</comment>
+    <value>Development mode is for stepping through code with a debugger. The lens is not kept on top and covers at most a quarter of the screen. To use the lens, start ThemeLens without --dev.</value>
+    <comment>Shown prominently at the top of the control window when the app was started with --dev.</comment>
+  </data>
+  <data name="DevModeHeading" xml:space="preserve">
+    <value>Development mode</value>
+    <comment>Heading of the development mode notice in the control window.</comment>
+  </data>
+  <data name="HandleTextDev" xml:space="preserve">
+    <value>Lens: {0} (development mode, not kept on top)</value>
+    <comment>Text on the handle of the lens when the app was started with --dev. {0} is the name of the theme.</comment>
   </data>
   <data name="PatternNote" xml:space="preserve">
     <value>Test pattern: the lens shows a built-in picture, not the screen.</value>

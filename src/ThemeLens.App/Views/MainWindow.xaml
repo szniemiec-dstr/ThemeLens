@@ -24,6 +24,34 @@
         WindowStartupLocation="CenterScreen">
   <StackPanel Margin="24,20,24,24">
 
+    <!-- Development mode: said first, and loudly. In it the lens does not behave as a user would expect. -->
+    <Border x:Name="DevModeNotice"
+            Margin="0,0,0,16"
+            Padding="14,10"
+            BorderBrush="{StaticResource Brush.Accent}"
+            BorderThickness="2"
+            CornerRadius="6"
+            AutomationProperties.Name="{x:Static app:Strings.DevModeHeading}">
+      <Border.Style>
+        <Style TargetType="Border">
+          <Setter Property="Visibility" Value="Collapsed" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsDevMode}" Value="True">
+              <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Style>
+      <StackPanel>
+        <TextBlock FontWeight="SemiBold"
+                   Foreground="{StaticResource Brush.Accent}"
+                   Text="{x:Static app:Strings.DevModeHeading}" />
+        <TextBlock Margin="0,4,0,0"
+                   TextWrapping="Wrap"
+                   Text="{x:Static app:Strings.DevModeNote}" />
+      </StackPanel>
+    </Border>
+
     <!-- Title and status pill -->
     <Grid>
       <Grid.ColumnDefinitions>

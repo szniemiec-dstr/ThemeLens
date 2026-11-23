@@ -62,6 +62,10 @@ public static class Strings
 
     public static string DevModeNote => Get();
 
+    public static string DevModeHeading => Get();
+
+    public static string HandleTextDev => Get();
+
     public static string PatternNote => Get();
 
     public static string CaptureNote => Get();

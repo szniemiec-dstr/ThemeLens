@@ -38,7 +38,7 @@ public partial class App : Application
                 DevMode = _options.DevMode,
                 Source = _options.Source,
                 InitialTheme = theme,
-                HandleText = Strings.Format(Strings.HandleText, theme.Name),
+                HandleText = Strings.Format(_options.DevMode ? Strings.HandleTextDev : Strings.HandleText, theme.Name),
             });
         }
         catch (Exception failure)

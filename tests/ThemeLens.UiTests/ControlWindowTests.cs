@@ -26,7 +26,12 @@ public sealed partial class ControlWindowTests
 
         session.Window.Title.ShouldBe("ThemeLens");
         session.Status().ShouldBe("Off");
-        session.App.HasExited.ShouldBeFalse();
+        session.Process.HasExited.ShouldBeFalse();
+
+        // These tests start the app in development mode, and the window has to say so where nobody misses it:
+        // in that mode the lens is not kept on top and stays small.
+        session.Window.FindFirstDescendant(c => c.ByName("Development mode")).ShouldNotBeNull(
+            "the control window should announce development mode");
     }
 
     /// <summary>Section 4.8: every control has a UI Automation name, so Narrator and NVDA can drive the whole app.</summary>
@@ -83,16 +88,21 @@ public sealed partial class ControlWindowTests
         WaitFor(() => session.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
             $"the status should read Live, but reads '{session.Status()}'");
 
-        ComboBox themes = session.Find("ThemeList").AsComboBox();
-        themes.Items.Length.ShouldBeGreaterThanOrEqualTo(13, "the thirteen built-in themes");
-        string before = themes.SelectedItem?.Name ?? string.Empty;
-        themes.Select(themes.Items.Length - 1);
-        themes.Collapse();
+        // Open the list, as a screen reader would, and choose the last theme in it.
+        AutomationElement themes = session.Find("ThemeList");
+        themes.Patterns.ExpandCollapse.Pattern.Expand();
+        AutomationElement[] items = [];
+        WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
+            $"the list should offer the thirteen built-in themes, but offers {items.Length}");
+        AutomationElement last = items[^1];
+        last.Patterns.SelectionItem.Pattern.IsSelected.Value.ShouldBeFalse("the last theme should not be the one the app starts with");
+        last.Patterns.SelectionItem.Pattern.Select();
+        WaitFor(() => last.Patterns.SelectionItem.Pattern.IsSelected.Value).ShouldBeTrue("the theme list should show the new choice");
+        themes.Patterns.ExpandCollapse.Pattern.Collapse();
 
-        WaitFor(() => (themes.SelectedItem?.Name ?? string.Empty) != before).ShouldBeTrue("the theme list should show the new choice");
         Thread.Sleep(TimeSpan.FromSeconds(1));
         session.Status().ShouldStartWith("Live");
-        session.App.HasExited.ShouldBeFalse();
+        session.Process.HasExited.ShouldBeFalse();
     }
 
     [WindowsFact]
@@ -104,8 +114,8 @@ public sealed partial class ControlWindowTests
 
         session.Window.Close();
 
-        WaitFor(() => session.App.HasExited).ShouldBeTrue("the app should end when its control window is closed");
-        session.App.ExitCode.ShouldBe(0);
+        WaitFor(() => session.Process.HasExited).ShouldBeTrue("the app should end when its control window is closed");
+        session.Process.ExitCode.ShouldBe(0);
         WaitFor(() => !IsShown(LensWindowClass)).ShouldBeTrue("the lens must not outlive the app");
     }
 
@@ -141,16 +151,19 @@ public sealed partial class ControlWindowTests
     /// <summary>One run of the app, from start to the end of a test.</summary>
     private sealed class AppSession : IDisposable
     {
+        private readonly Application _app;
         private readonly UIA3Automation _automation;
 
-        private AppSession(Application app, UIA3Automation automation, Window window)
+        private AppSession(Process process, Application app, UIA3Automation automation, Window window)
         {
-            App = app;
+            Process = process;
+            _app = app;
             _automation = automation;
             Window = window;
         }
 
-        public Application App { get; }
+        /// <summary>The app's process, started here, so that its end and its exit code can be asked for.</summary>
+        public Process Process { get; }
 
         public Window Window { get; }
 
@@ -159,22 +172,26 @@ public sealed partial class ControlWindowTests
             string executable = AppPath();
             File.Exists(executable).ShouldBeTrue($"the app has not been built: {executable}");
 
+            Process process = Process.Start(new ProcessStartInfo(executable, "--dev --source pattern") { UseShellExecute = false })
+                ?? throw new InvalidOperationException("The app could not be started.");
             var automation = new UIA3Automation();
-            Application app = Application.Launch(new ProcessStartInfo(executable, "--dev --source pattern") { UseShellExecute = false });
+            Application? app = null;
             try
             {
+                app = Application.Attach(process);
                 Window? window = app.GetMainWindow(automation, Patience);
                 if (window is null)
                 {
-                    string ended = app.HasExited ? $"the app ended with exit code {app.ExitCode}" : "the app is still running";
+                    string ended = process.HasExited ? $"the app ended with exit code {process.ExitCode}" : "the app is still running";
                     throw new InvalidOperationException($"The control window did not appear within {Patience.TotalSeconds:0} seconds; {ended}.");
                 }
 
-                return new AppSession(app, automation, window);
+                return new AppSession(process, app, automation, window);
             }
             catch
             {
-                Stop(app);
+                Stop(process);
+                app?.Dispose();
                 automation.Dispose();
                 throw;
             }
@@ -190,25 +207,26 @@ public sealed partial class ControlWindowTests
 
         public void Dispose()
         {
-            Stop(App);
+            Stop(Process);
+            _app.Dispose();
             _automation.Dispose();
+            Process.Dispose();
         }
 
-        private static void Stop(Application app)
+        private static void Stop(Process process)
         {
             try
             {
-                if (!app.HasExited)
+                if (!process.HasExited)
                 {
-                    app.Kill();
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000);
                 }
             }
             catch (InvalidOperationException)
             {
                 // It ended between the question and the kill.
             }
-
-            app.Dispose();
         }
 
         /// <summary>The app's executable, built in the same configuration and for the same framework as these tests.</summary>

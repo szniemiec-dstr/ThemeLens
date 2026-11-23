@@ -92,6 +92,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Things worth knowing about this run: development mode, the test pattern, rendering on the CPU.</summary>
     public IReadOnlyList<string> Notes { get; }
 
+    /// <summary>True when the app was started with --dev. The window says so at the top, where it cannot be missed.</summary>
+    public bool IsDevMode => _runtime.IsDevMode;
+
     [ObservableProperty]
     public partial bool IsLensOn { get; set; }
 
@@ -180,11 +183,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             yield return Strings.Format(Strings.UnknownOption, options.Unknown);
         }
 
-        if (options.DevMode)
-        {
-            yield return Strings.DevModeNote;
-        }
-
         if (options.Source == FrameSourceKind.Pattern)
         {
             yield return Strings.PatternNote;
@@ -243,7 +241,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _runtime.SetHandleText(Strings.Format(Strings.HandleText, value.Name));
+        _runtime.SetHandleText(Strings.Format(IsDevMode ? Strings.HandleTextDev : Strings.HandleText, value.Name));
         if (!ReferenceEquals(_runtime.Controller.Theme, value.Theme))
         {
             _runtime.Controller.SetTheme(value.Theme);
