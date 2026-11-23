@@ -21,39 +21,55 @@ about 4:1, and limits are exact whatever hue a colour ends up with.
 ### D2. Light or dark is decided per region, in the same frame (6.5 "polarity check")
 
 The specification describes the polarity check as "a handful of average values" choosing between two ready
-tables. Here every pixel gets its own answer from its surroundings: flat areas that are clearly light or
-clearly dark vote, the votes are gathered at two scales (about 32 and 128 pixels), and a whole-lens figure
-from the last analysis fills in where no background is in sight. Mid-tones (a blue button, a green pill) cast
-only a token vote and follow their context. Text and edges do not vote.
+tables. Here every pixel gets its own answer: it lies in a light region, in a dark region, or it is content
+of whatever surrounds it.
 
 Why: a full-screen lens routinely covers a dark window next to a light one, a light page with a dark code
-block, a dark header over a white page. One decision per frame would get half of such a screen wrong, and the
-area guard would then have to blank it. Where a light and a dark region meet, each pixel's own lightness
-settles the tie, so the boundary gets no glowing band.
+block, a dark header over a white page, a row of black buttons on a white page. One decision per frame would
+get half of such a screen wrong, and the area guard would then have to blank it.
 
-Three refinements came from looking at rendered screens:
+How a region is found (`RegionMap`, the same code for the renderer and the analysis):
 
-- Each neighbourhood cell is reduced to a verdict (how light, how sure) before cells are compared. Counting
-  raw votes let a clean dark region outvote a light region full of text for a few pixels beyond the true
-  boundary, which showed as a bright line along it.
-- Where the wide neighbourhood agrees with itself, its verdict stands and the closer one is not asked. A small
-  solid shape of the opposite kind (a dark icon, a thick rule, a black logo on a white page) is then content
-  to be recoloured and not a little region of its own. The closer neighbourhood draws the line only where the
-  wide one is split, which is where two regions really meet.
-- The GPU reads these neighbourhoods with four texel loads and its own arithmetic, not with a sampler. A
-  sampler rounds the position between two texels to 1/256, and next to a threshold that was enough to make
-  the shader and the reference differ by up to 100/255 on a few hundred pixels of a test screen.
+- A region has a **core**: a window of 20 by 20 pixels in which one kind, clearly light or clearly dark,
+  outnumbers the other by about four to one. Mid-tones (a blue button, a photo) are neither kind. The shares
+  are counted in pixels, so the answer does not change as a shape moves across the 4-pixel grid the lens
+  works on. A dark band 16 pixels thick is a region, with whatever is written on it: a chip, a button, a
+  toolbar, a code block. A 16-pixel icon, a thick rule or a letter never fills the window and is content.
+- From its cores a region **spreads** along rows and columns through 4×4 blocks that are mostly of its kind.
+  This is what makes the gap between two dark buttons part of the light page, however far the gap is from
+  open page, while a light scrollbar thumb inside a dark panel, which touches no light region, stays content.
+- A block that belongs to one region takes that region's table whole: the label on a dark button is part of
+  the button. A block on the edge between a light and a dark region gives each pixel to the region of its
+  own kind, so the boundary gets no glowing band.
+- Everything else is **content** and takes the table of the regions closest to it; where no region is in
+  sight, the whole-lens figure from the last analysis decides. Only that figure listens to mid-tones, faintly.
+
+Earlier versions let every flat block vote and blended the votes over 32 and 128 pixels. That put the
+decision somewhere inside flat shapes: part of a black button was a dark region and part of it dark content,
+which showed as blotches, and the gaps between neighbouring dark shapes lit up.
+
+Consequences:
+
+- A solid shape of the opposite kind, 16 pixels thick or more, merges with the page: a black button on a
+  white page becomes the theme's page colour with its label in the text colour. What remains of its outline
+  is the anti-aliasing of its edge, so rounded shapes keep a faint outline and square ones none. Drawing an
+  outline where two regions meet would keep such shapes visible; this is not built (see the open points).
+- Very large bold type, with strokes of 16 pixels or more (roughly 100-pixel type and up), counts as a region
+  and is reduced to its outline in the same way.
+- Text within about 4 pixels of a region of the other kind can lose the pixels nearest to it.
+- The GPU reads the neighbourhood levels with four texel loads and the reference's own arithmetic, not with
+  a sampler. A sampler rounds the position between two texels to 1/256, and next to a threshold that was
+  enough to make the shader and the reference differ by up to 100/255 on a few hundred pixels.
 
 ### D3. The area guard measures the recoloured picture (6.5 "area guard")
 
 The specification has the shader pass the neighbourhood's average colour through the table. Here the guard
 looks at the recoloured output itself: each recoloured pixel is flagged if it differs from the page by more
-than an area may. The guard then asks two things. Is the flagged shape thick, meaning that a 16-pixel window
-somewhere inside it is flagged almost entirely? And is there enough of it: do the thick parts nearby add up to
-about 400 pixels (less on a small lens, so that an area is always caught before it reaches half a per cent of
-the lens)? Where both hold, the area becomes the page colour; whatever stands out from its immediate
-surroundings (text, lines) is redrawn towards the theme's text colour, so text inside a guarded area stays
-readable.
+than an area may, and the flagged pixels are then searched for areas exactly as the source is searched for
+regions (D2), with "flagged" and "not flagged" as the two kinds. A block that belongs to an area becomes the
+page colour, and whatever stands out from its immediate surroundings (text, lines) is redrawn towards the
+theme's text colour, so text inside a guarded area stays readable. A block that only touches an area gives
+up its flagged pixels, which is the area's rim.
 
 Why: "table(average)" is not "average(table)". A stale or wrong table can make a textured area bright while
 its average maps dark. Measuring the output makes the rule independent of how the table was built; a unit
@@ -61,22 +77,23 @@ test runs the guard against an identity table under a dark theme's rules and sti
 
 Consequences:
 
-- An "area" is at least 17 pixels thick and has some size: a solid square of about 32 pixels, or a band of
-  17 pixels that runs on for a while. Narrower shapes are lines and text. Smaller ones (a checkbox, a status
-  dot, a badge) are controls, and blanking them would lose information without sparing anyone any glare.
-  The "bright area" measurement in the tests (9.2) ignores shapes narrower than 17 pixels, then reports the
-  largest connected area at its full size, which FR-10 limits to 0.5% of the lens. A test holds the guard to
-  that on lenses from 160 by 120 pixels up.
-- Fills are also kept under the limit when the tables are built: a coloured fill, whether the theme has a
-  colour for it or not, is shown no further from the page than three quarters of `maxAreaContrast`. The guard
-  is then the safety net for what the analysis has not seen yet, and not the usual way a button gets its
-  colour.
+- An "area" is a shape that fills a 20-pixel window to four fifths: a band 16 pixels thick, a square of 18.
+  Narrower shapes are lines and text; smaller ones (a checkbox, a status dot) are controls and keep their
+  colour. This does not depend on the size of the lens, so FR-10 holds on any lens: a test sweeps white
+  squares of every size across lenses from 160 by 120 to 1280 by 800 and finds no bright area left.
+  The "bright area" measurement in the tests (9.2) ignores shapes narrower than 18 pixels, then reports the
+  largest connected area at its full size.
+- With regions found as in D2, clearly light and clearly dark shapes that are thick enough to be areas are
+  regions already, and coloured fills are kept under the limit when the tables are built: a coloured fill,
+  whether the theme has a colour for it or not, is shown no further from the page than three quarters of
+  `maxAreaContrast`. The guard is the safety net for what the analysis has not seen yet (the first frames
+  after the screen changes) and for tables that are wrong, not the usual way a button gets its colour.
 - A new theme limit, `limits.maxAreaContrast`, says how far an area may differ from the page. Default 6 on a
-  dark base (anything much brighter than the page is glare) and 12 on a light base (a dark button is harmless;
-  only something close to a dark page needs catching). `limits.maxLuminance` stays what the specification says:
-  the brightness limit for any pixel, text included.
-- The guard costs a second full-size pass. Themes with the guard off and no contrast or sharpen still render
-  in one pass.
+  dark base (anything much brighter than the page is glare) and 12 on a light base (only something close to
+  a dark page needs catching). `limits.maxLuminance` stays what the specification says: the brightness limit
+  for any pixel, text included.
+- The guard costs a second full-size pass and a second run of the small region passes. Themes with the guard
+  off and no contrast or sharpen still render in one full-size pass.
 - Sizes are in pixels at 100% scale. They need to scale with DPI (milestone M4).
 
 ### D4. Fills and line work in the same hue family are treated differently (6.2)
@@ -182,7 +199,14 @@ pass, because the markers in the dashboard fixture are fills (D4). Text or line 
 not meet the 0.08 figure. A darker blue for Good (around `#3B82F6`) would. The specification's colours are
 kept until this is decided.
 
-### Q2. Tests run on Microsoft.Testing.Platform
+### Q2. Should the lens draw an outline where a light and a dark region meet?
+
+Under a dark theme a black button on a white page becomes page-coloured, and only its label shows that it is
+there (D2). A thin line in a muted colour along the boundary would keep buttons, cards and panels visible as
+outlined shapes. It would be the first thing the lens draws that is not a recoloured pixel, so it is left for
+a decision.
+
+### Q3. Tests run on Microsoft.Testing.Platform
 
 xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ slightly from section 10.2:
 `dotnet test --solution ThemeLens.slnx` and `--filter-not-trait "Category=Ui"` instead of
@@ -192,11 +216,10 @@ xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ s
 
 - Photographs and full-colour gradients come out safe (no bright area) but not pretty: the lens does not know
   a photo from a button (section 3.2).
-- A solid shape wider than about 100 pixels in the opposite polarity of its page (a large black panel on
-  white) is a region of its own: it takes the page colour and only its outline and contents remain. Between
-  about 60 and 100 pixels the answer depends on what else is nearby.
-- Very large bold text (strokes wider than about 17 pixels) can count as an area.
-- Where a light region, a dark region and a mid-tone bar all meet in one corner, a few pixels of the page can
-  take the wrong side (seen as a sliver three pixels wide in the mixed-halves test screen).
+- Shapes of the opposite kind merge with the page and keep at most a faint outline (D2).
+- A mid-tone bar that ends where a light and a dark region meet (the status bar of a dark editor beside a
+  light document) can show a lighter stretch of about 30 pixels at that end.
+- Gradients and photographs that run from clearly light to clearly dark are cut into regions along straight
+  lines.
 - Table building takes about 10 ms and analysis 2 to 5 ms on a 4-core machine: at the edge of the 15 ms
   budget of section 7.6. Both run off the frame loop.

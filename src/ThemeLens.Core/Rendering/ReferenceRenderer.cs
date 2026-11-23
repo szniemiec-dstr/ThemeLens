@@ -16,7 +16,7 @@ namespace ThemeLens.Core.Rendering;
 /// <list type="number">
 /// <item>Neighbourhood: three shrunken copies of the source that say, for each pixel, whether its surroundings are light or dark.</item>
 /// <item>Recolour: one table lookup per pixel. The polarity check chooses between the table for light regions and the one for dark regions.</item>
-/// <item>Two shrunken copies of the recoloured picture and, for the guard, a map of where flagged pixels form something thick.</item>
+/// <item>Two shrunken copies of the recoloured picture and, for the guard, a map of where flagged pixels form an area.</item>
 /// <item>Finish: area guard, local contrast, sharpen, then clamp to the theme's limits.</item>
 /// </list>
 /// When nothing in step 4 is switched on, step 2 writes the final picture and steps 3 and 4 are skipped.
@@ -93,19 +93,21 @@ public static class ReferenceRenderer
         byte[] mappedFine = Shrink(mapped, w, h, out int fw, out int fh);
         byte[] mappedCoarse = Shrink(mappedFine, fw, fh, out int cw, out int ch);
 
-        // For the guard: where the flagged pixels form something thick, and how much of that there is nearby.
-        byte[] thick = [];
-        byte[] thickWide = [];
-        int tw = 0;
-        int th = 0;
+        // For the guard: where the flagged pixels form an area. An area is found the way a region is, with the
+        // flagged pixels as one kind and all others as the other.
+        RegionMap? areas = null;
         if (p.GuardOn)
         {
-            thick = Thick(mappedFine, fw, fh);
-            byte[] thickCoarse = Shrink(thick, fw, fh, out int tcw, out int tch);
-            thickWide = Shrink(thickCoarse, tcw, tch, out tw, out th);
-        }
+            byte[] flagged = new byte[fw * fh];
+            byte[] clear = new byte[fw * fh];
+            for (int i = 0; i < flagged.Length; i++)
+            {
+                flagged[i] = mappedFine[(i * 4) + 3];
+                clear[i] = (byte)(255 - flagged[i]);
+            }
 
-        (float coreEnough, float coreNeeded) = LensConstants.GuardCore(w, h);
+            areas = RegionMap.Build(flagged, clear, fw, fh, LensConstants.CoreRadius);
+        }
 
         // Strong sharpen needs a wider blur; its horizontal half is a pass of its own.
         float[]? blurredRows = p.StrongSharpen > 0f ? BlurRows(mapped, w, h) : null;
@@ -121,28 +123,13 @@ public static class ReferenceRenderer
                 Vector3 colour = o;
                 float guard = 0f;
 
-                if (p.GuardOn)
+                if (areas is not null)
                 {
-                    // Is this pixel in or right beside something thick? Read here and at four places nearby, which
-                    // covers the rim of an area, where the thickness window is only half inside it.
-                    const float reach = LensConstants.GuardReach;
-                    float isThick = Bilinear.Sample(thick, fw, fh, 4, 0, x, y, Fine);
-                    isThick = MathF.Max(isThick, Bilinear.Sample(thick, fw, fh, 4, 0, x - reach, y - reach, Fine));
-                    isThick = MathF.Max(isThick, Bilinear.Sample(thick, fw, fh, 4, 0, x + reach, y - reach, Fine));
-                    isThick = MathF.Max(isThick, Bilinear.Sample(thick, fw, fh, 4, 0, x - reach, y + reach, Fine));
-                    isThick = MathF.Max(isThick, Bilinear.Sample(thick, fw, fh, 4, 0, x + reach, y + reach, Fine));
-
-                    // And is there enough of it nearby to call it an area? Four taps of the smallest copy add up
-                    // the thick core over a wide window that slides with the pixel.
-                    const float far = LensConstants.GuardCoreOffset;
-                    float core = 0.25f * LensConstants.GuardCoreWindow * (
-                        Bilinear.Sample(thickWide, tw, th, 4, 0, x - far, y - far, LensConstants.WideScale)
-                        + Bilinear.Sample(thickWide, tw, th, 4, 0, x + far, y - far, LensConstants.WideScale)
-                        + Bilinear.Sample(thickWide, tw, th, 4, 0, x - far, y + far, LensConstants.WideScale)
-                        + Bilinear.Sample(thickWide, tw, th, 4, 0, x + far, y + far, LensConstants.WideScale));
-
-                    float enough = Smooth.Step(LensConstants.GuardCoreStart * coreEnough, coreEnough, core);
-                    guard = p.GuardStrength * isThick * Smooth.Lerp(1f, enough, coreNeeded);
+                    // A block that belongs to an area is guarded whole, text and all. A block that only touches
+                    // one gives it its flagged pixels: that is the rim of the area.
+                    int block = (Math.Min(y / Fine, fh - 1) * fw) + Math.Min(x / Fine, fw - 1);
+                    float flag = mapped[(((y * w) + x) * 4) + 3] / 255f;
+                    guard = p.GuardStrength * MathF.Max(areas.HomeLight[block] / 255f, areas.EdgeLight[block] / 255f * flag);
                     if (p.GuardSoftGate > 0f)
                     {
                         float soft = Smooth.Step(LensConstants.SoftGateLow, LensConstants.SoftGateHigh, around.SoftFractionAt(x, y));
@@ -223,45 +210,6 @@ public static class ReferenceRenderer
             ? (y + Wcag.Flare) / (p.PageLuminance + Wcag.Flare)
             : (p.PageLuminance + Wcag.Flare) / (y + Wcag.Flare);
         return Smooth.Step(LensConstants.AreaFlagStart * p.MaxAreaContrast, p.MaxAreaContrast, contrast);
-    }
-
-    /// <summary>
-    /// For every texel of the quarter-size copy: how thick the flagged pixels around it are. 1 where a window
-    /// of 16 by 16 pixels is almost entirely flagged, 0 where less than four fifths of it is. The value is
-    /// written to all four channels, so the copy can be shrunk like any other.
-    /// </summary>
-    private static byte[] Thick(byte[] mappedFine, int fw, int fh)
-    {
-        float[] weights = LensConstants.ThickWindow;
-        int reach = weights.Length / 2;
-        byte[] output = new byte[fw * fh * 4];
-        Parallel.For(0, fh, j =>
-        {
-            for (int i = 0; i < fw; i++)
-            {
-                float sum = 0f;
-                float total = 0f;
-                for (int dy = -reach; dy <= reach; dy++)
-                {
-                    int sy = Math.Clamp(j + dy, 0, fh - 1);
-                    for (int dx = -reach; dx <= reach; dx++)
-                    {
-                        int sx = Math.Clamp(i + dx, 0, fw - 1);
-                        float weight = weights[dx + reach] * weights[dy + reach];
-                        sum += weight * mappedFine[(((sy * fw) + sx) * 4) + 3];
-                        total += weight;
-                    }
-                }
-
-                byte value = Srgb.ToByte(Smooth.Step(LensConstants.GuardLow, LensConstants.GuardHigh, sum / total / 255f));
-                int o = ((j * fw) + i) * 4;
-                output[o] = value;
-                output[o + 1] = value;
-                output[o + 2] = value;
-                output[o + 3] = value;
-            }
-        });
-        return output;
     }
 
     private static Vector3 Texel(byte[] rgba, int w, int h, int x, int y)

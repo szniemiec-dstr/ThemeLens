@@ -14,9 +14,10 @@ public static class Measure
 {
     /// <summary>
     /// An "area" is something at least this many pixels across in both directions. Narrower shapes are lines and
-    /// text, which are allowed to differ from the page; that is the whole point of text.
+    /// text, which are allowed to differ from the page; that is the whole point of text. The number is the
+    /// smallest square that fills the lens's own 20-pixel window to four fifths (LensConstants.CoreShareLow).
     /// </summary>
-    public const int AreaMinimumWidth = 17;
+    public const int AreaMinimumWidth = 18;
 
     /// <summary>
     /// Largest connected area that differs from the page by more than the theme allows for an area, as a share
@@ -48,14 +49,14 @@ public static class Measure
 
         // Keep only the cores of shapes that are wide enough to be areas (an erosion with a square window).
         int[] sat = SummedArea(beyond, w, h);
-        int r = (minimumWidth - 1) / 2;
-        int window = (2 * r) + 1;
+        int before = (minimumWidth - 1) / 2;
+        int after = minimumWidth / 2;
         bool[] core = new bool[w * h];
-        for (int y = r; y < h - r; y++)
+        for (int y = before; y < h - after; y++)
         {
-            for (int x = r; x < w - r; x++)
+            for (int x = before; x < w - after; x++)
             {
-                core[(y * w) + x] = Sum(sat, w, x - r, y - r, x + r + 1, y + r + 1) == window * window;
+                core[(y * w) + x] = Sum(sat, w, x - before, y - before, x + after + 1, y + after + 1) == minimumWidth * minimumWidth;
             }
         }
 
@@ -92,9 +93,9 @@ public static class Measure
             {
                 int cx = i % w;
                 int cy = i / w;
-                for (int y = cy - r; y <= cy + r; y++)
+                for (int y = cy - before; y <= cy + after; y++)
                 {
-                    for (int x = cx - r; x <= cx + r; x++)
+                    for (int x = cx - before; x <= cx + after; x++)
                     {
                         grown[(y * w) + x] = true;
                     }

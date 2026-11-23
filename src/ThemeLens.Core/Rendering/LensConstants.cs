@@ -94,66 +94,6 @@ public static class LensConstants
     /// <summary>The area flag rises from 0 to 1 over this share of the theme's maximum area contrast.</summary>
     public const float AreaFlagStart = 0.8f;
 
-    /// <summary>
-    /// The guard asks two things of an area: that it is thick, and that there is enough of it.
-    /// Thick: a place starts to count as "thick" when this share of the 16 by 16 pixel window around it is
-    /// flagged, and is fully thick at the second value. Text, lines and a band of 12 pixels never are; a band
-    /// of 17 pixels is.
-    /// </summary>
-    public const float GuardLow = 0.80f;
-    public const float GuardHigh = 0.95f;
-
-    /// <summary>
-    /// Weights of the window that measures thickness, along each axis, in quarter-size texels (4 pixels each):
-    /// three whole texels and half of one on either side make 16 pixels, centred.
-    /// </summary>
-    public static readonly float[] ThickWindow = [0.5f, 1f, 1f, 1f, 0.5f];
-
-    /// <summary>The guard also acts within this distance of a thick place, which covers the rim of an area.</summary>
-    public const float GuardReach = 8f;
-
-    /// <summary>
-    /// Enough of it: the guard acts fully when the thick core of the shapes nearby adds up to this many pixels,
-    /// which a solid square of about 32 pixels has, and a long band of 17 pixels easily has. A checkbox, a status
-    /// dot or a small badge stays as it is. The guard starts to act at <see cref="GuardCoreStart"/> of this.
-    /// </summary>
-    public const float GuardCoreArea = 400f;
-    public const float GuardCoreStart = 0.375f;
-
-    /// <summary>
-    /// On a small lens "enough" shrinks with the lens, so that an area is still caught before it reaches half a
-    /// per cent of the lens (FR-10). The guard is to act fully on a square that covers this share of the lens.
-    /// </summary>
-    public const float GuardAreaShare = 0.004f;
-
-    /// <summary>The thick core of a solid square is narrower than the square by about this many pixels.</summary>
-    public const float GuardThickLoss = 10f;
-
-    /// <summary>
-    /// A thick core smaller than this cannot be told from nothing in the shrunken copies. Where "enough" would
-    /// have to be less (a lens under about 400 by 250 pixels), the guard stops asking how much there is and
-    /// acts on anything thick.
-    /// </summary>
-    public const float GuardCoreFloor = 48f;
-
-    /// <summary>
-    /// For a lens of this size: the thick core that counts as "enough of it", in pixels, and how much the guard
-    /// insists on it (1 on any lens of usual size, 0 on a very small one, where being thick is enough).
-    /// </summary>
-    public static (float Enough, float Needed) GuardCore(int lensWidth, int lensHeight)
-    {
-        float side = MathF.Sqrt(GuardAreaShare * lensWidth * lensHeight);
-        float reach = MathF.Max(side - GuardThickLoss, 0f);
-        float core = reach * reach;
-        return (Math.Clamp(core, GuardCoreFloor, GuardCoreArea), Smooth.Step(GuardCoreFloor, 2f * GuardCoreFloor, core));
-    }
-
-    /// <summary>Half the distance between the four taps that add up the thick core nearby.</summary>
-    public const float GuardCoreOffset = WideScale / 2f;
-
-    /// <summary>The four taps together weigh the thick core over an area of this many pixels.</summary>
-    public const float GuardCoreWindow = 4f * WideScale * WideScale;
-
     /// <summary>Thin detail keeps its full strength when an area is pulled back to the page colour.</summary>
     public const float GuardDetailGain = 1.6f;
 

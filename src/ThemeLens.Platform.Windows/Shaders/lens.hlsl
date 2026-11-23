@@ -16,8 +16,9 @@
 //   PsWide            sixteenth         -> sixty-fourth    Neighbourhood.Build, wide level
 //   PsRecolourFinal   source            -> lens            ReferenceRenderer pass 2 when nothing else is switched on
 //   PsRecolourMapped  source            -> "mapped"        ReferenceRenderer pass 2, with the area flag in alpha
-//   PsShrink          any RGBA          -> a quarter of it ReferenceRenderer.Shrink (pass 3, run up to four times)
-//   PsThick           quarter of mapped -> "thick"         ReferenceRenderer.Thick, for the area guard
+//   PsShrink          any RGBA          -> a quarter of it ReferenceRenderer.Shrink (pass 3, run twice)
+//   PsFlagShares      quarter of mapped -> quarter         the guard's two kinds: flagged and not. PsCore, PsSeed,
+//                                                          the spread passes and PsRegion then run once more, on these
 //   PsBlurRows        mapped            -> row blur        ReferenceRenderer.BlurRows
 //   PsFinish          mapped and copies -> lens            ReferenceRenderer pass 4
 //
@@ -42,7 +43,6 @@ static const int WideScale = 64;    // LensConstants.WideScale
 static const float LutSize = 33.0;  // Lut3D.Size
 static const float Flare = 0.05;    // Wcag.Flare
 static const float3 LuminanceWeights = float3(0.2126, 0.7152, 0.0722);  // Wcag.LuminanceWeights
-static const float ThickWindow[5] = { 0.5, 1.0, 1.0, 1.0, 0.5 };        // LensConstants.ThickWindow
 static const int CoreRadius = 2;    // LensConstants.CoreRadius
 static const int SpreadReach = 255; // LensConstants.SpreadReach
 
@@ -68,9 +68,7 @@ cbuffer Frame : register(b0)
     int2 CoarseSize;                // sixteenth-size level: ceil(FineSize / 4)
     int2 WideSize;                  // sixty-fourth-size level: ceil(CoarseSize / 4)
     float OneTable;                 // 1 when the light and dark tables are the same table
-    float CoreEnough;               // LensConstants.GuardCore for this lens: enough
-    float CoreNeeded;               // LensConstants.GuardCore for this lens: needed
-    float FrameUnused;
+    float3 FrameUnused;
 };
 
 // LensConstants. Filled once.
@@ -90,10 +88,7 @@ cbuffer Rules : register(b1)
     float PolarityHigh;             // LensConstants.PolarityHigh
     float OwnVoteBias;              // LensConstants.OwnVoteBias
     float AreaFlagStart;            // LensConstants.AreaFlagStart
-    float GuardLow;                 // LensConstants.GuardLow
-    float GuardHigh;                // LensConstants.GuardHigh
     float VoteConfidence;           // LensConstants.VoteConfidence
-    float GuardReach;               // LensConstants.GuardReach
     float GuardDetailGain;          // LensConstants.GuardDetailGain
     float SoftGateLow;              // LensConstants.SoftGateLow
     float SoftGateHigh;             // LensConstants.SoftGateHigh
@@ -106,15 +101,12 @@ cbuffer Rules : register(b1)
     float StrongSharpenGain;        // LensConstants.StrongSharpenGain
     float HaloAllowance;            // LensConstants.HaloAllowance
     float StrongKernel4;            // LensConstants.StrongKernel[4]
-    float GuardCoreStart;           // LensConstants.GuardCoreStart
-    float GuardCoreOffset;          // LensConstants.GuardCoreOffset
+    float RulesUnused;
     float4 StrongKernel0123;        // LensConstants.StrongKernel[0..3]
-    float GuardCoreWindow;          // LensConstants.GuardCoreWindow
-    float3 RulesUnused;
 };
 
 Texture2D<float4> Source : register(t0);        // the captured frame
-Texture2D<float4> Fine : register(t1);          // share of light pixels, share of dark pixels, luma range
+Texture2D<float4> Fine : register(t1);          // the two kinds per block (light and dark pixels, or flagged and not), luma range
 Texture2D<float4> Coarse : register(t2);        // light verdict, dark verdict, soft share
 Texture2D<float4> Wide : register(t3);          // light verdict, dark verdict
 Texture3D<float4> LutLight : register(t4);      // LensTables.Light
@@ -124,12 +116,10 @@ Texture2D<float4> MappedFine : register(t7);    // Mapped at a quarter of its si
 Texture2D<float4> MappedCoarse : register(t8);  // Mapped at a sixteenth of its size
 Texture2D<float> BlurredRows : register(t9);    // luma of Mapped, blurred along rows
 Texture2D<float4> ShrinkSource : register(t10); // whatever PsShrink is asked to shrink
-Texture2D<float4> Thick : register(t11);        // where flagged pixels form something thick, quarter size
-Texture2D<float4> ThickWide : register(t12);    // Thick at a sixteenth of its size
-Texture2D<float4> Cores : register(t13);        // light core, dark core
-Texture2D<float4> Spreading : register(t14);    // region so far: home light, home dark, through light, through dark
-Texture2D<float4> Region : register(t15);       // RegionMap: home light, home dark, edge light, edge dark
-Texture2D<float4> Local : register(t16);        // RegionMap: local light verdict, local dark verdict
+Texture2D<float4> Cores : register(t11);        // light core, dark core
+Texture2D<float4> Spreading : register(t12);    // region so far: home light, home dark, through light, through dark
+Texture2D<float4> Region : register(t13);       // RegionMap: home light, home dark, edge light, edge dark
+Texture2D<float4> Local : register(t14);        // RegionMap: local light verdict, local dark verdict
 
 SamplerState LinearClamp : register(s0);        // bilinear, clamp addressing: Bilinear.Sample and Lut3D.Sample
 
@@ -624,25 +614,12 @@ float4 PsShrink(float4 position : SV_Position) : SV_Target
     return sum / float(Block * Block) / 255.0;
 }
 
-// ReferenceRenderer.Thick: how thick the flagged pixels around each quarter-size texel are, from a window of
-// 16 by 16 pixels. Written to all four channels, so that PsShrink can shrink it like any other picture.
-float4 PsThick(float4 position : SV_Position) : SV_Target
+// The guard finds areas the way regions are found, with flagged pixels as one kind and all others as the
+// other: the share of each per block, in the two channels the region passes read from Fine.
+float4 PsFlagShares(float4 position : SV_Position) : SV_Target
 {
-    int2 xy = int2(position.xy);
-    float sum = 0.0;
-    float total = 0.0;
-    for (int dy = -2; dy <= 2; dy++)
-    {
-        for (int dx = -2; dx <= 2; dx++)
-        {
-            float weight = ThickWindow[dx + 2] * ThickWindow[dy + 2];
-            sum += weight * MappedFine.Load(int3(clamp(xy + int2(dx, dy), int2(0, 0), FineSize - 1), 0)).a;
-            total += weight;
-        }
-    }
-
-    float thick = smoothstep(GuardLow, GuardHigh, sum / total);
-    return float4(thick, thick, thick, thick);
+    float flagged = MappedFine.Load(int3(int2(position.xy), 0)).a;
+    return float4(flagged, 1.0 - flagged, 0.0, 0.0);
 }
 
 // ReferenceRenderer.BlurRows: the horizontal half of the strong-sharpen blur.
@@ -662,12 +639,6 @@ float PsBlurRows(float4 position : SV_Position) : SV_Target
 // Pass 4: finish. Area guard, local contrast, sharpen, then clamp to the theme's limits.
 // ---------------------------------------------------------------------------------------------------------
 
-// One tap of the thick map, for the pixel whose centre is given.
-float ThickAt(float2 centre)
-{
-    return Thick.SampleLevel(LinearClamp, ShrunkUv(centre, Block, FineSize), 0).r;
-}
-
 float4 PsFinish(float4 position : SV_Position) : SV_Target
 {
     int2 xy = int2(position.xy);
@@ -679,26 +650,11 @@ float4 PsFinish(float4 position : SV_Position) : SV_Target
 
     if (GuardOn())
     {
-        // Is this pixel in or right beside something thick? Read here and at four places nearby, which covers
-        // the rim of an area, where the thickness window is only half inside it.
-        float reach = GuardReach;
-        float isThick = ThickAt(centre);
-        isThick = max(isThick, ThickAt(centre + float2(-reach, -reach)));
-        isThick = max(isThick, ThickAt(centre + float2(reach, -reach)));
-        isThick = max(isThick, ThickAt(centre + float2(-reach, reach)));
-        isThick = max(isThick, ThickAt(centre + float2(reach, reach)));
-
-        // And is there enough of it nearby to call it an area? Four taps of the smallest copy add up the thick
-        // core over a wide window that slides with the pixel.
-        float spread = GuardCoreOffset;
-        float core = 0.25 * GuardCoreWindow * (
-            Between(ThickWide, centre + float2(-spread, -spread), WideScale, WideSize).r
-            + Between(ThickWide, centre + float2(spread, -spread), WideScale, WideSize).r
-            + Between(ThickWide, centre + float2(-spread, spread), WideScale, WideSize).r
-            + Between(ThickWide, centre + float2(spread, spread), WideScale, WideSize).r);
-
-        float enough = smoothstep(GuardCoreStart * CoreEnough, CoreEnough, core);
-        guard = GuardStrength * isThick * lerp(1.0, enough, CoreNeeded);
+        // A block that belongs to an area is guarded whole, text and all. A block that only touches one gives
+        // it its flagged pixels: that is the rim of the area. Region holds the map of the flagged pixels here.
+        float4 area = Region.Load(int3(min(xy / Block, FineSize - 1), 0));
+        float flag = Mapped.Load(int3(xy, 0)).a;
+        guard = GuardStrength * max(area.r, area.b * flag);
         if (GuardSoftGate > 0.0)
         {
             // Neighbourhood.SoftFractionAt

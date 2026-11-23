@@ -20,7 +20,7 @@ internal enum LensPass
     RecolourFinal,
     RecolourMapped,
     Shrink,
-    Thick,
+    FlagShares,
     BlurRows,
     Finish,
     Copy,

@@ -55,16 +55,16 @@ internal struct FrameConstants
 
     // Row 7
     public float OneTable;
-    public float CoreEnough;
-    public float CoreNeeded;
     public float Unused0;
+    public float Unused1;
+    public float Unused2;
 }
 
 /// <summary>The <c>Rules</c> constant buffer of <c>lens.hlsl</c>: every number the shader takes from <see cref="LensConstants"/>.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 internal struct RuleConstants
 {
-    public const int SizeInBytes = 10 * 16;
+    public const int SizeInBytes = 8 * 16;
 
     // Row 0
     public float LightVoteLow;
@@ -87,52 +87,39 @@ internal struct RuleConstants
     // Row 3
     public float OwnVoteBias;
     public float AreaFlagStart;
-    public float GuardLow;
-    public float GuardHigh;
+    public float VoteConfidence;
+    public float GuardDetailGain;
 
     // Row 4
-    public float VoteConfidence;
-    public float GuardReach;
-    public float GuardDetailGain;
     public float SoftGateLow;
-
-    // Row 5
     public float SoftGateHigh;
     public float SoftRangeLow;
     public float SoftRangeMid;
-    public float SoftRangeHigh;
 
-    // Row 6
+    // Row 5
+    public float SoftRangeHigh;
     public float SoftRangeMax;
     public float LocalContrastGain;
     public float SharpenGain;
-    public float StrongSharpenGain;
 
-    // Row 7
+    // Row 6
+    public float StrongSharpenGain;
     public float HaloAllowance;
     public float StrongKernel4;
-    public float GuardCoreStart;
-    public float GuardCoreOffset;
-
-    // Row 8
-    public Vector4 StrongKernel0123;
-
-    // Row 9
-    public float GuardCoreWindow;
     public float Unused0;
-    public float Unused1;
-    public float Unused2;
+
+    // Row 7
+    public Vector4 StrongKernel0123;
 
     public static RuleConstants FromLensConstants()
     {
         // lens.hlsl repeats these as literals, because its loops need them at compile time.
         if (LensConstants.BlockSize != 4 || LensConstants.CoarseScale != 16 || LensConstants.WideScale != 64
             || LensConstants.StrongKernel.Length != 5
-            || LensConstants.CoreRadius != 2 || LensConstants.SpreadReach != 255
-            || !LensConstants.ThickWindow.AsSpan().SequenceEqual([0.5f, 1f, 1f, 1f, 0.5f]))
+            || LensConstants.CoreRadius != 2 || LensConstants.SpreadReach != 255)
         {
             throw new InvalidOperationException(
-                "lens.hlsl assumes 4×4 blocks, a nine-tap kernel, and its own core, spread and thickness windows. "
+                "lens.hlsl assumes 4×4 blocks, a nine-tap kernel, and its own core window and spread reach. "
                 + "LensConstants changed; change the shader with it.");
         }
 
@@ -152,10 +139,7 @@ internal struct RuleConstants
             PolarityHigh = LensConstants.PolarityHigh,
             OwnVoteBias = LensConstants.OwnVoteBias,
             AreaFlagStart = LensConstants.AreaFlagStart,
-            GuardLow = LensConstants.GuardLow,
-            GuardHigh = LensConstants.GuardHigh,
             VoteConfidence = LensConstants.VoteConfidence,
-            GuardReach = LensConstants.GuardReach,
             GuardDetailGain = LensConstants.GuardDetailGain,
             SoftGateLow = LensConstants.SoftGateLow,
             SoftGateHigh = LensConstants.SoftGateHigh,
@@ -168,14 +152,11 @@ internal struct RuleConstants
             StrongSharpenGain = LensConstants.StrongSharpenGain,
             HaloAllowance = LensConstants.HaloAllowance,
             StrongKernel4 = LensConstants.StrongKernel[4],
-            GuardCoreStart = LensConstants.GuardCoreStart,
-            GuardCoreOffset = LensConstants.GuardCoreOffset,
             StrongKernel0123 = new Vector4(
                 LensConstants.StrongKernel[0],
                 LensConstants.StrongKernel[1],
                 LensConstants.StrongKernel[2],
                 LensConstants.StrongKernel[3]),
-            GuardCoreWindow = LensConstants.GuardCoreWindow,
         };
     }
 }

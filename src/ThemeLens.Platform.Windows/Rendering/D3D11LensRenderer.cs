@@ -31,7 +31,7 @@ namespace ThemeLens.Platform.Windows;
 /// </remarks>
 public sealed class D3D11LensRenderer : IDisposable
 {
-    private const int ResourceSlots = 17;
+    private const int ResourceSlots = 15;
     private const int SourceSlot = 0;
     private const int FineSlot = 1;
     private const int CoarseSlot = 2;
@@ -43,12 +43,10 @@ public sealed class D3D11LensRenderer : IDisposable
     private const int MappedCoarseSlot = 8;
     private const int BlurredRowsSlot = 9;
     private const int ShrinkSourceSlot = 10;
-    private const int ThickSlot = 11;
-    private const int ThickWideSlot = 12;
-    private const int CoresSlot = 13;
-    private const int SpreadingSlot = 14;
-    private const int RegionSlot = 15;
-    private const int LocalSlot = 16;
+    private const int CoresSlot = 11;
+    private const int SpreadingSlot = 12;
+    private const int RegionSlot = 13;
+    private const int LocalSlot = 14;
 
     private const Format FrameFormat = Format.B8G8R8A8_UNorm;
     private const Format IntermediateFormat = Format.R8G8B8A8_UNorm;
@@ -94,9 +92,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private RenderTexture? _mapped;
     private RenderTexture? _mappedFine;
     private RenderTexture? _mappedCoarse;
-    private RenderTexture? _thick;
-    private RenderTexture? _thickCoarse;
-    private RenderTexture? _thickWide;
+    private RenderTexture? _flagShares;
     private RenderTexture? _blurredRows;
     private ID3D11Texture2D? _regionCopy;
     private bool _fineValid;
@@ -608,13 +604,11 @@ public sealed class D3D11LensRenderer : IDisposable
         _mapped?.Dispose();
         _mappedFine?.Dispose();
         _mappedCoarse?.Dispose();
-        _thick?.Dispose();
-        _thickCoarse?.Dispose();
-        _thickWide?.Dispose();
+        _flagShares?.Dispose();
         _blurredRows?.Dispose();
         _regionCopy?.Dispose();
         _fineVotes = _fineCentre = _coarse = _wide = _mapped = _mappedFine = _mappedCoarse = _blurredRows = null;
-        _thick = _thickCoarse = _thickWide = null;
+        _flagShares = null;
         _cores?.Dispose();
         _spreadA?.Dispose();
         _spreadB?.Dispose();
@@ -649,7 +643,6 @@ public sealed class D3D11LensRenderer : IDisposable
 
         FrameParameters p = tables.Parameters;
         bool oneTable = ReferenceEquals(tables.Light, tables.Dark);
-        (float coreEnough, float coreNeeded) = LensConstants.GuardCore(width, height);
 
         // A frame that cannot be read by a shader as it is (no shader-resource binding) is first copied, lens area only.
         Texture2DDescription sourceDescription = source.Description;
@@ -690,8 +683,6 @@ public sealed class D3D11LensRenderer : IDisposable
             WideWidth = wideWidth,
             WideHeight = wideHeight,
             OneTable = oneTable ? 1f : 0f,
-            CoreEnough = coreEnough,
-            CoreNeeded = coreNeeded,
         };
         _context.UpdateSubresource(in constants, _frameBuffer);
 
@@ -728,37 +719,8 @@ public sealed class D3D11LensRenderer : IDisposable
             bool softGate = p.GuardOn && p.GuardSoftGate > 0f;
             if (!oneTable)
             {
-                // Regions (RegionMap.Build): cores, seeds, the spread along rows and columns in turn, then edges.
-                _cores ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
-                _spreadA ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
-                _spreadB ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
-                _region ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
-                _local ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
-
-                Array.Clear(_resources);
-                _resources[FineSlot] = _fineVotes.Resource;
-                Draw(LensPass.Core, _cores.Target, fineWidth, fineHeight);
-
-                Array.Clear(_resources);
-                _resources[FineSlot] = _fineVotes.Resource;
-                _resources[CoresSlot] = _cores.Resource;
-                Draw(LensPass.Seed, _spreadA.Target, fineWidth, fineHeight);
-
-                RenderTexture spread = _spreadA;
-                RenderTexture spare = _spreadB;
-                for (int pass = 0; pass < LensConstants.SpreadPasses; pass++)
-                {
-                    Array.Clear(_resources);
-                    _resources[SpreadingSlot] = spread.Resource;
-                    Draw(pass % 2 == 0 ? LensPass.SpreadRows : LensPass.SpreadColumns, spare.Target, fineWidth, fineHeight);
-                    (spread, spare) = (spare, spread);
-                }
-
-                Array.Clear(_resources);
-                _resources[SpreadingSlot] = spread.Resource;
-                _regionTargets[0] = _region.Target;
-                _regionTargets[1] = _local.Target;
-                Draw(LensPass.Region, _regionTargets, fineWidth, fineHeight);
+                // Which blocks lie in a light region and which in a dark one.
+                BuildRegions(_fineVotes.Resource, fineWidth, fineHeight);
             }
 
             if (!oneTable || softGate)
@@ -805,7 +767,7 @@ public sealed class D3D11LensRenderer : IDisposable
                 _mapped ??= new RenderTexture(_device, width, height, IntermediateFormat);
                 Draw(LensPass.RecolourMapped, _mapped.Target, width, height);
 
-                // Pass 3: the recoloured picture at a quarter and a sixteenth of its size, the thick map and the row blur.
+                // Pass 3: the recoloured picture at a quarter and a sixteenth of its size, the guard's areas and the row blur.
                 bool guard = p.GuardOn;
                 bool localContrast = p.LocalContrast > 0f;
                 bool strongSharpen = p.StrongSharpen > 0f;
@@ -827,22 +789,13 @@ public sealed class D3D11LensRenderer : IDisposable
 
                 if (guard)
                 {
-                    // For the guard: where the flagged pixels form something thick, and that map at a sixteenth
-                    // of its size, from which the finish pass reads how much of it there is nearby.
-                    _thick ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                    // For the guard: which blocks belong to an area of flagged pixels. The region textures have
+                    // done their work for this frame in the recolour pass, so the same passes fill them again.
+                    _flagShares ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
                     Array.Clear(_resources);
                     _resources[MappedFineSlot] = _mappedFine!.Resource;
-                    Draw(LensPass.Thick, _thick.Target, fineWidth, fineHeight);
-
-                    _thickCoarse ??= new RenderTexture(_device, coarseWidth, coarseHeight, IntermediateFormat);
-                    Array.Clear(_resources);
-                    _resources[ShrinkSourceSlot] = _thick.Resource;
-                    Draw(LensPass.Shrink, _thickCoarse.Target, coarseWidth, coarseHeight);
-
-                    _thickWide ??= new RenderTexture(_device, wideWidth, wideHeight, IntermediateFormat);
-                    Array.Clear(_resources);
-                    _resources[ShrinkSourceSlot] = _thickCoarse.Resource;
-                    Draw(LensPass.Shrink, _thickWide.Target, wideWidth, wideHeight);
+                    Draw(LensPass.FlagShares, _flagShares.Target, fineWidth, fineHeight);
+                    BuildRegions(_flagShares.Resource, fineWidth, fineHeight);
                 }
 
                 if (strongSharpen)
@@ -860,8 +813,7 @@ public sealed class D3D11LensRenderer : IDisposable
                 if (guard)
                 {
                     _resources[MappedFineSlot] = _mappedFine!.Resource;
-                    _resources[ThickSlot] = _thick!.Resource;
-                    _resources[ThickWideSlot] = _thickWide!.Resource;
+                    _resources[RegionSlot] = _region!.Resource;
                 }
 
                 if (softGate)
@@ -882,6 +834,45 @@ public sealed class D3D11LensRenderer : IDisposable
                 Draw(LensPass.Finish, target, width, height);
             }
         }
+    }
+
+    /// <summary>
+    /// <see cref="RegionMap.Build"/> on the GPU: cores, seeds, the spread along rows and columns in turn, then
+    /// edges and the local verdict. <paramref name="kinds"/> holds the share of each of the two kinds per
+    /// quarter-size block in its red and green channels. The result is in <see cref="_region"/> and <see cref="_local"/>.
+    /// </summary>
+    private void BuildRegions(ID3D11ShaderResourceView kinds, int fineWidth, int fineHeight)
+    {
+        _cores ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+        _spreadA ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+        _spreadB ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+        _region ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+        _local ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+
+        Array.Clear(_resources);
+        _resources[FineSlot] = kinds;
+        Draw(LensPass.Core, _cores.Target, fineWidth, fineHeight);
+
+        Array.Clear(_resources);
+        _resources[FineSlot] = kinds;
+        _resources[CoresSlot] = _cores.Resource;
+        Draw(LensPass.Seed, _spreadA.Target, fineWidth, fineHeight);
+
+        RenderTexture spread = _spreadA;
+        RenderTexture spare = _spreadB;
+        for (int pass = 0; pass < LensConstants.SpreadPasses; pass++)
+        {
+            Array.Clear(_resources);
+            _resources[SpreadingSlot] = spread.Resource;
+            Draw(pass % 2 == 0 ? LensPass.SpreadRows : LensPass.SpreadColumns, spare.Target, fineWidth, fineHeight);
+            (spread, spare) = (spare, spread);
+        }
+
+        Array.Clear(_resources);
+        _resources[SpreadingSlot] = spread.Resource;
+        _regionTargets[0] = _region.Target;
+        _regionTargets[1] = _local.Target;
+        Draw(LensPass.Region, _regionTargets, fineWidth, fineHeight);
     }
 
     private void Draw(LensPass pass, ID3D11RenderTargetView target, int width, int height)

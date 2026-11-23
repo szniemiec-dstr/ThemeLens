@@ -126,6 +126,116 @@ public class RendererTests
         Wcag.Luminance(output[50, 50]).ShouldBeLessThan(0.01f);
     }
 
+    [Theory]
+    [InlineData(12, false)]
+    [InlineData(15, false)]
+    [InlineData(16, true)]
+    [InlineData(20, true)]
+    [InlineData(31, true)]
+    public void A_dark_band_is_content_or_a_region_by_its_thickness_wherever_it_lies_on_the_grid(int thickness, bool region)
+    {
+        // The lens works on 4×4 blocks. The answer must not depend on where a shape falls on that grid, or a
+        // button would flicker between light and dark while the page scrolls under the lens.
+        for (int offset = 0; offset < 4; offset++)
+        {
+            var c = new Canvas(320, 200, Rgb8.White);
+            c.Fill(40, 80 + offset, 240, thickness, Rgb8.FromHex("#1E1E1E"));
+            c.Fill(100 + offset, 20, thickness, 40, Rgb8.FromHex("#1E1E1E"));
+
+            ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+
+            foreach ((int x, int y) in new[] { (160, 80 + offset + (thickness / 2)), (100 + offset + (thickness / 2), 40) })
+            {
+                float middle = Wcag.Luminance(output[x, y]);
+                string what = $"a band {thickness} pixels thick, {offset} pixels off the grid, at ({x}, {y})";
+                if (region)
+                {
+                    middle.ShouldBeLessThan(0.02f, what + " is a dark region and stays dark");
+                }
+                else
+                {
+                    middle.ShouldBeGreaterThan(0.4f, what + " is content and turns light, as text does");
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(20)]
+    [InlineData(28)]
+    [InlineData(40)]
+    public void A_dark_button_on_a_light_page_is_one_colour_and_keeps_its_label(int height)
+    {
+        Rgb8 fill = Rgb8.FromHex("#111111");
+        var c = new Canvas(320, 200, Rgb8.White);
+        c.Fill(60, 70, height * 3, height, fill);
+        c.Text(68, 70 + (height / 2) + 4, "Buy", 9f, 1.4f, Rgb8.White);
+
+        ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+
+        float darkest = 1f;
+        float lightest = 0f;
+        var label = new List<float>();
+        for (int y = 70; y < 70 + height; y++)
+        {
+            for (int x = 60; x < 60 + (height * 3); x++)
+            {
+                float luminance = Wcag.Luminance(output[x, y]);
+                if (c.Image[x, y] == fill)
+                {
+                    darkest = MathF.Min(darkest, luminance);
+                    lightest = MathF.Max(lightest, luminance);
+                }
+                else if (c.Image[x, y] == Rgb8.White)
+                {
+                    label.Add(luminance);
+                }
+            }
+        }
+
+        lightest.ShouldBeLessThan(0.02f, "the whole button is a dark region; no part of it turns light");
+        (lightest - darkest).ShouldBeLessThan(0.01f, "and it is one colour throughout");
+        label.Sort();
+        label[label.Count / 2].ShouldBeGreaterThan(0.3f, "the label belongs to the button and stays light");
+    }
+
+    [Fact]
+    public void The_gap_between_two_dark_shapes_on_a_light_page_is_page()
+    {
+        // Chips in a row, tiles in a grid: the gaps are far from open page, but they are connected to it.
+        var c = new Canvas(640, 400, Rgb8.White);
+        for (int row = 0; row < 3; row++)
+        {
+            for (int column = 0; column < 4; column++)
+            {
+                c.Fill(60 + (column * 128), 40 + (row * 108), 120, 100, Rgb8.FromHex("#1E1E1E"));
+            }
+        }
+
+        ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+
+        Wcag.Luminance(output[184, 200]).ShouldBeLessThan(0.02f, "a gap between two tiles in the middle row");
+        Wcag.Luminance(output[300, 144]).ShouldBeLessThan(0.02f, "a gap between two rows");
+        Wcag.Luminance(output[312, 252]).ShouldBeLessThan(0.02f, "where four tiles meet");
+    }
+
+    [Fact]
+    public void A_light_bar_inside_a_dark_panel_is_content_and_stays_light()
+    {
+        // A scrollbar thumb or a progress bar: light, but connected to no light region.
+        var c = new Canvas(640, 400, Rgb8.White);
+        c.Fill(100, 60, 400, 280, Rgb8.FromHex("#1E1E1E"));
+        c.Fill(470, 100, 12, 120, Rgb8.White);
+        c.Fill(140, 300, 200, 8, Rgb8.White);
+
+        ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+
+        Wcag.Luminance(output[476, 160]).ShouldBeGreaterThan(0.4f, "the thumb");
+        Wcag.Luminance(output[240, 304]).ShouldBeGreaterThan(0.4f, "the bar");
+        Wcag.Luminance(output[300, 200]).ShouldBeLessThan(0.02f, "the panel");
+        Wcag.Luminance(output[50, 200]).ShouldBeLessThan(0.02f, "the page");
+    }
+
     [Fact]
     public void No_bright_line_appears_where_a_text_filled_light_region_meets_a_dark_one()
     {
@@ -154,8 +264,9 @@ public class RendererTests
     }
 
     [Theory]
+    [InlineData(12, false)]
     [InlineData(16, false)]
-    [InlineData(22, false)]
+    [InlineData(20, true)]
     [InlineData(40, true)]
     [InlineData(80, true)]
     public void The_guard_leaves_small_shapes_alone_and_catches_areas(int side, bool guarded)
@@ -196,35 +307,26 @@ public class RendererTests
     [Theory]
     [InlineData(160, 120)]
     [InlineData(320, 200)]
-    [InlineData(400, 250)]
-    [InlineData(480, 300)]
     [InlineData(640, 400)]
     [InlineData(1280, 800)]
-    public void Whatever_the_lens_size_no_bright_area_reaches_half_a_per_cent_of_it(int width, int height)
+    public void Whatever_the_lens_size_no_bright_area_is_left(int width, int height)
     {
-        // FR-10 with a table that is plain wrong: white squares of every size from a dot to a panel.
+        // FR-10 with a table that is plain wrong: white squares of every size from a dot to a panel, at
+        // every position on the 4-pixel grid. An area is an area whatever the size of the lens.
         FrameParameters dark = TableBuilder.Build(SoftDark).Parameters;
         Lut3D identity = Lut3D.Identity();
+        int step = 0;
         for (int side = 8; side <= Math.Min(width, height) / 2; side += 3)
         {
             var c = new Canvas(width, height, Rgb8.Black);
-            int left = (width - side) / 2;
-            int top = (height - side) / 2;
+            int left = ((width - side) / 2) + (step % 4);
+            int top = ((height - side) / 2) + ((step / 4) % 4);
+            step += 5;
             c.Fill(left, top, side, side, Rgb8.White);
 
             ImageRgb8 output = ReferenceRenderer.Render(c.Image, identity, identity, dark);
 
-            string what = $"a square of {side} pixels on a lens of {width} by {height}";
-            if (width * height >= 400 * 250)
-            {
-                Measure.LargestAreaShare(output, dark).ShouldBeLessThanOrEqualTo(0.005f, what);
-            }
-            else if (side >= 24)
-            {
-                // Half a per cent of a lens this small is less than the guard can tell from a thick letter.
-                // It then acts on anything from about 24 pixels thick.
-                Wcag.Luminance(output[left + (side / 2), top + (side / 2)]).ShouldBeLessThan(0.02f, what);
-            }
+            Measure.LargestAreaShare(output, dark).ShouldBe(0f, $"a square of {side} pixels at ({left}, {top}) on a lens of {width} by {height}");
         }
     }
 
