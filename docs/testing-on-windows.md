@@ -1,10 +1,11 @@
 # Trying ThemeLens on Windows
 
 The colour engine is tested automatically on Linux and Windows, and the GPU shader is compared with the
-reference renderer on the Windows software rasteriser in CI. What no machine has done yet is show the lens on
-a real desktop. Everything in `ThemeLens.Platform.Windows` and `ThemeLens.App` was written without being run.
-Expect the first run to fail somewhere; the list below is ordered so that each step tells us something even
-if a later one does not work.
+reference renderer on the Windows software rasteriser in CI. CI also starts the whole lens on its Windows
+desktop: it goes live over a test pattern and over the real screen, survives edit mode and switches off
+again. What no machine can tell is what it looks like. Nobody has seen the lens yet, and the control window
+has not been run at all. The list below is ordered so that each step tells us something even if a later
+one does not work.
 
 You need Windows 11 and the .NET 10 SDK.
 

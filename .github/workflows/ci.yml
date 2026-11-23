@@ -83,15 +83,13 @@ jobs:
       - name: Shader against the reference renderer
         run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-not-trait "Category=Ui"
 
-      # These create real windows and need a desktop session, which a hosted runner may not offer.
+      # These create real windows and need a desktop session, which the hosted Windows runners have.
       - name: Lens window tests
-        continue-on-error: true
         timeout-minutes: 5
         run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-class "*LensWindowTests"
 
-      # The whole lens, started as the app starts it: windows, composition, frame loop, capture. What a
-      # hosted runner can show of it is worth knowing, but its desktop is not a user's desktop.
+      # The whole lens, started as the app starts it: windows, composition, frame loop, capture. It shows that
+      # the parts start and keep running on a real Windows desktop. Nobody looks at the picture here.
       - name: The whole lens on this desktop
-        continue-on-error: true
         timeout-minutes: 5
         run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-class "*LensRuntimeSmokeTests"
