@@ -15,7 +15,7 @@ public static class Measure
     /// <summary>
     /// An "area" is something at least this many pixels across in both directions. Narrower shapes are lines and
     /// text, which are allowed to differ from the page; that is the whole point of text. The number is the
-    /// smallest square that fills the lens's own 20-pixel window to four fifths (LensConstants.CoreShareLow).
+    /// smallest square that fills the lens's own 20-pixel window to more than LensConstants.CoreShareHigh.
     /// </summary>
     public const int AreaMinimumWidth = 18;
 

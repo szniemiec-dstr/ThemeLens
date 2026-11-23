@@ -31,7 +31,7 @@ get half of such a screen wrong, and the area guard would then have to blank it.
 How a region is found (`RegionMap`, the same code for the renderer and the analysis):
 
 - A region has a **core**: a window of 20 by 20 pixels in which one kind, clearly light or clearly dark,
-  outnumbers the other by about four to one. Mid-tones (a blue button, a photo) are neither kind. The shares
+  outnumbers the other by more than three to one. Mid-tones (a blue button, a photo) are neither kind. The shares
   are counted in pixels, so the answer does not change as a shape moves across the 4-pixel grid the lens
   works on. A dark band 16 pixels thick is a region, with whatever is written on it: a chip, a button, a
   toolbar, a code block. A 16-pixel icon, a thick rule or a letter never fills the window and is content.
@@ -77,7 +77,7 @@ test runs the guard against an identity table under a dark theme's rules and sti
 
 Consequences:
 
-- An "area" is a shape that fills a 20-pixel window to four fifths: a band 16 pixels thick, a square of 18.
+- An "area" is a shape that fills a 20-pixel window to more than three quarters: a band 16 pixels thick, a square of 18.
   Narrower shapes are lines and text; smaller ones (a checkbox, a status dot) are controls and keep their
   colour. This does not depend on the size of the lens, so FR-10 holds on any lens: a test sweeps white
   squares of every size across lenses from 160 by 120 to 1280 by 800 and finds no bright area left.
