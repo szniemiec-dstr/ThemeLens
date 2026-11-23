@@ -54,6 +54,7 @@ debugger: in it the lens is deliberately not kept on top and limited to a quarte
 | Pick another theme | The lens cross-fades to the new colours in about a fifth of a second. No flash. |
 | Move the sliders under "Adjust this theme" | The lens follows while you drag: darker with a lower brightness limit, less blue with more warmth. "Back to the theme's own values" undoes it. |
 | Look at "Colours on screen now, and what you see" | One row per colour under the lens: its true colour with name and hex value, its share, the role it was given and the colour it is shown as. It follows the screen within half a second. Choose another role in "Used as": the lens changes and the row says "Pinned" until "Reset mapping". |
+| Type a name under the sliders and press "Save as theme" | Your values become a theme of your own. It appears in the theme list and is selected. Its file is in `%AppData%\ThemeLens\themes`. |
 | Close the app with the lens on, and start it again | The same theme, your slider values and the lens's place are back, and the lens switches itself on. |
 | Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
 | Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |
@@ -82,8 +83,7 @@ over the screen, the fault is in screen capture; if it is wrong over both, it is
 ## 5. Things I already know are missing
 
 - The first-run window, the tray icon and the settings page.
-- Saving your slider values as a theme of your own, and changing the keyboard shortcuts. The logic for both
-  exists and is tested; the window has no controls for them yet.
+- Changing the keyboard shortcuts. The logic exists and is tested; the window has no controls for it yet.
 - A message that says why when Windows refuses screen capture.
 - HDR screens, and scaling of the lens's inner sizes with display scaling above 100%.
 - An installer.
