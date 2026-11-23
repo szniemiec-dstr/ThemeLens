@@ -10,12 +10,13 @@ evening. Clicks and typing go straight through to the app below.
 
 | Part | State |
 | --- | --- |
-| Colour engine (`ThemeLens.Core`): colour maths, cluster analysis, roles, lookup tables, CPU reference renderer | Working and tested on Linux and Windows. This is milestone M1. |
-| Engine (`ThemeLens.Engine`): lens states, frame loop, fades, watchdog, settings, shortcuts | Working and tested against a fake clock and fake screen. |
+| Colour engine (`ThemeLens.Core`): colour maths, cluster analysis, roles, lookup tables, regions, CPU reference renderer | Working and tested on Linux and Windows. This is milestone M1. |
+| Engine (`ThemeLens.Engine`): lens states, frame loop, fades, watchdog, settings, shortcuts, the app's logic without windows | Working and tested against a fake clock and fake screen. |
 | 13 built-in themes and the theme file schema | Done. Colours the specification does not fix are provisional. |
 | Executable specifications: 165 scenario examples, plus golden images for every theme | All passing in CI on Ubuntu and Windows. |
-| Windows layer (`ThemeLens.Platform.Windows`): capture, Direct3D renderer, lens and handle windows, hotkeys | In progress. This is the M0 proof and will need testing by hand on a real Windows desktop. |
-| App (`ThemeLens.App`) | In progress: first a minimal control window to drive the lens. First run, the mapping table, tray icon and settings come after (M3). |
+| GPU renderer (`ThemeLens.Platform.Windows`, `lens.hlsl`) | Compared with the reference renderer in CI on the Windows software rasteriser, 15 looks on 11 test screens. |
+| Capture, lens and handle windows, hotkeys (`ThemeLens.Platform.Windows`) | Written, compiles, **never run on a real desktop**. This is the M0 proof; see [`docs/testing-on-windows.md`](docs/testing-on-windows.md). |
+| App (`ThemeLens.App`) | A minimal control window to drive the lens, also not yet run. First run, the mapping table, tray icon and settings come next (M3). |
 | Installer, updates, signing | Script only (`build/pack.ps1`), not exercised (M5). |
 
 The full product and technical specification is in [`docs/spec.html`](docs/spec.html). Where the code had to
