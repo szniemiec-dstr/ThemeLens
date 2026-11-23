@@ -90,15 +90,51 @@ internal sealed class AutoFrameSource : IFrameSource
                     // capture path is not there to get around it (FR-20).
                     throw;
                 }
+                catch (CaptureUnavailableException) when (_primary is WgcFrameSource { BorderRefused: true, AcceptBorder: false } bordered)
+                {
+                    // Windows will not let this app capture without its yellow border round the screen. The
+                    // other way of capturing has no border, so it is preferred where it starts at once. Where
+                    // it does not, a lens with a border round the screen is better than no lens.
+                    if (StartsAtOnce(_fallback, area))
+                    {
+                        _primaryRuledOut = true;
+                        _active = _fallback;
+                        return;
+                    }
+
+                    bordered.AcceptBorder = true;
+                    _primary.Start(area);
+                    _active = _primary;
+                    return;
+                }
                 catch (CaptureUnavailableException)
                 {
-                    // Not possible on this Windows (no way to turn the border off, or it just does not work here).
+                    // Not possible on this Windows, or it just does not work here.
                     _primaryRuledOut = true;
                 }
             }
 
             _fallback.Start(area);
             _active = _fallback;
+        }
+    }
+
+    private static bool StartsAtOnce(CaptureFrameSource source, PixelRect area)
+    {
+        try
+        {
+            source.Start(area);
+            if (!source.IsWaitingToRetry)
+            {
+                return true;
+            }
+
+            source.Stop();
+            return false;
+        }
+        catch (CaptureUnavailableException)
+        {
+            return false;
         }
     }
 

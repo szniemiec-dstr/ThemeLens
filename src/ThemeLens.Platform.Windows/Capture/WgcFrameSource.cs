@@ -120,12 +120,15 @@ public sealed class WgcFrameSource : CaptureFrameSource
 
             // The pointer is drawn by Windows on top of the lens; a second, recoloured one inside it would only confuse.
             session.IsCursorCaptureEnabled = false;
-            if (!BorderlessAccessAllowed())
+            if (!BorderlessAccessAllowed() && !AcceptBorder)
             {
-                // Windows would draw its yellow border round the whole screen. The other way of capturing has none.
+                // Windows would draw its yellow border round the whole screen. The other way of capturing has
+                // none; whoever owns both decides (AutoFrameSource).
+                BorderRefused = true;
                 throw new CaptureUnavailableException(PlatformStrings.CaptureUnsupported);
             }
 
+            // Asked for in any case. Where it was refused, Windows ignores this and draws the border.
             session.IsBorderRequired = false;
 
             lock (_frameGate)
@@ -148,6 +151,12 @@ public sealed class WgcFrameSource : CaptureFrameSource
             throw new CaptureUnavailableException(PlatformStrings.CaptureBlocked, e) { HResult = HResults.AccessDenied };
         }
     }
+
+    /// <summary>True once a start was given up because Windows refused capture without its border.</summary>
+    internal bool BorderRefused { get; private set; }
+
+    /// <summary>Set to capture even where Windows insists on drawing its border round the screen.</summary>
+    internal bool AcceptBorder { get; set; }
 
     protected override void StopCore()
     {

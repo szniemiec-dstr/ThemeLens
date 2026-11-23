@@ -46,6 +46,18 @@ public abstract class CaptureFrameSource : IFrameSource
     /// </summary>
     public Action? FrameArrived { get; set; }
 
+    /// <summary>True when the last start failed and the source is waiting to try again.</summary>
+    internal bool IsWaitingToRetry
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _pendingFault is not null;
+            }
+        }
+    }
+
     protected IClock Clock { get; }
 
     /// <summary>Serialises <see cref="Start"/>, <see cref="Stop"/> and <see cref="Poll"/>.</summary>
