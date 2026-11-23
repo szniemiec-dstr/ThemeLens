@@ -334,6 +334,45 @@ public sealed class LensSessionTests : IDisposable
     }
 
     [Fact]
+    public void The_area_list_offers_the_window_and_every_screen_by_number_and_position()
+    {
+        _screens = [Primary, Second];
+        (LensSession session, _) = Start();
+
+        IReadOnlyList<AreaChoice> choices = session.AreaChoices;
+        choices.Count.ShouldBe(3);
+        choices[0].IsWindow.ShouldBeTrue();
+        (choices[1].Screen!.Number, choices[1].Position).ShouldBe((1, ScreenPosition.Primary));
+        (choices[2].Screen!.Number, choices[2].Position).ShouldBe((2, ScreenPosition.Right));
+        session.CurrentArea.IsWindow.ShouldBeTrue();
+
+        session.SelectArea(choices[2]);
+        session.CurrentArea.ShouldBe(choices[2]);
+        session.Controller.Area.ShouldBe(Second.Bounds);
+
+        PixelRect before = session.Placement.Window;
+        session.SelectArea(choices[0]);
+        session.CurrentArea.IsWindow.ShouldBeTrue();
+        session.Placement.Window.ShouldBe(before, "going back to Window restores the rectangle");
+        session.Controller.Area.ShouldBe(before);
+    }
+
+    [Fact]
+    public void One_step_returns_the_heavier_options_to_standard_modes_without_switching_them_off()
+    {
+        (LensSession session, _) = Start();
+        session.UsesHeavierModes.ShouldBeFalse();
+        session.Adjust(a => a with { SharpenAmount = 0.8f, SharpenMode = SharpenMode.Strong, ContrastAmount = 0.5f, ContrastMode = ContrastMode.Local });
+        session.UsesHeavierModes.ShouldBeTrue();
+
+        session.ReturnToStandardModes();
+
+        session.UsesHeavierModes.ShouldBeFalse();
+        session.EffectiveTheme.Sharpen.ShouldBe(new SharpenSettings(0.8f, SharpenMode.Standard));
+        session.EffectiveTheme.Contrast.ShouldBe(new ContrastSettings(0.5f, ContrastMode.Standard));
+    }
+
+    [Fact]
     public void Settings_are_written_on_flush_not_on_every_change()
     {
         (LensSession session, _) = Start();

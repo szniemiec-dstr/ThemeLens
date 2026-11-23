@@ -5,6 +5,14 @@ using ThemeLens.Core.Themes;
 namespace ThemeLens.Engine;
 
 /// <summary>
+/// One entry of the Area list: the movable window (<see cref="Screen"/> is null) or one whole screen.
+/// </summary>
+public sealed record AreaChoice(ScreenInfo? Screen, ScreenPosition Position)
+{
+    public bool IsWindow => Screen is null;
+}
+
+/// <summary>
 /// What the user can do with the lens, independent of any window: choose a base and a theme, adjust it live,
 /// correct the mapping, save the result as a theme, move the lens, use the shortcuts. It keeps the settings
 /// file up to date and restores the last state on start (FR-06, FR-09, FR-14 to FR-18).
@@ -159,6 +167,26 @@ public sealed class LensSession : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// True when a heavier option is switched on: Local contrast or Strong sharpen. When the lens runs past
+    /// the Standard budget, the control window names the option and offers <see cref="ReturnToStandardModes"/>.
+    /// </summary>
+    public bool UsesHeavierModes
+    {
+        get
+        {
+            Theme theme = EffectiveTheme;
+            return theme.Contrast is { IsOn: true, Mode: ContrastMode.Local } || theme.Sharpen is { IsOn: true, Mode: SharpenMode.Strong };
+        }
+    }
+
+    /// <summary>
+    /// One step back to the Standard budget: Local contrast becomes Standard contrast and Strong sharpen becomes
+    /// Standard sharpen, at the same amounts. The app never does this by itself (section 7.6).
+    /// </summary>
+    public void ReturnToStandardModes() =>
+        Adjust(static a => a with { ContrastMode = ContrastMode.Standard, SharpenMode = SharpenMode.Standard });
+
     /// <summary>Returns the selected theme to the values in its file.</summary>
     public void ResetAdjustments() => Adjust(static _ => new ThemeAdjustments());
 
@@ -259,6 +287,54 @@ public sealed class LensSession : IDisposable
 
     /// <summary>"Fill this screen", or back to the previous rectangle.</summary>
     public void ToggleFillScreen() => SetPlacement(Placement.ToggleFill());
+
+    /// <summary>
+    /// The entries of the control window's Area list: "Window" first, then every screen by number and position
+    /// ("Screen 2, right"). The lens covers one screen at a time.
+    /// </summary>
+    public IReadOnlyList<AreaChoice> AreaChoices
+    {
+        get
+        {
+            IReadOnlyList<ScreenInfo> screens = _screens();
+            var choices = new List<AreaChoice> { new(null, ScreenPosition.Primary) };
+            foreach (ScreenInfo screen in screens.OrderBy(static s => s.Number))
+            {
+                choices.Add(new AreaChoice(screen, LensGeometry.PositionOf(screen, screens)));
+            }
+
+            return choices;
+        }
+    }
+
+    /// <summary>The entry of <see cref="AreaChoices"/> that describes where the lens is now.</summary>
+    public AreaChoice CurrentArea
+    {
+        get
+        {
+            IReadOnlyList<ScreenInfo> screens = _screens();
+            if (!Placement.FillsScreen)
+            {
+                return new AreaChoice(null, ScreenPosition.Primary);
+            }
+
+            ScreenInfo screen = LensGeometry.ScreenFor(Placement.Window, screens);
+            return new AreaChoice(screen, LensGeometry.PositionOf(screen, screens));
+        }
+    }
+
+    public void SelectArea(AreaChoice choice)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        if (choice.Screen is { } screen)
+        {
+            FillScreen(screen);
+        }
+        else if (Placement.FillsScreen)
+        {
+            SetPlacement(Placement.ToggleFill());
+        }
+    }
 
     /// <summary>Puts the lens on the given screen, filling it. The control window's Area list uses this.</summary>
     public void FillScreen(ScreenInfo screen)

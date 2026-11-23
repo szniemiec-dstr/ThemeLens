@@ -74,6 +74,28 @@ public class ControlWindowModelTests
     }
 
     [Fact]
+    public void The_theme_picker_preview_shows_each_theme_on_its_own_page_colour()
+    {
+        foreach (Theme theme in BuiltInThemes.All.Where(t => t.HasRoles))
+        {
+            Core.Imaging.ImageRgb8 preview = ThemePreview.Render(theme);
+            (preview.Width, preview.Height).ShouldBe((ThemePreview.DefaultWidth, ThemePreview.DefaultHeight));
+
+            // The sample's white page becomes the theme's page, and its text stays clearly readable.
+            Rgb8 page = theme.RequireRoles().Page;
+            preview[preview.Width - 2, preview.Height / 5].MaxChannelDifference(page).ShouldBeLessThanOrEqualTo(3, theme.Id);
+            float text = Core.Measurement.Measure.MedianLuminanceWhere(preview, ThemePreview.Sample(), Rgb8.FromHex("#222222"))!.Value;
+            Wcag.Contrast(text, Wcag.Luminance(page)).ShouldBeGreaterThan(7f, theme.Id);
+        }
+    }
+
+    [Fact]
+    public void The_preview_of_passthrough_is_the_sample_itself()
+    {
+        ThemePreview.Render(BuiltInThemes.ById("passthrough")).ContentEquals(ThemePreview.Sample()).ShouldBeTrue();
+    }
+
+    [Fact]
     public void The_default_shortcuts_are_the_ones_proposed_and_none_uses_ctrl_alt()
     {
         Shortcuts.Defaults[ShortcutAction.ToggleLens].ToString().ShouldBe("Win+Alt+L");
