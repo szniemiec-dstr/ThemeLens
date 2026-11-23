@@ -86,4 +86,12 @@ jobs:
       # These create real windows and need a desktop session, which a hosted runner may not offer.
       - name: Lens window tests
         continue-on-error: true
-        run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-trait "Category=Ui"
+        timeout-minutes: 5
+        run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-class "*LensWindowTests"
+
+      # The whole lens, started as the app starts it: windows, composition, frame loop, capture. What a
+      # hosted runner can show of it is worth knowing, but its desktop is not a user's desktop.
+      - name: The whole lens on this desktop
+        continue-on-error: true
+        timeout-minutes: 5
+        run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-class "*LensRuntimeSmokeTests"
