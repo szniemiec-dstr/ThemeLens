@@ -50,6 +50,13 @@ jobs:
       - name: Specs
         run: dotnet test --project tests/ThemeLens.Specs -c Release --no-build
 
+      # NFR-09: every shipped dependency carries a licence on the allow-list, and the notices file is current.
+      - name: Dependency licences
+        if: matrix.os == 'ubuntu-latest'
+        run: >
+          dotnet run build/check-licences.cs --
+          src/ThemeLens.Core src/ThemeLens.Engine src/ThemeLens.Platform.Windows src/ThemeLens.App
+
       - name: Keep the pictures of failed golden comparisons
         if: failure()
         uses: actions/upload-artifact@v4
@@ -57,3 +64,26 @@ jobs:
           name: golden-differences-${{ matrix.os }}
           path: tests/ThemeLens.Specs/Goldens/**/*.received.png
           if-no-files-found: ignore
+
+  platform:
+    # The GPU shader has to give the same pixels as the CPU reference renderer. Hosted runners have no GPU, so
+    # this runs on the software rasteriser, which is also the CPU-only path of section 7.6.
+    name: Platform tests (Windows, software rasteriser)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build ThemeLens.slnx -c Release
+
+      - name: Shader against the reference renderer
+        run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-not-trait "Category=Ui"
+
+      # These create real windows and need a desktop session, which a hosted runner may not offer.
+      - name: Lens window tests
+        continue-on-error: true
+        run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-trait "Category=Ui"

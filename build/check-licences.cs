@@ -34,6 +34,7 @@ if (projects.Length == 0)
 }
 
 var packages = new SortedDictionary<string, (string Version, string Licence, string? Url)>(StringComparer.OrdinalIgnoreCase);
+var buildOnly = new SortedDictionary<string, (string Version, string Licence, string? Url)>(StringComparer.OrdinalIgnoreCase);
 var problems = new List<string>();
 
 foreach (string project in projects)
@@ -47,6 +48,24 @@ foreach (string project in projects)
 
     using JsonDocument assets = JsonDocument.Parse(File.ReadAllText(assetsPath));
     string[] folders = assets.RootElement.GetProperty("packageFolders").EnumerateObject().Select(f => f.Name).ToArray();
+
+    // A package is shipped when it puts something into the output folder. Source generators and the metadata
+    // they read are used at build time only; the specification checks build tools separately (section 12.2).
+    var shipped = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (JsonProperty target in assets.RootElement.GetProperty("targets").EnumerateObject())
+    {
+        foreach (JsonProperty entry in target.Value.EnumerateObject())
+        {
+            bool Ships(string group) =>
+                entry.Value.TryGetProperty(group, out JsonElement files)
+                && files.EnumerateObject().Any(f => !f.Name.EndsWith("_._", StringComparison.Ordinal));
+            if (Ships("runtime") || Ships("native") || Ships("runtimeTargets") || Ships("resource"))
+            {
+                shipped.Add(entry.Name);
+            }
+        }
+    }
+
     foreach (JsonProperty library in assets.RootElement.GetProperty("libraries").EnumerateObject())
     {
         if (library.Value.GetProperty("type").GetString() != "package")
@@ -74,6 +93,12 @@ foreach (string project in projects)
         if (expression is null && recorded.TryGetValue(id, out string? known))
         {
             expression = known;
+        }
+
+        if (!shipped.Contains(library.Name))
+        {
+            buildOnly[id] = (version, expression ?? "see the package", url);
+            continue;
         }
 
         if (expression is null)
@@ -114,7 +139,22 @@ if (packages.Count == 0)
 }
 
 notices.AppendLine();
-notices.AppendLine("Packages used only to build or test ThemeLens are not shipped and are not listed here.");
+notices.AppendLine("## Used to build the shipped projects, not shipped");
+notices.AppendLine();
+notices.AppendLine("| Component | Version | Licence | Project |");
+notices.AppendLine("| --- | --- | --- | --- |");
+foreach ((string id, (string version, string licence, string? url)) in buildOnly)
+{
+    notices.AppendLine($"| {id} | {version} | {licence} | {url} |");
+}
+
+if (buildOnly.Count == 0)
+{
+    notices.AppendLine("| (none) | | | |");
+}
+
+notices.AppendLine();
+notices.AppendLine("Packages used only by the test projects are not listed here.");
 
 string noticesPath = Path.Combine(FindRoot(), "THIRD-PARTY-NOTICES.md");
 string text = notices.ToString().ReplaceLineEndings("\n");
