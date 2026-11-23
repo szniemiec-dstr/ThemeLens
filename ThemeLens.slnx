@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ThemeLens.Core.Tests/ThemeLens.Core.Tests.csproj" />
+    <Project Path="tests/ThemeLens.Platform.Tests/ThemeLens.Platform.Tests.csproj" />
     <Project Path="tests/ThemeLens.Specs/ThemeLens.Specs.csproj" />
     <Project Path="tests/ThemeLens.Testing/ThemeLens.Testing.csproj" />
   </Folder>

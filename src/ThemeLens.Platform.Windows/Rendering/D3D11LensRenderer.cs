@@ -198,18 +198,24 @@ public sealed class D3D11LensRenderer : IDisposable
             using ID3D11Texture2D input = CreateFrameTexture(source);
             using var output = new RenderTexture(_device, width, height, FrameFormat);
             Render(input, new PixelRect(0, 0, width, height), tables, output.Target);
+            return ReadBack(output);
+        }
+    }
 
-            using ID3D11Texture2D staging = _device.CreateTexture2D(StagingDescription(width, height, FrameFormat));
-            _context.CopyResource(staging, output.Texture);
-            _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mapped).CheckError();
-            try
-            {
-                return ReadBgra(mapped, width, height);
-            }
-            finally
-            {
-                _context.Unmap(staging, 0);
-            }
+    /// <summary>
+    /// Fills an off-screen target the way <see cref="Fill"/> fills the lens, and reads it back. The platform
+    /// tests use this to check that the fallback fill is exactly the colour asked for.
+    /// </summary>
+    public ImageRgb8 FillToImage(int width, int height, Rgb8 colour)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
+        lock (Sync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            using var output = new RenderTexture(_device, width, height, FrameFormat);
+            Fill(output.Target, colour);
+            return ReadBack(output);
         }
     }
 
@@ -390,6 +396,22 @@ public sealed class D3D11LensRenderer : IDisposable
         CPUAccessFlags = CpuAccessFlags.Read,
         MiscFlags = ResourceOptionFlags.None,
     };
+
+    /// <summary>Copies a frame-format target to memory. Waits for the GPU; only the off-screen entry points use it.</summary>
+    private ImageRgb8 ReadBack(RenderTexture output)
+    {
+        using ID3D11Texture2D staging = _device.CreateTexture2D(StagingDescription(output.Width, output.Height, FrameFormat));
+        _context.CopyResource(staging, output.Texture);
+        _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mapped).CheckError();
+        try
+        {
+            return ReadBgra(mapped, output.Width, output.Height);
+        }
+        finally
+        {
+            _context.Unmap(staging, 0);
+        }
+    }
 
     private static unsafe ImageRgb8 ReadBgra(MappedSubresource mapped, int width, int height)
     {
