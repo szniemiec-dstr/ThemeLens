@@ -29,6 +29,7 @@ GetForegroundWindow
 SetCapture
 ReleaseCapture
 GetCursorPos
+GetMessagePos
 LoadCursorW
 SetCursor
 GetKeyState

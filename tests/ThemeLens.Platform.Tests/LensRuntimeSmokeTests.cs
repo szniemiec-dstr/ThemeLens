@@ -130,6 +130,7 @@ public sealed partial class LensRuntimeSmokeTests
         WaitFor(() => Near(runtime.LensBounds.X, start.X + 60) && Near(runtime.LensBounds.Y, start.Y + 40), StartUp).ShouldBeTrue(
             $"dragging the lens by 60 and 40 pixels should move it from {start} by that much, but it is at {runtime.LensBounds}");
         Near(runtime.LensBounds.Width, start.Width).ShouldBeTrue("moving the lens must not change its width");
+        Settle(runtime);
 
         // Drag its right edge: it gets wider.
         PixelRect moved = runtime.LensBounds;
@@ -137,6 +138,7 @@ public sealed partial class LensRuntimeSmokeTests
         WaitFor(() => Near(runtime.LensBounds.Width, moved.Width + 80), StartUp).ShouldBeTrue(
             $"dragging the right edge by 80 pixels should widen the lens from {moved}, but it is at {runtime.LensBounds}");
         Near(runtime.LensBounds.X, moved.X).ShouldBeTrue("resizing by the right edge must not move the left edge");
+        Settle(runtime);
 
         // Drag its bottom edge up: it gets shorter.
         PixelRect widened = runtime.LensBounds;
@@ -190,6 +192,15 @@ public sealed partial class LensRuntimeSmokeTests
     }
 
     private static bool Near(int actual, int expected) => Math.Abs(actual - expected) <= 2;
+
+    /// <summary>Waits until the lens window is where the lens says it is, and a moment longer.</summary>
+    private static void Settle(LensRuntime runtime)
+    {
+        nint lens = FindWindow("ThemeLens.Lens", null);
+        WaitFor(() => WindowRect(lens) == runtime.LensBounds, StartUp).ShouldBeTrue(
+            $"the lens window should be at {runtime.LensBounds}, but is at {WindowRect(lens)}");
+        Thread.Sleep(TimeSpan.FromSeconds(0.25));
+    }
 
     private static PixelRect WindowRect(nint window) =>
         GetWindowRect(window, out Rect r) ? new PixelRect(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top) : default;

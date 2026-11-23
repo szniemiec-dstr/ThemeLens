@@ -421,11 +421,7 @@ internal sealed unsafe class LensWindow : NativeWindow
 
     private void BeginDrag(Zone zone)
     {
-        if (!PInvoke.GetCursorPos(out _dragStart))
-        {
-            return;
-        }
-
+        _dragStart = MessagePoint();
         _dragZone = zone;
         _dragBounds = _bounds;
         _dragging = true;
@@ -434,11 +430,12 @@ internal sealed unsafe class LensWindow : NativeWindow
 
     private void ContinueDrag()
     {
-        if (!_dragging || !PInvoke.GetCursorPos(out System.Drawing.Point pointer))
+        if (!_dragging)
         {
             return;
         }
 
+        System.Drawing.Point pointer = MessagePoint();
         int dx = pointer.X - _dragStart.X;
         int dy = pointer.Y - _dragStart.Y;
         int left = _dragBounds.X;

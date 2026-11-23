@@ -222,11 +222,7 @@ internal sealed unsafe class HandleWindow : NativeWindow
 
     private void Press(int x)
     {
-        if (!PInvoke.GetCursorPos(out _pressPoint))
-        {
-            return;
-        }
-
+        _pressPoint = MessagePoint();
         _pressed = PartAt(x);
         _dragging = false;
         PInvoke.SetCapture(Hwnd);
@@ -234,11 +230,7 @@ internal sealed unsafe class HandleWindow : NativeWindow
 
     private void Drag()
     {
-        if (!PInvoke.GetCursorPos(out System.Drawing.Point pointer))
-        {
-            return;
-        }
-
+        System.Drawing.Point pointer = MessagePoint();
         int dx = pointer.X - _pressPoint.X;
         int dy = pointer.Y - _pressPoint.Y;
         if (!_dragging)

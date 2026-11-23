@@ -26,7 +26,19 @@ internal abstract unsafe class NativeWindow
     private nint _handle;
 
     /// <summary>The window handle, or zero before creation and after destruction. Safe to read from any thread.</summary>
-    public nint Handle => Volatile.Read(ref _handle);
+/// <summary>
+    /// Where the pointer was, in screen pixels, when the message now being handled was created. A drag is
+    /// worked out from these points and not from where the pointer is by now: when the thread is behind (a slow
+    /// frame holds it up), the pointer has moved on, and a drag read from its present place jumps, or carries
+    /// on after the button was let go.
+    /// </summary>
+    protected static System.Drawing.Point MessagePoint()
+    {
+        uint packed = PInvoke.GetMessagePos();
+        return new System.Drawing.Point((short)(packed & 0xFFFF), (short)((packed >> 16) & 0xFFFF));
+    }
+
+        public nint Handle => Volatile.Read(ref _handle);
 
     internal HWND Hwnd => new(Handle);
 
