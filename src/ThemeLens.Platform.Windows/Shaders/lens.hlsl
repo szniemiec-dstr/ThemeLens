@@ -7,6 +7,11 @@
 // same pixels. If you change one, change the other.
 //
 //   PsFine            source            -> quarter size    Neighbourhood.Build, fine level (two targets)
+//   PsCore            quarter           -> quarter         RegionMap.Build: core
+//   PsSeed            quarter           -> quarter         RegionMap.Build: seed
+//   PsSpreadRows      quarter           -> quarter         RegionMap.Spread along rows   (the two take turns,
+//   PsSpreadColumns   quarter           -> quarter         RegionMap.Spread along columns  LensConstants.SpreadPasses times)
+//   PsRegion          quarter           -> quarter         RegionMap.Build: edge and local (two targets)
 //   PsCoarse          quarter           -> sixteenth       Neighbourhood.Build, coarse level
 //   PsWide            sixteenth         -> sixty-fourth    Neighbourhood.Build, wide level
 //   PsRecolourFinal   source            -> lens            ReferenceRenderer pass 2 when nothing else is switched on
@@ -38,6 +43,8 @@ static const float LutSize = 33.0;  // Lut3D.Size
 static const float Flare = 0.05;    // Wcag.Flare
 static const float3 LuminanceWeights = float3(0.2126, 0.7152, 0.0722);  // Wcag.LuminanceWeights
 static const float ThickWindow[5] = { 0.5, 1.0, 1.0, 1.0, 0.5 };        // LensConstants.ThickWindow
+static const int CoreRadius = 2;    // LensConstants.CoreRadius
+static const int SpreadReach = 255; // LensConstants.SpreadReach
 
 // One-to-one with FrameParameters, plus where the lens sits in the captured frame. Filled once per frame.
 cbuffer Frame : register(b0)
@@ -61,8 +68,9 @@ cbuffer Frame : register(b0)
     int2 CoarseSize;                // sixteenth-size level: ceil(FineSize / 4)
     int2 WideSize;                  // sixty-fourth-size level: ceil(CoarseSize / 4)
     float OneTable;                 // 1 when the light and dark tables are the same table
-    float CoreEnough;               // LensConstants.GuardCoreEnough for this lens
-    float2 FrameUnused;
+    float CoreEnough;               // LensConstants.GuardCore for this lens: enough
+    float CoreNeeded;               // LensConstants.GuardCore for this lens: needed
+    float FrameUnused;
 };
 
 // LensConstants. Filled once.
@@ -72,19 +80,19 @@ cbuffer Rules : register(b1)
     float LightVoteHigh;            // LensConstants.LightVoteHigh
     float DarkVoteLow;              // LensConstants.DarkVoteLow
     float DarkVoteHigh;             // LensConstants.DarkVoteHigh
-    float WeakVote;                 // LensConstants.WeakVote
-    float WeakVoteLow;              // LensConstants.WeakVoteLow
-    float WeakVoteHigh;             // LensConstants.WeakVoteHigh
-    float VoteConfidence;           // LensConstants.VoteConfidence
-    float FlatRangeLow;             // LensConstants.FlatRangeLow
-    float FlatRangeHigh;            // LensConstants.FlatRangeHigh
+    float CoreShareLow;             // LensConstants.CoreShareLow
+    float CoreShareHigh;            // LensConstants.CoreShareHigh
+    float CoreVotesLow;             // LensConstants.CoreVotesLow
+    float CoreVotesHigh;            // LensConstants.CoreVotesHigh
+    float ThroughLow;               // LensConstants.ThroughLow
+    float ThroughHigh;              // LensConstants.ThroughHigh
     float PolarityLow;              // LensConstants.PolarityLow
     float PolarityHigh;             // LensConstants.PolarityHigh
     float OwnVoteBias;              // LensConstants.OwnVoteBias
     float AreaFlagStart;            // LensConstants.AreaFlagStart
     float GuardLow;                 // LensConstants.GuardLow
     float GuardHigh;                // LensConstants.GuardHigh
-    float UnanimousLow;             // LensConstants.UnanimousLow
+    float VoteConfidence;           // LensConstants.VoteConfidence
     float GuardReach;               // LensConstants.GuardReach
     float GuardDetailGain;          // LensConstants.GuardDetailGain
     float SoftGateLow;              // LensConstants.SoftGateLow
@@ -98,16 +106,15 @@ cbuffer Rules : register(b1)
     float StrongSharpenGain;        // LensConstants.StrongSharpenGain
     float HaloAllowance;            // LensConstants.HaloAllowance
     float StrongKernel4;            // LensConstants.StrongKernel[4]
-    float UnanimousHigh;            // LensConstants.UnanimousHigh
     float GuardCoreStart;           // LensConstants.GuardCoreStart
-    float4 StrongKernel0123;        // LensConstants.StrongKernel[0..3]
     float GuardCoreOffset;          // LensConstants.GuardCoreOffset
+    float4 StrongKernel0123;        // LensConstants.StrongKernel[0..3]
     float GuardCoreWindow;          // LensConstants.GuardCoreWindow
-    float2 RulesUnused;
+    float3 RulesUnused;
 };
 
 Texture2D<float4> Source : register(t0);        // the captured frame
-Texture2D<float4> Fine : register(t1);          // light votes, dark votes, luma range
+Texture2D<float4> Fine : register(t1);          // share of light pixels, share of dark pixels, luma range
 Texture2D<float4> Coarse : register(t2);        // light verdict, dark verdict, soft share
 Texture2D<float4> Wide : register(t3);          // light verdict, dark verdict
 Texture3D<float4> LutLight : register(t4);      // LensTables.Light
@@ -119,6 +126,10 @@ Texture2D<float> BlurredRows : register(t9);    // luma of Mapped, blurred along
 Texture2D<float4> ShrinkSource : register(t10); // whatever PsShrink is asked to shrink
 Texture2D<float4> Thick : register(t11);        // where flagged pixels form something thick, quarter size
 Texture2D<float4> ThickWide : register(t12);    // Thick at a sixteenth of its size
+Texture2D<float4> Cores : register(t13);        // light core, dark core
+Texture2D<float4> Spreading : register(t14);    // region so far: home light, home dark, through light, through dark
+Texture2D<float4> Region : register(t15);       // RegionMap: home light, home dark, edge light, edge dark
+Texture2D<float4> Local : register(t16);        // RegionMap: local light verdict, local dark verdict
 
 SamplerState LinearClamp : register(s0);        // bilinear, clamp addressing: Bilinear.Sample and Lut3D.Sample
 
@@ -172,28 +183,27 @@ float StrongDark(float luminance)
     return 1.0 - smoothstep(DarkVoteLow, DarkVoteHigh, luminance);
 }
 
-// LensConstants.LightVote
-float LightVote(float luminance)
-{
-    return max(StrongLight(luminance), WeakVote * smoothstep(WeakVoteLow, WeakVoteHigh, luminance));
-}
-
-// LensConstants.DarkVote
-float DarkVote(float luminance)
-{
-    return max(StrongDark(luminance), WeakVote * (1.0 - smoothstep(WeakVoteLow, WeakVoteHigh, luminance)));
-}
-
-// LensConstants.Flatness
-float Flatness(float range)
-{
-    return 1.0 - smoothstep(FlatRangeLow, FlatRangeHigh, range);
-}
-
 // LensConstants.SoftIndicator
 float SoftIndicator(float range)
 {
     return smoothstep(SoftRangeLow, SoftRangeMid, range) * (1.0 - smoothstep(SoftRangeHigh, SoftRangeMax, range));
+}
+
+// LensConstants.Core
+float2 Core(float lightShare, float darkShare)
+{
+    float votes = lightShare + darkShare;
+    float light = lightShare / max(votes, 1e-4);
+    float sure = smoothstep(CoreVotesLow, CoreVotesHigh, votes);
+    return float2(
+        smoothstep(CoreShareLow, CoreShareHigh, light) * sure,
+        smoothstep(CoreShareLow, CoreShareHigh, 1.0 - light) * sure);
+}
+
+// LensConstants.Through, for both kinds at once
+float2 Through(float2 ownShare)
+{
+    return smoothstep(ThroughLow, ThroughHigh, ownShare);
 }
 
 // LensConstants.RefineLightFraction
@@ -214,19 +224,27 @@ float2 Verdict(float lightVotes, float darkVotes)
 }
 
 // LensConstants.LightFraction
-float LightFraction(float wholeLens, float2 wideVerdict, float2 coarseVerdict)
+float LightFraction(float wholeLens, float2 wideVerdict, float2 coarseVerdict, float2 localVerdict)
 {
     float wide = RefineLightFraction(wholeLens, wideVerdict.r, wideVerdict.g);
     float coarse = RefineLightFraction(wide, coarseVerdict.r, coarseVerdict.g);
-    float unanimity = abs((2.0 * wide) - 1.0);
-    float wideStands = smoothstep(UnanimousLow, UnanimousHigh, unanimity) * saturate(wideVerdict.r + wideVerdict.g);
-    return lerp(coarse, wide, wideStands);
+    return RefineLightFraction(coarse, localVerdict.r, localVerdict.g);
 }
 
-// LensConstants.Polarity
-float Polarity(float lightFraction, float luminance)
+// LensConstants.Surroundings
+float Surroundings(float lightFraction, float luminance)
 {
     return smoothstep(PolarityLow, PolarityHigh, lightFraction + (OwnVoteBias * (StrongLight(luminance) - StrongDark(luminance))));
+}
+
+// LensConstants.Polarity. `homes` is one texel of Region: home light, home dark, edge light, edge dark.
+float Polarity(float surroundings, float4 homes, float luminance)
+{
+    float isLight = StrongLight(luminance);
+    float isDark = StrongDark(luminance);
+    float towardsDark = max(homes.g * lerp(1.0, isDark, max(homes.r, homes.b)), homes.a * isDark);
+    float towardsLight = max(homes.r * lerp(1.0, isLight, max(homes.g, homes.a)), homes.b * isLight);
+    return lerp(lerp(surroundings, 0.0, towardsDark), 1.0, towardsLight);
 }
 
 // LensConstants.StrongKernel[abs(k)]
@@ -369,20 +387,133 @@ FineOutput PsFine(float4 position : SV_Position)
         {
             float3 p = LoadSource(corner + int2(dx, dy));
             float luminance = Luminance(p);
-            light += LightVote(luminance);
-            dark += DarkVote(luminance);
+            light += StrongLight(luminance);
+            dark += StrongDark(luminance);
             float luma = Luma(p);
             lo = min(lo, luma);
             hi = max(hi, luma);
         }
     }
 
-    // Only flat blocks vote on what the background is.
     float range = hi - lo;
-    float flatness = Flatness(range);
     FineOutput result;
-    result.Votes = float4(flatness * light / float(Block * Block), flatness * dark / float(Block * Block), range, 0.0);
+    result.Votes = float4(light / float(Block * Block), dark / float(Block * Block), range, 0.0);
     result.Centre = float4(LoadSource(corner + (Block / 2)), range);
+    return result;
+}
+
+// A quarter-size texel by its coordinates, with the reference's clamp at the edges.
+int3 FineTexel(int2 xy)
+{
+    return int3(clamp(xy, int2(0, 0), FineSize - 1), 0);
+}
+
+// RegionMap.Build, core: is the window around this block clearly one kind?
+float4 PsCore(float4 position : SV_Position) : SV_Target
+{
+    int2 xy = int2(position.xy);
+    float light = 0.0;
+    float dark = 0.0;
+    for (int dy = -CoreRadius; dy <= CoreRadius; dy++)
+    {
+        for (int dx = -CoreRadius; dx <= CoreRadius; dx++)
+        {
+            float4 f = Fine.Load(FineTexel(xy + int2(dx, dy)));
+            light += f.r;
+            dark += f.g;
+        }
+    }
+
+    float count = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1));
+    return float4(Core(light / count, dark / count), 0.0, 0.0);
+}
+
+// RegionMap.Build, seed: blocks a core's window covers, as far as they are of the core's kind.
+float4 PsSeed(float4 position : SV_Position) : SV_Target
+{
+    int2 xy = int2(position.xy);
+    float2 reach = 0.0;
+    for (int dy = -CoreRadius; dy <= CoreRadius; dy++)
+    {
+        for (int dx = -CoreRadius; dx <= CoreRadius; dx++)
+        {
+            reach = max(reach, Cores.Load(FineTexel(xy + int2(dx, dy))).rg);
+        }
+    }
+
+    float2 open = Through(Fine.Load(int3(xy, 0)).rg);
+    return float4(reach * open, open);
+}
+
+// RegionMap.Spread: a block looks along its row (or column) both ways, as far as blocks of its kind go, and
+// joins the region if it finds one. Both kinds are followed at once; a kind that has nothing more to gain
+// simply stops changing, which is where the reference leaves its loop.
+float4 SpreadAlong(int2 xy, int2 along)
+{
+    float4 own = Spreading.Load(int3(xy, 0));
+    float2 home = own.rg;
+    float2 open = own.ba;
+    float2 best = 0.0;
+    for (int direction = -1; direction <= 1; direction += 2)
+    {
+        float2 path = float2(open.r > home.r ? open.r : 0.0, open.g > home.g ? open.g : 0.0);
+        [loop]
+        for (int k = 1; k <= SpreadReach; k++)
+        {
+            int2 at = xy + (along * (direction * k));
+            if (at.x < 0 || at.y < 0 || at.x >= FineSize.x || at.y >= FineSize.y || (path.r <= best.r && path.g <= best.g))
+            {
+                break;
+            }
+
+            float4 c = Spreading.Load(int3(at, 0));
+            best = max(best, min(path, c.rg));
+            path = min(path, c.ba);
+        }
+    }
+
+    return float4(max(home, best), open);
+}
+
+float4 PsSpreadRows(float4 position : SV_Position) : SV_Target
+{
+    return SpreadAlong(int2(position.xy), int2(1, 0));
+}
+
+float4 PsSpreadColumns(float4 position : SV_Position) : SV_Target
+{
+    return SpreadAlong(int2(position.xy), int2(0, 1));
+}
+
+struct RegionOutput
+{
+    float4 Homes : SV_Target0;      // RegionMap: HomeLight, HomeDark, EdgeLight, EdgeDark
+    float4 Nearby : SV_Target1;     // RegionMap: LocalLight, LocalDark
+};
+
+// RegionMap.Build, edge and local.
+RegionOutput PsRegion(float4 position : SV_Position)
+{
+    int2 xy = int2(position.xy);
+    float2 beside = 0.0;
+    float2 sum = 0.0;
+    for (int dy = -CoreRadius; dy <= CoreRadius; dy++)
+    {
+        for (int dx = -CoreRadius; dx <= CoreRadius; dx++)
+        {
+            float2 home = Spreading.Load(FineTexel(xy + int2(dx, dy))).rg;
+            sum += home;
+            if (abs(dx) <= 1 && abs(dy) <= 1 && (dx != 0 || dy != 0))
+            {
+                beside = max(beside, home);
+            }
+        }
+    }
+
+    float count = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1));
+    RegionOutput result;
+    result.Homes = float4(Spreading.Load(int3(xy, 0)).rg, beside);
+    result.Nearby = float4(Verdict(sum.r / count, sum.g / count), 0.0, 0.0);
     return result;
 }
 
@@ -396,14 +527,15 @@ float4 PsCoarse(float4 position : SV_Position) : SV_Target
     {
         for (int dx = 0; dx < Block; dx++)
         {
-            float4 f = Fine.Load(int3(min(corner + int2(dx, dy), FineSize - 1), 0));
-            light += f.r;
-            dark += f.g;
-            soft += SoftIndicator(f.b);
+            int3 texel = int3(min(corner + int2(dx, dy), FineSize - 1), 0);
+            float2 home = Region.Load(texel).rg;
+            light += home.r;
+            dark += home.g;
+            soft += SoftIndicator(Fine.Load(texel).b);
         }
     }
 
-    // Cells are compared by verdict, not by how many votes each happened to collect.
+    // Cells are compared by verdict, not by how many region blocks each happens to hold.
     float count = float(Block * Block);
     return float4(Verdict(light / count, dark / count), soft / count, 0.0);
 }
@@ -431,12 +563,14 @@ float4 PsWide(float4 position : SV_Position) : SV_Target
 // Pass 2: recolour. One table lookup per pixel; the polarity check chooses between the two tables.
 // ---------------------------------------------------------------------------------------------------------
 
-// Neighbourhood.LightFractionAt
-float LightFractionAt(float2 centre)
+// Neighbourhood.PolarityAt
+float PolarityAt(float4 position, float luminance)
 {
-    float2 wideVerdict = Between(Wide, centre, WideScale, WideSize).rg;
-    float2 coarseVerdict = Between(Coarse, centre, CoarseScale, CoarseSize).rg;
-    return LightFraction(WholeLensLightFraction, wideVerdict, coarseVerdict);
+    int3 block = int3(min(int2(position.xy) / Block, FineSize - 1), 0);
+    float2 wideVerdict = Between(Wide, position.xy, WideScale, WideSize).rg;
+    float2 coarseVerdict = Between(Coarse, position.xy, CoarseScale, CoarseSize).rg;
+    float fraction = LightFraction(WholeLensLightFraction, wideVerdict, coarseVerdict, Local.Load(block).rg);
+    return Polarity(Surroundings(fraction, luminance), Region.Load(block), luminance);
 }
 
 float3 Recolour(float4 position)
@@ -445,7 +579,7 @@ float3 Recolour(float4 position)
     float3 mapped = SampleLut(LutLight, encoded);
     if (OneTable < 0.5)
     {
-        float polarity = Polarity(LightFractionAt(position.xy), Luminance(encoded));
+        float polarity = PolarityAt(position, Luminance(encoded));
         mapped = lerp(SampleLut(LutDark, encoded), mapped, polarity);
     }
 
@@ -563,7 +697,8 @@ float4 PsFinish(float4 position : SV_Position) : SV_Target
             + Between(ThickWide, centre + float2(-spread, spread), WideScale, WideSize).r
             + Between(ThickWide, centre + float2(spread, spread), WideScale, WideSize).r);
 
-        guard = GuardStrength * isThick * smoothstep(GuardCoreStart * CoreEnough, CoreEnough, core);
+        float enough = smoothstep(GuardCoreStart * CoreEnough, CoreEnough, core);
+        guard = GuardStrength * isThick * lerp(1.0, enough, CoreNeeded);
         if (GuardSoftGate > 0.0)
         {
             // Neighbourhood.SoftFractionAt

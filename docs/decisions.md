@@ -31,13 +31,29 @@ block, a dark header over a white page. One decision per frame would get half of
 area guard would then have to blank it. Where a light and a dark region meet, each pixel's own lightness
 settles the tie, so the boundary gets no glowing band.
 
+Three refinements came from looking at rendered screens:
+
+- Each neighbourhood cell is reduced to a verdict (how light, how sure) before cells are compared. Counting
+  raw votes let a clean dark region outvote a light region full of text for a few pixels beyond the true
+  boundary, which showed as a bright line along it.
+- Where the wide neighbourhood agrees with itself, its verdict stands and the closer one is not asked. A small
+  solid shape of the opposite kind (a dark icon, a thick rule, a black logo on a white page) is then content
+  to be recoloured and not a little region of its own. The closer neighbourhood draws the line only where the
+  wide one is split, which is where two regions really meet.
+- The GPU reads these neighbourhoods with four texel loads and its own arithmetic, not with a sampler. A
+  sampler rounds the position between two texels to 1/256, and next to a threshold that was enough to make
+  the shader and the reference differ by up to 100/255 on a few hundred pixels of a test screen.
+
 ### D3. The area guard measures the recoloured picture (6.5 "area guard")
 
 The specification has the shader pass the neighbourhood's average colour through the table. Here the guard
 looks at the recoloured output itself: each recoloured pixel is flagged if it differs from the page by more
-than an area may, and the guard acts where about 85% of a 16-pixel window is flagged. The flagged area becomes
-the page colour; whatever stands out from its immediate surroundings (text, lines) is redrawn towards the
-theme's text colour, so text inside a guarded area stays readable.
+than an area may. The guard then asks two things. Is the flagged shape thick, meaning that a 16-pixel window
+somewhere inside it is flagged almost entirely? And is there enough of it: do the thick parts nearby add up to
+about 400 pixels (less on a small lens, so that an area is always caught before it reaches half a per cent of
+the lens)? Where both hold, the area becomes the page colour; whatever stands out from its immediate
+surroundings (text, lines) is redrawn towards the theme's text colour, so text inside a guarded area stays
+readable.
 
 Why: "table(average)" is not "average(table)". A stale or wrong table can make a textured area bright while
 its average maps dark. Measuring the output makes the rule independent of how the table was built; a unit
@@ -45,10 +61,16 @@ test runs the guard against an identity table under a dark theme's rules and sti
 
 Consequences:
 
-- An "area" is something that contains a solid square of about 17 pixels. Narrower shapes are lines and text.
-  The "bright area" measurement in the tests (9.2) uses the same definition: it ignores shapes narrower than
-  17 pixels, then reports the largest connected area at its full size. This is stricter than FR-10 for compact
-  shapes and deliberately blind to thin lines.
+- An "area" is at least 17 pixels thick and has some size: a solid square of about 32 pixels, or a band of
+  17 pixels that runs on for a while. Narrower shapes are lines and text. Smaller ones (a checkbox, a status
+  dot, a badge) are controls, and blanking them would lose information without sparing anyone any glare.
+  The "bright area" measurement in the tests (9.2) ignores shapes narrower than 17 pixels, then reports the
+  largest connected area at its full size, which FR-10 limits to 0.5% of the lens. A test holds the guard to
+  that on lenses from 160 by 120 pixels up.
+- Fills are also kept under the limit when the tables are built: a coloured fill, whether the theme has a
+  colour for it or not, is shown no further from the page than three quarters of `maxAreaContrast`. The guard
+  is then the safety net for what the analysis has not seen yet, and not the usual way a button gets its
+  colour.
 - A new theme limit, `limits.maxAreaContrast`, says how far an area may differ from the page. Default 6 on a
   dark base (anything much brighter than the page is glare) and 12 on a light base (a dark button is harmless;
   only something close to a dark page needs catching). `limits.maxLuminance` stays what the specification says:
@@ -170,8 +192,11 @@ xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ s
 
 - Photographs and full-colour gradients come out safe (no bright area) but not pretty: the lens does not know
   a photo from a button (section 3.2).
-- A solid shape wider than about 32 pixels in the opposite polarity of its page (a big black logo on white)
-  is treated as a region of its own and merges with the page; its anti-aliased outline remains.
-- Very large bold text (strokes wider than about 14 pixels) can count as an area.
+- A solid shape wider than about 100 pixels in the opposite polarity of its page (a large black panel on
+  white) is a region of its own: it takes the page colour and only its outline and contents remain. Between
+  about 60 and 100 pixels the answer depends on what else is nearby.
+- Very large bold text (strokes wider than about 17 pixels) can count as an area.
+- Where a light region, a dark region and a mid-tone bar all meet in one corner, a few pixels of the page can
+  take the wrong side (seen as a sliver three pixels wide in the mixed-halves test screen).
 - Table building takes about 10 ms and analysis 2 to 5 ms on a 4-core machine: at the edge of the 15 ms
   budget of section 7.6. Both run off the frame loop.

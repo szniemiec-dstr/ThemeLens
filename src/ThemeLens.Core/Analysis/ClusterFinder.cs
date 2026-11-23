@@ -159,38 +159,39 @@ public static class ClusterFinder
         };
     }
 
-    /// <summary>Decides for every sample whether it lies in a light or a dark region, the same way the renderer does.</summary>
+    /// <summary>
+    /// Decides for every sample whether it is recoloured with the light-region or the dark-region table, the
+    /// way <see cref="Neighbourhood"/> does for the renderer, at the thumbnail's coarser scale.
+    /// </summary>
     private static bool[] RegionOf(Thumbnail t, out float meanLuminance, out float medianLightness, out float wholeLens)
     {
         int w = t.Width;
         int h = t.Height;
-        float[] luminance = new float[w * h];
+        int n = w * h;
+        float[] luminance = new float[n];
+        byte[] isLight = new byte[n];
+        byte[] isDark = new byte[n];
         int[] lightnessHistogram = new int[256];
         double luminanceSum = 0;
-
-        // Summed-area tables of the light and dark votes, one row and column larger than the thumbnail.
-        double[] lightSat = new double[(w + 1) * (h + 1)];
-        double[] darkSat = new double[(w + 1) * (h + 1)];
-        for (int y = 0; y < h; y++)
+        double allLight = 0;
+        double allDark = 0;
+        for (int i = 0; i < n; i++)
         {
-            double lightRow = 0;
-            double darkRow = 0;
-            for (int x = 0; x < w; x++)
-            {
-                float lum = Wcag.Luminance(t.Pixels[(y * w) + x]);
-                luminance[(y * w) + x] = lum;
-                luminanceSum += lum;
-                lightnessHistogram[Math.Clamp((int)(MathF.Cbrt(lum) * 255f), 0, 255)]++;
-                float flat = LensConstants.Flatness(t.Range[(y * w) + x] / 255f);
-                lightRow += flat * LensConstants.LightVote(lum);
-                darkRow += flat * LensConstants.DarkVote(lum);
-                lightSat[((y + 1) * (w + 1)) + x + 1] = lightSat[(y * (w + 1)) + x + 1] + lightRow;
-                darkSat[((y + 1) * (w + 1)) + x + 1] = darkSat[(y * (w + 1)) + x + 1] + darkRow;
-            }
+            float lum = Wcag.Luminance(t.Pixels[i]);
+            luminance[i] = lum;
+            luminanceSum += lum;
+            lightnessHistogram[Math.Clamp((int)(MathF.Cbrt(lum) * 255f), 0, 255)]++;
+            isLight[i] = Srgb.ToByte(LensConstants.StrongLight(lum));
+            isDark[i] = Srgb.ToByte(LensConstants.StrongDark(lum));
+
+            // The whole-lens figure also hears mid-tones, faintly, and only listens to flat areas.
+            float flat = LensConstants.Flatness(t.Range[i] / 255f);
+            allLight += flat * LensConstants.LightVote(lum);
+            allDark += flat * LensConstants.DarkVote(lum);
         }
 
-        meanLuminance = (float)(luminanceSum / (w * h));
-        int half = (w * h) / 2;
+        meanLuminance = (float)(luminanceSum / n);
+        int half = n / 2;
         int seen = 0;
         int median = 0;
         for (; median < 255; median++)
@@ -204,39 +205,71 @@ public static class ClusterFinder
 
         medianLightness = (median + 0.5f) / 255f;
 
-        float allLight = (float)(lightSat[^1] / (w * h));
-        float allDark = (float)(darkSat[^1] / (w * h));
-        (float wholeLight, float wholeDark) = LensConstants.Verdict(allLight, allDark);
+        (float wholeLight, float wholeDark) = LensConstants.Verdict((float)(allLight / n), (float)(allDark / n));
         wholeLens = LensConstants.RefineLightFraction(0.5f, wholeLight, wholeDark);
 
-        int radius = Math.Max(1, (int)MathF.Round(RegionRadiusPixels / t.SourcePixelsPerSample));
+        // Regions, as the renderer finds them, on samples that are each wholly light, dark or neither.
+        float step = t.SourcePixelsPerSample;
+        int coreRadius = Math.Max(1, (int)MathF.Round(LensConstants.CoreRadius * LensConstants.BlockSize / step));
+        RegionMap regions = RegionMap.Build(isLight, isDark, w, h, coreRadius);
+
+        // Everything else is content, and takes the table of the regions around it.
+        double[] homeLightSat = SummedArea(regions.HomeLight, w, h);
+        double[] homeDarkSat = SummedArea(regions.HomeDark, w, h);
+        int radius = Math.Max(1, (int)MathF.Round(RegionRadiusPixels / step));
         int wideRadius = radius * LensConstants.BlockSize;
-        bool[] light = new bool[w * h];
+        bool[] light = new bool[n];
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                (float wideLight, float wideDark) = Votes(x, y, wideRadius);
-                (float coarseLight, float coarseDark) = Votes(x, y, radius);
-                float fraction = LensConstants.LightFraction(wholeLens, wideLight, wideDark, coarseLight, coarseDark);
-                light[(y * w) + x] = LensConstants.Polarity(fraction, luminance[(y * w) + x]) >= 0.5f;
+                int i = (y * w) + x;
+                (float wideLight, float wideDark) = LensConstants.Verdict(
+                    BoxMean(homeLightSat, w, h, x, y, wideRadius), BoxMean(homeDarkSat, w, h, x, y, wideRadius));
+                (float coarseLight, float coarseDark) = LensConstants.Verdict(
+                    BoxMean(homeLightSat, w, h, x, y, radius), BoxMean(homeDarkSat, w, h, x, y, radius));
+                float fraction = LensConstants.LightFraction(
+                    wholeLens, wideLight, wideDark, coarseLight, coarseDark, regions.LocalLight[i] / 255f, regions.LocalDark[i] / 255f);
+                float polarity = LensConstants.Polarity(
+                    LensConstants.Surroundings(fraction, luminance[i]),
+                    regions.HomeLight[i] / 255f,
+                    regions.HomeDark[i] / 255f,
+                    regions.EdgeLight[i] / 255f,
+                    regions.EdgeDark[i] / 255f,
+                    luminance[i]);
+                light[i] = polarity >= 0.5f;
             }
         }
 
         return light;
+    }
 
-        (float Light, float Dark) Votes(int x, int y, int r)
+    /// <summary>A summed-area table, one row and one column larger than the picture.</summary>
+    private static double[] SummedArea(byte[] values, int w, int h)
+    {
+        double[] sat = new double[(w + 1) * (h + 1)];
+        for (int y = 0; y < h; y++)
         {
-            int x0 = Math.Max(0, x - r);
-            int x1 = Math.Min(w, x + r + 1);
-            int y0 = Math.Max(0, y - r);
-            int y1 = Math.Min(h, y + r + 1);
-            int area = (x1 - x0) * (y1 - y0);
-            return LensConstants.Verdict((float)(Box(lightSat, x0, y0, x1, y1) / area), (float)(Box(darkSat, x0, y0, x1, y1) / area));
+            double row = 0;
+            for (int x = 0; x < w; x++)
+            {
+                row += values[(y * w) + x] / 255.0;
+                sat[((y + 1) * (w + 1)) + x + 1] = sat[(y * (w + 1)) + x + 1] + row;
+            }
         }
 
-        double Box(double[] sat, int x0, int y0, int x1, int y1) =>
-            sat[(y1 * (w + 1)) + x1] - sat[(y0 * (w + 1)) + x1] - sat[(y1 * (w + 1)) + x0] + sat[(y0 * (w + 1)) + x0];
+        return sat;
+    }
+
+    /// <summary>The mean over the square of the given radius around a sample, cut off at the picture's edge.</summary>
+    private static float BoxMean(double[] sat, int w, int h, int x, int y, int radius)
+    {
+        int x0 = Math.Max(0, x - radius);
+        int x1 = Math.Min(w, x + radius + 1);
+        int y0 = Math.Max(0, y - radius);
+        int y1 = Math.Min(h, y + radius + 1);
+        double sum = sat[(y1 * (w + 1)) + x1] - sat[(y0 * (w + 1)) + x1] - sat[(y1 * (w + 1)) + x0] + sat[(y0 * (w + 1)) + x0];
+        return (float)(sum / ((x1 - x0) * (y1 - y0)));
     }
 
     private static List<Bin> Histogram(List<Unique> uniques)

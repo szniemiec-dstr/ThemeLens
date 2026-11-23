@@ -10,6 +10,11 @@ namespace ThemeLens.Platform.Windows;
 internal enum LensPass
 {
     Fine,
+    Core,
+    Seed,
+    SpreadRows,
+    SpreadColumns,
+    Region,
     Coarse,
     Wide,
     RecolourFinal,

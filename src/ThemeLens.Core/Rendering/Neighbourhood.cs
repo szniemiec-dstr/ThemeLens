@@ -7,35 +7,24 @@ using ThemeLens.Core.Imaging;
 namespace ThemeLens.Core.Rendering;
 
 /// <summary>
-/// The "small averaged copies" of a frame (figure 7): two shrunken levels that tell each pixel what its
-/// surroundings look like. On the GPU these are two tiny render passes; this class is their CPU twin and
-/// follows the same arithmetic, including the rounding to 8 bits between passes.
+/// The "small averaged copies" of a frame (figure 7): shrunken levels that tell each pixel whether it lies in a
+/// light region, in a dark region, or is content of whatever surrounds it. On the GPU these are a few tiny render
+/// passes; this class is their CPU twin and follows the same arithmetic, including the rounding to 8 bits
+/// between passes.
 /// </summary>
+/// <remarks>
+/// <list type="number">
+/// <item>Fine: per 4×4 block, the share of clearly light and of clearly dark pixels.</item>
+/// <item>Regions: per block, whether it belongs to a light or a dark region (<see cref="RegionMap"/>).</item>
+/// <item>Coarse and wide: per 16 and per 64 pixels, which kind of region is nearby, for content far from any.</item>
+/// </list>
+/// </remarks>
 public sealed class Neighbourhood
 {
-    private Neighbourhood(
-        int sourceWidth, int sourceHeight,
-        int fineWidth, int fineHeight, byte[] fineLight, byte[] fineDark, byte[] fineRange, byte[] finePoint,
-        int coarseWidth, int coarseHeight, byte[] coarseLight, byte[] coarseDark, byte[] coarseSoft,
-        int wideWidth, int wideHeight, byte[] wideLight, byte[] wideDark)
+    private Neighbourhood(int sourceWidth, int sourceHeight)
     {
         SourceWidth = sourceWidth;
         SourceHeight = sourceHeight;
-        FineWidth = fineWidth;
-        FineHeight = fineHeight;
-        FineLight = fineLight;
-        FineDark = fineDark;
-        FineRange = fineRange;
-        FinePoint = finePoint;
-        CoarseWidth = coarseWidth;
-        CoarseHeight = coarseHeight;
-        CoarseLight = coarseLight;
-        CoarseDark = coarseDark;
-        CoarseSoft = coarseSoft;
-        WideWidth = wideWidth;
-        WideHeight = wideHeight;
-        WideLight = wideLight;
-        WideDark = wideDark;
     }
 
     public int SourceWidth { get; }
@@ -43,43 +32,46 @@ public sealed class Neighbourhood
     public int SourceHeight { get; }
 
     /// <summary>Quarter-size level: one texel per 4×4 block of source pixels.</summary>
-    public int FineWidth { get; }
+    public int FineWidth { get; private init; }
 
-    public int FineHeight { get; }
+    public int FineHeight { get; private init; }
 
-    /// <summary>Share of the block's pixels that vote light.</summary>
-    public byte[] FineLight { get; }
+    /// <summary>Share of the block's pixels that are clearly light.</summary>
+    public byte[] FineLight { get; private init; } = [];
 
-    /// <summary>Share of the block's pixels that vote dark. Mid-tones vote neither way.</summary>
-    public byte[] FineDark { get; }
+    /// <summary>Share of the block's pixels that are clearly dark. Mid-tones are neither.</summary>
+    public byte[] FineDark { get; private init; } = [];
 
     /// <summary>Luma range (max − min) inside the block.</summary>
-    public byte[] FineRange { get; }
+    public byte[] FineRange { get; private init; } = [];
 
     /// <summary>One untouched source pixel per block, RGB. Used for the analysis thumbnail.</summary>
-    public byte[] FinePoint { get; }
+    public byte[] FinePoint { get; private init; } = [];
+
+    /// <summary>Quarter-size: which blocks belong to a light region, which to a dark one.</summary>
+    public RegionMap Regions { get; private init; } = null!;
 
     /// <summary>Sixteenth-size level: one texel per 16×16 block of source pixels.</summary>
-    public int CoarseWidth { get; }
+    public int CoarseWidth { get; private init; }
 
-    public int CoarseHeight { get; }
+    public int CoarseHeight { get; private init; }
 
-    /// <summary>The light part of each cell's verdict; see <see cref="LensConstants.Verdict"/>.</summary>
-    public byte[] CoarseLight { get; }
+    /// <summary>The light part of each cell's verdict on the regions in it; see <see cref="LensConstants.Verdict"/>.</summary>
+    public byte[] CoarseLight { get; private init; } = [];
 
-    public byte[] CoarseDark { get; }
+    public byte[] CoarseDark { get; private init; } = [];
 
-    /// <summary>Share of the region made of "soft" blocks; see <see cref="LensConstants.SoftIndicator"/>.</summary>
-    public byte[] CoarseSoft { get; }
+    /// <summary>Share of the cell made of "soft" blocks; see <see cref="LensConstants.SoftIndicator"/>.</summary>
+    public byte[] CoarseSoft { get; private init; } = [];
 
-    /// <summary>Sixty-fourth-size level: one texel per 64×64 block. Asked where the coarse level has too few votes.</summary>
-    public int WideWidth { get; }
+    /// <summary>Sixty-fourth-size level: one texel per 64×64 block. Asked where the coarse level has no region in sight.</summary>
+    public int WideWidth { get; private init; }
 
-    public int WideHeight { get; }
+    public int WideHeight { get; private init; }
 
-    public byte[] WideLight { get; }
+    public byte[] WideLight { get; private init; } = [];
 
-    public byte[] WideDark { get; }
+    public byte[] WideDark { get; private init; } = [];
 
     public static Neighbourhood Build(ImageRgb8 source)
     {
@@ -90,12 +82,12 @@ public sealed class Neighbourhood
         int fw = (w + block - 1) / block;
         int fh = (h + block - 1) / block;
 
+        // Fine: what each block is made of.
         byte[] fineLight = new byte[fw * fh];
         byte[] fineDark = new byte[fw * fh];
         byte[] fineRange = new byte[fw * fh];
         byte[] finePoint = new byte[fw * fh * 3];
-
-        for (int j = 0; j < fh; j++)
+        Parallel.For(0, fh, j =>
         {
             for (int i = 0; i < fw; i++)
             {
@@ -109,27 +101,30 @@ public sealed class Neighbourhood
                     {
                         Rgb8 p = source.Clamped((i * block) + dx, (j * block) + dy);
                         float luminance = Wcag.Luminance(p);
-                        light += LensConstants.LightVote(luminance);
-                        dark += LensConstants.DarkVote(luminance);
+                        light += LensConstants.StrongLight(luminance);
+                        dark += LensConstants.StrongDark(luminance);
                         float luma = LensConstants.Luma(Srgb.ToEncoded(p));
                         lo = MathF.Min(lo, luma);
                         hi = MathF.Max(hi, luma);
                     }
                 }
 
-                // Only flat blocks vote on what the background is.
                 int index = (j * fw) + i;
-                float flat = LensConstants.Flatness(hi - lo);
-                fineLight[index] = Srgb.ToByte(flat * light / (block * block));
-                fineDark[index] = Srgb.ToByte(flat * dark / (block * block));
+                fineLight[index] = Srgb.ToByte(light / (block * block));
+                fineDark[index] = Srgb.ToByte(dark / (block * block));
                 fineRange[index] = Srgb.ToByte(hi - lo);
                 Rgb8 centre = source.Clamped((i * block) + (block / 2), (j * block) + (block / 2));
                 finePoint[index * 3] = centre.R;
                 finePoint[(index * 3) + 1] = centre.G;
                 finePoint[(index * 3) + 2] = centre.B;
             }
-        }
+        });
 
+        RegionMap regions = RegionMap.Build(fineLight, fineDark, fw, fh, LensConstants.CoreRadius);
+        byte[] regionLight = regions.HomeLight;
+        byte[] regionDark = regions.HomeDark;
+
+        // Coarse and wide: which kind of region is nearby.
         int cw = (fw + block - 1) / block;
         int ch = (fh + block - 1) / block;
         byte[] coarseLight = new byte[cw * ch];
@@ -149,8 +144,8 @@ public sealed class Neighbourhood
                         int fx = Math.Min((i * block) + dx, fw - 1);
                         int fy = Math.Min((j * block) + dy, fh - 1);
                         int fi = (fy * fw) + fx;
-                        light += fineLight[fi] / 255f;
-                        dark += fineDark[fi] / 255f;
+                        light += regionLight[fi] / 255f;
+                        dark += regionDark[fi] / 255f;
                         soft += LensConstants.SoftIndicator(fineRange[fi] / 255f);
                     }
                 }
@@ -188,23 +183,51 @@ public sealed class Neighbourhood
             }
         }
 
-        return new Neighbourhood(
-            w, h,
-            fw, fh, fineLight, fineDark, fineRange, finePoint,
-            cw, ch, coarseLight, coarseDark, coarseSoft,
-            ww, wh, wideLight, wideDark);
+        return new Neighbourhood(w, h)
+        {
+            FineWidth = fw,
+            FineHeight = fh,
+            FineLight = fineLight,
+            FineDark = fineDark,
+            FineRange = fineRange,
+            FinePoint = finePoint,
+            Regions = regions,
+            CoarseWidth = cw,
+            CoarseHeight = ch,
+            CoarseLight = coarseLight,
+            CoarseDark = coarseDark,
+            CoarseSoft = coarseSoft,
+            WideWidth = ww,
+            WideHeight = wh,
+            WideLight = wideLight,
+            WideDark = wideDark,
+        };
     }
 
     /// <summary>
-    /// Share of the light votes that decides the region of a source pixel; see <see cref="LensConstants.LightFraction"/>.
+    /// The table a source pixel is recoloured with: 1 for the light-region table, 0 for the dark-region one;
+    /// see <see cref="LensConstants.Polarity"/>.
     /// </summary>
-    public float LightFractionAt(int x, int y, float wholeLens) =>
-        LensConstants.LightFraction(
+    public float PolarityAt(int x, int y, float wholeLens, float luminance)
+    {
+        int block = (Math.Min(y / LensConstants.BlockSize, FineHeight - 1) * FineWidth) + Math.Min(x / LensConstants.BlockSize, FineWidth - 1);
+        RegionMap r = Regions;
+        float fraction = LensConstants.LightFraction(
             wholeLens,
             Bilinear.Sample(WideLight, WideWidth, WideHeight, 1, 0, x, y, LensConstants.WideScale),
             Bilinear.Sample(WideDark, WideWidth, WideHeight, 1, 0, x, y, LensConstants.WideScale),
             Bilinear.Sample(CoarseLight, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale),
-            Bilinear.Sample(CoarseDark, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale));
+            Bilinear.Sample(CoarseDark, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale),
+            r.LocalLight[block] / 255f,
+            r.LocalDark[block] / 255f);
+        return LensConstants.Polarity(
+            LensConstants.Surroundings(fraction, luminance),
+            r.HomeLight[block] / 255f,
+            r.HomeDark[block] / 255f,
+            r.EdgeLight[block] / 255f,
+            r.EdgeDark[block] / 255f,
+            luminance);
+    }
 
     public float SoftFractionAt(int x, int y) =>
         Bilinear.Sample(CoarseSoft, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale);

@@ -31,7 +31,7 @@ namespace ThemeLens.Platform.Windows;
 /// </remarks>
 public sealed class D3D11LensRenderer : IDisposable
 {
-    private const int ResourceSlots = 13;
+    private const int ResourceSlots = 17;
     private const int SourceSlot = 0;
     private const int FineSlot = 1;
     private const int CoarseSlot = 2;
@@ -45,6 +45,10 @@ public sealed class D3D11LensRenderer : IDisposable
     private const int ShrinkSourceSlot = 10;
     private const int ThickSlot = 11;
     private const int ThickWideSlot = 12;
+    private const int CoresSlot = 13;
+    private const int SpreadingSlot = 14;
+    private const int RegionSlot = 15;
+    private const int LocalSlot = 16;
 
     private const Format FrameFormat = Format.B8G8R8A8_UNorm;
     private const Format IntermediateFormat = Format.R8G8B8A8_UNorm;
@@ -59,6 +63,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private readonly Half[] _tableScratch = new Half[Lut3D.EntryCount * 4];
     private readonly ID3D11ShaderResourceView[] _resources = new ID3D11ShaderResourceView[ResourceSlots];
     private readonly ID3D11RenderTargetView[] _fineTargets = new ID3D11RenderTargetView[2];
+    private readonly ID3D11RenderTargetView[] _regionTargets = new ID3D11RenderTargetView[2];
 
     private ID3D11Device _device = null!;
     private ID3D11DeviceContext _context = null!;
@@ -79,6 +84,11 @@ public sealed class D3D11LensRenderer : IDisposable
     private int _height;
     private RenderTexture? _fineVotes;
     private RenderTexture? _fineCentre;
+    private RenderTexture? _cores;
+    private RenderTexture? _spreadA;
+    private RenderTexture? _spreadB;
+    private RenderTexture? _region;
+    private RenderTexture? _local;
     private RenderTexture? _coarse;
     private RenderTexture? _wide;
     private RenderTexture? _mapped;
@@ -605,6 +615,12 @@ public sealed class D3D11LensRenderer : IDisposable
         _regionCopy?.Dispose();
         _fineVotes = _fineCentre = _coarse = _wide = _mapped = _mappedFine = _mappedCoarse = _blurredRows = null;
         _thick = _thickCoarse = _thickWide = null;
+        _cores?.Dispose();
+        _spreadA?.Dispose();
+        _spreadB?.Dispose();
+        _region?.Dispose();
+        _local?.Dispose();
+        _cores = _spreadA = _spreadB = _region = _local = null;
         _regionCopy = null;
         _fineValid = false;
         _width = 0;
@@ -633,6 +649,7 @@ public sealed class D3D11LensRenderer : IDisposable
 
         FrameParameters p = tables.Parameters;
         bool oneTable = ReferenceEquals(tables.Light, tables.Dark);
+        (float coreEnough, float coreNeeded) = LensConstants.GuardCore(width, height);
 
         // A frame that cannot be read by a shader as it is (no shader-resource binding) is first copied, lens area only.
         Texture2DDescription sourceDescription = source.Description;
@@ -673,7 +690,8 @@ public sealed class D3D11LensRenderer : IDisposable
             WideWidth = wideWidth,
             WideHeight = wideHeight,
             OneTable = oneTable ? 1f : 0f,
-            CoreEnough = LensConstants.GuardCoreEnough(width, height),
+            CoreEnough = coreEnough,
+            CoreNeeded = coreNeeded,
         };
         _context.UpdateSubresource(in constants, _frameBuffer);
 
@@ -708,11 +726,52 @@ public sealed class D3D11LensRenderer : IDisposable
             _fineValid = true;
 
             bool softGate = p.GuardOn && p.GuardSoftGate > 0f;
+            if (!oneTable)
+            {
+                // Regions (RegionMap.Build): cores, seeds, the spread along rows and columns in turn, then edges.
+                _cores ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                _spreadA ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                _spreadB ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                _region ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                _local ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+
+                Array.Clear(_resources);
+                _resources[FineSlot] = _fineVotes.Resource;
+                Draw(LensPass.Core, _cores.Target, fineWidth, fineHeight);
+
+                Array.Clear(_resources);
+                _resources[FineSlot] = _fineVotes.Resource;
+                _resources[CoresSlot] = _cores.Resource;
+                Draw(LensPass.Seed, _spreadA.Target, fineWidth, fineHeight);
+
+                RenderTexture spread = _spreadA;
+                RenderTexture spare = _spreadB;
+                for (int pass = 0; pass < LensConstants.SpreadPasses; pass++)
+                {
+                    Array.Clear(_resources);
+                    _resources[SpreadingSlot] = spread.Resource;
+                    Draw(pass % 2 == 0 ? LensPass.SpreadRows : LensPass.SpreadColumns, spare.Target, fineWidth, fineHeight);
+                    (spread, spare) = (spare, spread);
+                }
+
+                Array.Clear(_resources);
+                _resources[SpreadingSlot] = spread.Resource;
+                _regionTargets[0] = _region.Target;
+                _regionTargets[1] = _local.Target;
+                Draw(LensPass.Region, _regionTargets, fineWidth, fineHeight);
+            }
+
             if (!oneTable || softGate)
             {
+                // With one table only the soft share is read from this level; the region slot stays empty and reads as zero.
                 _coarse ??= new RenderTexture(_device, coarseWidth, coarseHeight, IntermediateFormat);
                 Array.Clear(_resources);
                 _resources[FineSlot] = _fineVotes.Resource;
+                if (!oneTable)
+                {
+                    _resources[RegionSlot] = _region!.Resource;
+                }
+
                 Draw(LensPass.Coarse, _coarse.Target, coarseWidth, coarseHeight);
             }
 
@@ -733,6 +792,8 @@ public sealed class D3D11LensRenderer : IDisposable
             {
                 _resources[CoarseSlot] = _coarse!.Resource;
                 _resources[WideSlot] = _wide!.Resource;
+                _resources[RegionSlot] = _region!.Resource;
+                _resources[LocalSlot] = _local!.Resource;
             }
 
             if (!p.NeedsFinishPass)

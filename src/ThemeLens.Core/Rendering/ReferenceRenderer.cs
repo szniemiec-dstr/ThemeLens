@@ -66,7 +66,7 @@ public static class ReferenceRenderer
                 }
                 else
                 {
-                    float polarity = LensConstants.Polarity(around.LightFractionAt(x, y, p.WholeLensLightFraction), Wcag.Luminance(pixel));
+                    float polarity = around.PolarityAt(x, y, p.WholeLensLightFraction, Wcag.Luminance(pixel));
                     o = Vector3.Lerp(dark.Sample(encoded), light.Sample(encoded), polarity);
                 }
 
@@ -105,7 +105,7 @@ public static class ReferenceRenderer
             thickWide = Shrink(thickCoarse, tcw, tch, out tw, out th);
         }
 
-        float coreEnough = LensConstants.GuardCoreEnough(w, h);
+        (float coreEnough, float coreNeeded) = LensConstants.GuardCore(w, h);
 
         // Strong sharpen needs a wider blur; its horizontal half is a pass of its own.
         float[]? blurredRows = p.StrongSharpen > 0f ? BlurRows(mapped, w, h) : null;
@@ -141,7 +141,8 @@ public static class ReferenceRenderer
                         + Bilinear.Sample(thickWide, tw, th, 4, 0, x - far, y + far, LensConstants.WideScale)
                         + Bilinear.Sample(thickWide, tw, th, 4, 0, x + far, y + far, LensConstants.WideScale));
 
-                    guard = p.GuardStrength * isThick * Smooth.Step(LensConstants.GuardCoreStart * coreEnough, coreEnough, core);
+                    float enough = Smooth.Step(LensConstants.GuardCoreStart * coreEnough, coreEnough, core);
+                    guard = p.GuardStrength * isThick * Smooth.Lerp(1f, enough, coreNeeded);
                     if (p.GuardSoftGate > 0f)
                     {
                         float soft = Smooth.Step(LensConstants.SoftGateLow, LensConstants.SoftGateHigh, around.SoftFractionAt(x, y));

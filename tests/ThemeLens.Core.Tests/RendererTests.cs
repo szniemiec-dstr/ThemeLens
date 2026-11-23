@@ -193,6 +193,41 @@ public class RendererTests
         Measure.LargestAreaShare(output, dark).ShouldBeLessThanOrEqualTo(0.005f);
     }
 
+    [Theory]
+    [InlineData(160, 120)]
+    [InlineData(320, 200)]
+    [InlineData(400, 250)]
+    [InlineData(480, 300)]
+    [InlineData(640, 400)]
+    [InlineData(1280, 800)]
+    public void Whatever_the_lens_size_no_bright_area_reaches_half_a_per_cent_of_it(int width, int height)
+    {
+        // FR-10 with a table that is plain wrong: white squares of every size from a dot to a panel.
+        FrameParameters dark = TableBuilder.Build(SoftDark).Parameters;
+        Lut3D identity = Lut3D.Identity();
+        for (int side = 8; side <= Math.Min(width, height) / 2; side += 3)
+        {
+            var c = new Canvas(width, height, Rgb8.Black);
+            int left = (width - side) / 2;
+            int top = (height - side) / 2;
+            c.Fill(left, top, side, side, Rgb8.White);
+
+            ImageRgb8 output = ReferenceRenderer.Render(c.Image, identity, identity, dark);
+
+            string what = $"a square of {side} pixels on a lens of {width} by {height}";
+            if (width * height >= 400 * 250)
+            {
+                Measure.LargestAreaShare(output, dark).ShouldBeLessThanOrEqualTo(0.005f, what);
+            }
+            else if (side >= 24)
+            {
+                // Half a per cent of a lens this small is less than the guard can tell from a thick letter.
+                // It then acts on anything from about 24 pixels thick.
+                Wcag.Luminance(output[left + (side / 2), top + (side / 2)]).ShouldBeLessThan(0.02f, what);
+            }
+        }
+    }
+
     [Fact]
     public void Text_and_thin_lines_are_never_treated_as_areas()
     {
@@ -260,7 +295,7 @@ public class RendererTests
         (n.FineWidth, n.FineHeight).ShouldBe((161, 101));
         (n.CoarseWidth, n.CoarseHeight).ShouldBe((41, 26));
         (n.WideWidth, n.WideHeight).ShouldBe((11, 7));
-        n.LightFractionAt(642, 400, 0.5f).ShouldBe(1f, 0.01f);
+        n.PolarityAt(642, 400, 0.5f, 1f).ShouldBe(1f, 0.01f);
         n.SoftFractionAt(10, 10).ShouldBe(0f);
     }
 
