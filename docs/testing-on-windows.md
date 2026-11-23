@@ -20,8 +20,18 @@ dotnet build ThemeLens.slnx
 dotnet test --solution ThemeLens.slnx
 ```
 
-This also runs the five lens-window tests that CI can only try (they need a desktop). If any test fails,
-its name and message are all I need.
+This also runs the tests that need a desktop. Five check the lens window's styles. Two start the whole lens
+the way the app does, first over a built-in test pattern and then with real screen capture: a rectangle
+appears on your screen for a few seconds each time. If these two pass, the windows, the composition, the
+frame loop and the capture all start on your machine, which is most of what is unknown.
+
+If any test fails, its name and message are all I need.
+
+To run only the two that start the lens:
+
+```
+dotnet test --project tests/ThemeLens.Platform.Tests --filter-class "*LensRuntimeSmokeTests"
+```
 
 ## 2. The lens over a test pattern
 
