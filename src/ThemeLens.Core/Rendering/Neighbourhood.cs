@@ -64,6 +64,7 @@ public sealed class Neighbourhood
 
     public int CoarseHeight { get; }
 
+    /// <summary>The light part of each cell's verdict; see <see cref="LensConstants.Verdict"/>.</summary>
     public byte[] CoarseLight { get; }
 
     public byte[] CoarseDark { get; }
@@ -154,8 +155,9 @@ public sealed class Neighbourhood
                     }
                 }
 
-                coarseLight[(j * cw) + i] = Srgb.ToByte(light / (block * block));
-                coarseDark[(j * cw) + i] = Srgb.ToByte(dark / (block * block));
+                (float lightVerdict, float darkVerdict) = LensConstants.Verdict(light / (block * block), dark / (block * block));
+                coarseLight[(j * cw) + i] = Srgb.ToByte(lightVerdict);
+                coarseDark[(j * cw) + i] = Srgb.ToByte(darkVerdict);
                 coarseSoft[(j * cw) + i] = Srgb.ToByte(soft / (block * block));
             }
         }
@@ -180,8 +182,9 @@ public sealed class Neighbourhood
                     }
                 }
 
-                wideLight[(j * ww) + i] = Srgb.ToByte(light / (block * block));
-                wideDark[(j * ww) + i] = Srgb.ToByte(dark / (block * block));
+                (float lightVerdict, float darkVerdict) = LensConstants.Verdict(light / (block * block), dark / (block * block));
+                wideLight[(j * ww) + i] = Srgb.ToByte(lightVerdict);
+                wideDark[(j * ww) + i] = Srgb.ToByte(darkVerdict);
             }
         }
 
@@ -193,20 +196,15 @@ public sealed class Neighbourhood
     }
 
     /// <summary>
-    /// Share of the light votes among the votes cast around a source pixel. Starts from the verdict for the
-    /// whole lens, then lets the wide and the coarse neighbourhood overrule it as far as each has votes.
+    /// Share of the light votes that decides the region of a source pixel; see <see cref="LensConstants.LightFraction"/>.
     /// </summary>
-    public float LightFractionAt(int x, int y, float wholeLens)
-    {
-        float fraction = LensConstants.RefineLightFraction(
+    public float LightFractionAt(int x, int y, float wholeLens) =>
+        LensConstants.LightFraction(
             wholeLens,
             Bilinear.Sample(WideLight, WideWidth, WideHeight, 1, 0, x, y, LensConstants.WideScale),
-            Bilinear.Sample(WideDark, WideWidth, WideHeight, 1, 0, x, y, LensConstants.WideScale));
-        return LensConstants.RefineLightFraction(
-            fraction,
+            Bilinear.Sample(WideDark, WideWidth, WideHeight, 1, 0, x, y, LensConstants.WideScale),
             Bilinear.Sample(CoarseLight, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale),
             Bilinear.Sample(CoarseDark, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale));
-    }
 
     public float SoftFractionAt(int x, int y) =>
         Bilinear.Sample(CoarseSoft, CoarseWidth, CoarseHeight, 1, 0, x, y, LensConstants.CoarseScale);

@@ -206,7 +206,8 @@ public static class ClusterFinder
 
         float allLight = (float)(lightSat[^1] / (w * h));
         float allDark = (float)(darkSat[^1] / (w * h));
-        wholeLens = LensConstants.RefineLightFraction(0.5f, allLight, allDark);
+        (float wholeLight, float wholeDark) = LensConstants.Verdict(allLight, allDark);
+        wholeLens = LensConstants.RefineLightFraction(0.5f, wholeLight, wholeDark);
 
         int radius = Math.Max(1, (int)MathF.Round(RegionRadiusPixels / t.SourcePixelsPerSample));
         int wideRadius = radius * LensConstants.BlockSize;
@@ -215,25 +216,23 @@ public static class ClusterFinder
         {
             for (int x = 0; x < w; x++)
             {
-                float fraction = Refine(wholeLens, x, y, wideRadius);
-                fraction = Refine(fraction, x, y, radius);
+                (float wideLight, float wideDark) = Votes(x, y, wideRadius);
+                (float coarseLight, float coarseDark) = Votes(x, y, radius);
+                float fraction = LensConstants.LightFraction(wholeLens, wideLight, wideDark, coarseLight, coarseDark);
                 light[(y * w) + x] = LensConstants.Polarity(fraction, luminance[(y * w) + x]) >= 0.5f;
             }
         }
 
         return light;
 
-        float Refine(float wider, int x, int y, int r)
+        (float Light, float Dark) Votes(int x, int y, int r)
         {
             int x0 = Math.Max(0, x - r);
             int x1 = Math.Min(w, x + r + 1);
             int y0 = Math.Max(0, y - r);
             int y1 = Math.Min(h, y + r + 1);
             int area = (x1 - x0) * (y1 - y0);
-            return LensConstants.RefineLightFraction(
-                wider,
-                (float)(Box(lightSat, x0, y0, x1, y1) / area),
-                (float)(Box(darkSat, x0, y0, x1, y1) / area));
+            return LensConstants.Verdict((float)(Box(lightSat, x0, y0, x1, y1) / area), (float)(Box(darkSat, x0, y0, x1, y1) / area));
         }
 
         double Box(double[] sat, int x0, int y0, int x1, int y1) =>

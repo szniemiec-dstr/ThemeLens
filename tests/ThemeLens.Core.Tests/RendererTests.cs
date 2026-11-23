@@ -103,6 +103,97 @@ public class RendererTests
     }
 
     [Fact]
+    public void A_small_solid_shape_is_content_to_recolour_not_a_region_of_its_own()
+    {
+        // A dark icon, a checkbox or a thick rule on a light page: recoloured like text, solid, not hollowed out.
+        var c = new Canvas(640, 400, Rgb8.White);
+        c.Fill(100, 100, 14, 14, Rgb8.FromHex("#222222"));      // an icon
+        c.Fill(200, 200, 300, 12, Rgb8.FromHex("#222222"));     // a thick rule
+        ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+
+        Wcag.Luminance(output[107, 107]).ShouldBeGreaterThan(0.4f, "the middle of the icon");
+        Wcag.Luminance(output[350, 206]).ShouldBeGreaterThan(0.4f, "the middle of the rule");
+        Wcag.Luminance(output[50, 50]).ShouldBeLessThan(0.01f, "the page");
+    }
+
+    [Fact]
+    public void A_large_solid_shape_of_the_other_polarity_is_a_region_and_becomes_page()
+    {
+        var c = new Canvas(640, 400, Rgb8.White);
+        c.Fill(200, 100, 240, 200, Rgb8.FromHex("#1E1E1E"));
+        ImageRgb8 output = Pipeline.Run(SoftDark, c.Image).Output;
+        Wcag.Luminance(output[320, 200]).ShouldBeLessThan(0.01f);
+        Wcag.Luminance(output[50, 50]).ShouldBeLessThan(0.01f);
+    }
+
+    [Fact]
+    public void No_bright_line_appears_where_a_text_filled_light_region_meets_a_dark_one()
+    {
+        // The light half is full of text right up to the boundary, so it casts far fewer votes than the clean
+        // dark half. The boundary must still be drawn where it is.
+        Fixture mixed = Fixtures.Draw("mixed-halves.png");
+        ImageRgb8 output = Pipeline.Run(SoftDark, mixed.Image).Output;
+        int boundary = mixed.Image.Width / 2;
+        int bright = 0;
+        for (int y = 0; y < mixed.Image.Height; y++)
+        {
+            for (int x = boundary - 20; x < boundary + 20; x++)
+            {
+                // Page pixels only: white on the light side, the editor's background on the dark side.
+                Rgb8 page = x < boundary ? Rgb8.White : Rgb8.FromHex("#1E1E1E");
+                if (mixed.Image[x, y] == page && Wcag.Luminance(output[x, y]) > 0.1f)
+                {
+                    bright++;
+                }
+            }
+        }
+
+        // A line down the boundary would be hundreds of pixels. A few pixels are tolerated at the one corner
+        // where the light page, the dark half and a mid-tone title bar all meet.
+        bright.ShouldBeLessThan(16);
+    }
+
+    [Theory]
+    [InlineData(16, false)]
+    [InlineData(22, false)]
+    [InlineData(40, true)]
+    [InlineData(80, true)]
+    public void The_guard_leaves_small_shapes_alone_and_catches_areas(int side, bool guarded)
+    {
+        // A table that changes nothing under a dark theme's rules, so a white square arrives at the guard as white.
+        FrameParameters dark = TableBuilder.Build(SoftDark).Parameters;
+        Lut3D identity = Lut3D.Identity();
+        var c = new Canvas(640, 400, Rgb8.Black);
+        c.Fill(300, 180, side, side, Rgb8.White);
+
+        ImageRgb8 output = ReferenceRenderer.Render(c.Image, identity, identity, dark);
+
+        float middle = Wcag.Luminance(output[300 + (side / 2), 180 + (side / 2)]);
+        if (guarded)
+        {
+            middle.ShouldBeLessThan(0.02f, "an area is pulled back to the page colour");
+        }
+        else
+        {
+            middle.ShouldBeGreaterThan(0.5f, "a checkbox, a dot or a badge is not an area");
+        }
+    }
+
+    [Fact]
+    public void The_guard_catches_a_long_band_even_though_it_is_not_tall()
+    {
+        FrameParameters dark = TableBuilder.Build(SoftDark).Parameters;
+        Lut3D identity = Lut3D.Identity();
+        var c = new Canvas(640, 400, Rgb8.Black);
+        c.Fill(0, 190, 640, 20, Rgb8.White);        // a toolbar that came out bright
+        c.Fill(0, 300, 640, 6, Rgb8.White);         // a line
+        ImageRgb8 output = ReferenceRenderer.Render(c.Image, identity, identity, dark);
+        Wcag.Luminance(output[320, 200]).ShouldBeLessThan(0.02f);
+        Wcag.Luminance(output[320, 303]).ShouldBeGreaterThan(0.5f);
+        Measure.LargestAreaShare(output, dark).ShouldBeLessThanOrEqualTo(0.005f);
+    }
+
+    [Fact]
     public void Text_and_thin_lines_are_never_treated_as_areas()
     {
         Fixture editor = Fixtures.Draw("dark-editor.png");

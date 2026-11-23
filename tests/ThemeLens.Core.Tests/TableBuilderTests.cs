@@ -305,6 +305,23 @@ public class TableBuilderTests
     }
 
     [Fact]
+    public void A_coloured_fill_without_a_role_of_its_own_also_stays_under_the_area_limit()
+    {
+        // The purple bar of the chart: no hue family of the theme, but still a fill.
+        Fixture chart = Fixtures.Draw("chart.png");
+        LensResult result = Pipeline.Run(BuiltInThemes.ById("soft-dark"), chart.Image);
+        Rgb8 purple = Rgb8.FromHex("#8E44AD");
+        RoleEntry entry = result.Roles.Entries.Single(e => e.Cluster.Colour == purple);
+        entry.Role.ShouldBe(Role.OtherAccent);
+        entry.IsFill.ShouldBeTrue();
+
+        Rgb8 shown = result.Tables.Map(purple, entry.Region);
+        Wcag.Contrast(shown, Rgb8.Black).ShouldBeLessThan(result.Tables.Theme.Limits.MaxAreaContrast * 0.8f);
+        Oklab.FromRgb8(shown).HueDegrees.ShouldBe(Oklab.FromRgb8(purple).HueDegrees, 25f);
+        Measurement.Measure.MedianLuminanceWhere(result.Output, chart.Image, purple)!.Value.ShouldBe(Wcag.Luminance(shown), 0.02f, "the bar is shown solid");
+    }
+
+    [Fact]
     public void A_fade_moves_every_colour_in_a_straight_line_of_light()
     {
         LensTables from = TableBuilder.Build(BuiltInThemes.ById("soft-dark"));

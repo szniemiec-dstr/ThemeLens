@@ -52,6 +52,15 @@ public static class LensConstants
     /// <summary>When this share of a neighbourhood has voted, its verdict is trusted fully; with fewer votes a wider neighbourhood is asked.</summary>
     public const float VoteConfidence = 0.08f;
 
+    /// <summary>
+    /// When the wide neighbourhood agrees with itself this strongly (0 is evenly split, 1 is unanimous), its
+    /// verdict stands, whatever the coarse neighbourhood says. A small solid shape, such as a dark icon or a
+    /// thick rule on a light page, is then content to be recoloured and not a little dark region of its own.
+    /// Where the wide neighbourhood is split, two regions meet nearby and the coarse one draws the line.
+    /// </summary>
+    public const float UnanimousLow = 0.35f;
+    public const float UnanimousHigh = 0.65f;
+
     /// <summary>A region is light when more of the nearby votes are light than dark.</summary>
     public const float PolarityLow = 0.47f;
     public const float PolarityHigh = 0.53f;
@@ -66,18 +75,46 @@ public static class LensConstants
     public const float AreaFlagStart = 0.8f;
 
     /// <summary>
-    /// The guard looks at a window of about 16 by 16 pixels around each pixel. It starts to act when this share
-    /// of the window is flagged and acts fully at the second value, so anything that contains a solid square of
-    /// about 17 pixels is treated as an area, and text and lines are left alone.
+    /// The guard asks two things of an area: that it is thick, and that there is enough of it.
+    /// Thick: a place starts to count as "thick" when this share of the 16 by 16 pixel window around it is
+    /// flagged, and is fully thick at the second value. Text, lines and a band of 12 pixels never are; a band
+    /// of 17 pixels is.
     /// </summary>
-    public const float GuardLow = 0.65f;
-    public const float GuardHigh = 0.85f;
+    public const float GuardLow = 0.80f;
+    public const float GuardHigh = 0.95f;
 
-    /// <summary>Half the guard window, in lens pixels: the four taps that make up the window sit this far from its centre.</summary>
-    public const float GuardWindowOffset = 4f;
+    /// <summary>
+    /// Weights of the window that measures thickness, along each axis, in quarter-size texels (4 pixels each):
+    /// three whole texels and half of one on either side make 16 pixels, centred.
+    /// </summary>
+    public static readonly float[] ThickWindow = [0.5f, 1f, 1f, 1f, 0.5f];
 
-    /// <summary>The guard also acts within this distance of a flagged window, which covers the rim of an area.</summary>
+    /// <summary>The guard also acts within this distance of a thick place, which covers the rim of an area.</summary>
     public const float GuardReach = 8f;
+
+    /// <summary>
+    /// Enough of it: the guard acts fully when the thick core of the shapes nearby adds up to this many pixels,
+    /// which a solid square of about 32 pixels has, and a long band of 17 pixels easily has. A checkbox, a status
+    /// dot or a small badge stays as it is. The guard starts to act at <see cref="GuardCoreStart"/> of this.
+    /// </summary>
+    public const float GuardCoreArea = 400f;
+    public const float GuardCoreStart = 0.375f;
+
+    /// <summary>
+    /// On a small lens the core area that counts as "enough" shrinks with the lens, to this share of its pixels,
+    /// so that the guard still catches an area before it reaches half a per cent of the lens (FR-10).
+    /// </summary>
+    public const float GuardCoreShare = 0.0016f;
+
+    /// <summary>The thick core that counts as "enough of it" for a lens of this size, in pixels.</summary>
+    public static float GuardCoreEnough(int lensWidth, int lensHeight) =>
+        MathF.Min(GuardCoreArea, GuardCoreShare * lensWidth * lensHeight);
+
+    /// <summary>Half the distance between the four taps that add up the thick core nearby.</summary>
+    public const float GuardCoreOffset = WideScale / 2f;
+
+    /// <summary>The four taps together weigh the thick core over an area of this many pixels.</summary>
+    public const float GuardCoreWindow = 4f * WideScale * WideScale;
 
     /// <summary>Thin detail keeps its full strength when an area is pulled back to the page colour.</summary>
     public const float GuardDetailGain = 1.6f;
@@ -130,7 +167,37 @@ public static class LensConstants
     {
         float votes = lightVotes + darkVotes;
         float own = lightVotes / MathF.Max(votes, 1e-4f);
-        return Smooth.Lerp(wider, own, Smooth.Saturate(votes / VoteConfidence));
+        return Smooth.Lerp(wider, own, Smooth.Saturate(votes));
+    }
+
+    /// <summary>
+    /// Turns the raw votes of one neighbourhood cell into its verdict: the two results add up to how sure the
+    /// cell is (1 once <see cref="VoteConfidence"/> of it has voted) and share that out between light and dark.
+    /// </summary>
+    /// <remarks>
+    /// Cells are compared by verdict, not by how many votes they happened to collect. A light region full of
+    /// text casts far fewer votes than a clean dark one, and counting raw votes would let the dark side win a
+    /// few pixels beyond the true boundary, which shows as a bright line along it.
+    /// </remarks>
+    public static (float Light, float Dark) Verdict(float lightVotes, float darkVotes)
+    {
+        float votes = lightVotes + darkVotes;
+        float light = lightVotes / MathF.Max(votes, 1e-4f);
+        float sure = Smooth.Saturate(votes / VoteConfidence);
+        return (light * sure, (1f - light) * sure);
+    }
+
+    /// <summary>
+    /// The share of light votes that decides a pixel's region, from the verdicts of the wide and the coarse
+    /// neighbourhood (see <see cref="Verdict"/>) and the figure for the whole lens (used where nobody nearby voted).
+    /// </summary>
+    public static float LightFraction(float wholeLens, float wideLight, float wideDark, float coarseLight, float coarseDark)
+    {
+        float wide = RefineLightFraction(wholeLens, wideLight, wideDark);
+        float coarse = RefineLightFraction(wide, coarseLight, coarseDark);
+        float unanimity = MathF.Abs((2f * wide) - 1f);
+        float wideStands = Smooth.Step(UnanimousLow, UnanimousHigh, unanimity) * Smooth.Saturate(wideLight + wideDark);
+        return Smooth.Lerp(coarse, wide, wideStands);
     }
 
     /// <summary>

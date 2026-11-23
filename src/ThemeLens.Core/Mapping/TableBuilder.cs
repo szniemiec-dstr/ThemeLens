@@ -496,25 +496,32 @@ public static class TableBuilder
 
                 LumLab source = LumLab.FromRgb8(entry.Cluster.Colour);
                 LumLab general = General(source, entry.Cluster.Luminance);
+                // A fill (a button, a bar, a pill) stays about as light or dark as the general rule made it: it is
+                // a background, and whatever is written on it was mapped by that same rule. It is also held under
+                // the area limit, so it keeps its colour instead of being mistaken for a background that came out wrong.
+                float ceiling = MathF.Cbrt(context.LuminanceAt(MathF.Log(AreaCeiling * context.Theme.Limits.MaxAreaContrast)));
+                float fillJ = context.TextIsLighter ? MathF.Min(general.J, ceiling) : MathF.Max(general.J, ceiling);
+
                 LumLab target = general;
                 if (entry.Role.IsThemedAccent())
                 {
                     LumLab themed = LumLab.FromRgb8(context.Roles[entry.Role]);
                     if (entry.IsFill && themed.J > 1e-3f)
                     {
-                        // A fill takes the theme's hue but stays about as light or dark as the general rule made
-                        // it: it is a background, and whatever is written on it was mapped by that same rule.
-                        // It is also held under the area limit, so a button keeps its colour instead of being
-                        // mistaken for a background that came out wrong.
-                        float ceiling = MathF.Cbrt(context.LuminanceAt(MathF.Log(AreaCeiling * context.Theme.Limits.MaxAreaContrast)));
-                        float j = context.TextIsLighter ? MathF.Min(general.J, ceiling) : MathF.Max(general.J, ceiling);
-                        float scale = MathF.Min(j / themed.J, 1.2f);
-                        target = new LumLab(j, themed.A * scale, themed.B * scale);
+                        // A themed fill takes the theme's hue for its role.
+                        float scale = MathF.Min(fillJ / themed.J, 1.2f);
+                        target = new LumLab(fillJ, themed.A * scale, themed.B * scale);
                     }
                     else
                     {
                         target = themed;
                     }
+                }
+                else if (entry.IsFill && general.J > 1e-3f)
+                {
+                    // Any other coloured fill keeps its own hue.
+                    float scale = fillJ / general.J;
+                    target = new LumLab(fillJ, general.A * scale, general.B * scale);
                 }
 
                 accents.Add(new Accent(source, target.J - general.J, target.A - general.A, target.B - general.B));
