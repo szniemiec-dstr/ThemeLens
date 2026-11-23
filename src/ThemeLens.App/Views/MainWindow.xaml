@@ -10,8 +10,8 @@
         xmlns:vm="clr-namespace:ThemeLens.App.ViewModels"
         Title="{x:Static app:Strings.AppTitle}"
         AutomationProperties.Name="{x:Static app:Strings.AppTitle}"
-        Width="460"
-        MinWidth="380"
+        Width="560"
+        MinWidth="560"
         SizeToContent="Height"
         ResizeMode="CanMinimize"
         Topmost="True"
@@ -22,6 +22,10 @@
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen">
+  <ScrollViewer x:Name="PageScroller"
+                Focusable="False"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
   <StackPanel Margin="24,20,24,24">
 
     <!-- Development mode: said first, and loudly. In it the lens does not behave as a user would expect. -->
@@ -296,6 +300,114 @@
             Command="{Binding ResetAdjustmentsCommand}"
             Content="{x:Static app:Strings.ResetAdjustments}" />
 
+    <!-- Colours on screen now, and what you see (figure 5, FR-08, FR-09) -->
+    <TextBlock Margin="0,20,0,6"
+               Style="{StaticResource Heading}"
+               Text="{x:Static app:Strings.MappingHeading}" />
+    <TextBlock x:Name="MappingEmpty"
+               Text="{x:Static app:Strings.MappingEmpty}">
+      <TextBlock.Style>
+        <Style TargetType="TextBlock" BasedOn="{StaticResource Quiet}">
+          <Setter Property="Visibility" Value="Collapsed" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding HasNoRows}" Value="True">
+              <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </TextBlock.Style>
+    </TextBlock>
+    <StackPanel>
+      <StackPanel.Style>
+        <Style TargetType="StackPanel">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding HasNoRows}" Value="True">
+              <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </StackPanel.Style>
+      <Grid Margin="0,0,0,2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="52" />
+          <ColumnDefinition Width="150" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock Grid.Column="0" Style="{StaticResource Quiet}" Text="{x:Static app:Strings.MappingFound}" />
+        <TextBlock Grid.Column="1" Style="{StaticResource Quiet}" Text="{x:Static app:Strings.MappingShare}" />
+        <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource Quiet}" Text="{x:Static app:Strings.MappingUsedAs}" />
+        <TextBlock Grid.Column="3" Margin="12,0,0,0" Style="{StaticResource Quiet}" Text="{x:Static app:Strings.MappingShownAs}" />
+      </Grid>
+      <ItemsControl x:Name="MappingTable"
+                    AutomationProperties.Name="{x:Static app:Strings.MappingHeading}"
+                    Focusable="False"
+                    IsTabStop="False"
+                    ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:MappingRowView}">
+            <Grid Margin="0,4" AutomationProperties.Name="{Binding Spoken}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="52" />
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Border Width="20"
+                        Height="20"
+                        VerticalAlignment="Center"
+                        Background="{Binding FoundBrush}"
+                        BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="1"
+                        CornerRadius="3" />
+                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                  <TextBlock FontSize="13" Foreground="{StaticResource Brush.Text}" Text="{Binding FoundText}" />
+                  <TextBlock Style="{StaticResource Quiet}" FontSize="12" Text="{Binding RegionText}" />
+                </StackPanel>
+              </StackPanel>
+              <TextBlock Grid.Column="1"
+                         VerticalAlignment="Center"
+                         FontSize="13"
+                         Foreground="{StaticResource Brush.Text}"
+                         Text="{Binding ShareText}" />
+              <ComboBox Grid.Column="2"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="{Binding RoleListName}"
+                        ItemsSource="{Binding Roles}"
+                        SelectedItem="{Binding SelectedRole, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:RoleChoice}">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <StackPanel Grid.Column="3" Margin="12,0,0,0" Orientation="Horizontal">
+                <Border Width="20"
+                        Height="20"
+                        VerticalAlignment="Center"
+                        Background="{Binding ShownBrush}"
+                        BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="1"
+                        CornerRadius="3" />
+                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                  <TextBlock FontSize="13" Foreground="{StaticResource Brush.Text}" Text="{Binding ShownText}" />
+                  <TextBlock Style="{StaticResource Quiet}" FontSize="12" Text="{Binding ShownDetail}" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button x:Name="ResetMappingButton"
+              Margin="0,8,0,0"
+              HorizontalAlignment="Left"
+              AutomationProperties.Name="{x:Static app:Strings.ResetMapping}"
+              Command="{Binding ResetMappingCommand}"
+              Content="{x:Static app:Strings.ResetMapping}" />
+    </StackPanel>
+
     <!-- Keyboard shortcuts -->
     <TextBlock Margin="0,20,0,6"
                Style="{StaticResource Heading}"
@@ -348,4 +460,5 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
   </StackPanel>
+  </ScrollViewer>
 </Window>

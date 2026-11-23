@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
@@ -55,6 +56,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly LensSession _session;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _refresh;
+    private IReadOnlyList<MappingRow> _shownRows = [];
     private LensStatus _latestStatus;
     private int _statusQueued;
     private bool _syncing;
@@ -79,6 +81,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             new KeepChoice(KeepBackgroundMode.Strict, Strings.KeepStrict),
             new KeepChoice(KeepBackgroundMode.Balanced, Strings.KeepBalanced),
             new KeepChoice(KeepBackgroundMode.Off, Strings.KeepOff),
+        ];
+
+        RoleChoices =
+        [
+            new RoleChoice(Role.Page, Strings.RolePage),
+            new RoleChoice(Role.Panel, Strings.RolePanel),
+            new RoleChoice(Role.Text, Strings.RoleText),
+            new RoleChoice(Role.QuietText, Strings.RoleQuietText),
+            new RoleChoice(Role.Link, Strings.RoleLink),
+            new RoleChoice(Role.Good, Strings.RoleGood),
+            new RoleChoice(Role.Warning, Strings.RoleWarning),
+            new RoleChoice(Role.Bad, Strings.RoleBad),
+            new RoleChoice(Role.OtherAccent, Strings.RoleOtherAccent),
         ];
 
         Shortcuts = [.. runtime.HotkeyStatus.Select(ToRow)];
@@ -115,6 +130,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The ways of keeping the background, for the drop-down list.</summary>
     public IReadOnlyList<KeepChoice> KeepChoices { get; }
+
+    /// <summary>The roles a found colour can be used as, for the lists in the mapping table.</summary>
+    public IReadOnlyList<RoleChoice> RoleChoices { get; }
+
+    /// <summary>"Colours on screen now, and what you see" (FR-08): one row per colour found under the lens.</summary>
+    public ObservableCollection<MappingRowView> Rows { get; } = [];
+
+    /// <summary>True while there is nothing to list: the lens is off, or has not looked at the screen yet.</summary>
+    [ObservableProperty]
+    public partial bool HasNoRows { get; set; } = true;
+
+    /// <summary>True when the user has chosen a role for at least one colour, so there is a mapping to reset.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ResetMappingCommand))]
+    public partial bool HasPins { get; set; }
+
+    /// <summary>Removes every role the user chose; the lens goes back to its own mapping (FR-09).</summary>
+    [RelayCommand(CanExecute = nameof(HasPins))]
+    private void ResetMapping()
+    {
+        _session.ResetMapping();
+        HasPins = false;
+    }
 
     /// <summary>Things worth knowing about this run: development mode, the test pattern, rendering on the CPU.</summary>
     public IReadOnlyList<string> Notes { get; }
@@ -270,6 +308,52 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         yield return Strings.CaptureNote;
+    }
+
+    /// <summary>
+    /// Brings the mapping table up to date (FR-08 asks for twice a second). While the same colours are on
+    /// screen the rows are updated where they stand, so a role list that is open stays open; when the colours
+    /// change, the table is built again.
+    /// </summary>
+    private void ShowRows()
+    {
+        IReadOnlyList<MappingRow> rows = _runtime.Controller.State == LensState.Off || !_session.SelectedTheme.HasRoles ? [] : _session.Rows;
+        HasPins = _session.Pins.Count > 0;
+        if (ReferenceEquals(rows, _shownRows))
+        {
+            return;
+        }
+
+        _shownRows = rows;
+        bool sameColours = rows.Count == Rows.Count;
+        for (int i = 0; sameColours && i < rows.Count; i++)
+        {
+            sameColours = Rows[i].IsFor(rows[i]);
+        }
+
+        if (sameColours)
+        {
+            for (int i = 0; i < rows.Count; i++)
+            {
+                Rows[i].Show(rows[i]);
+            }
+        }
+        else
+        {
+            Rows.Clear();
+            foreach (MappingRow row in rows)
+            {
+                Rows.Add(new MappingRowView(row, RoleChoices, PinRow));
+            }
+        }
+
+        HasNoRows = Rows.Count == 0;
+    }
+
+    private void PinRow(MappingRow row, Role role)
+    {
+        _session.PinRow(row, role);
+        HasPins = true;
     }
 
     private static string Percent(double share) =>
@@ -435,6 +519,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         // Twice a second is often enough to write down what a slider did, and seldom enough for the disk.
         _session.Flush();
+        ShowRows();
         double rate = _runtime.Controller.State == LensState.Off ? 0 : _runtime.FramesPerSecond;
         FrameRateText = Strings.Format(Strings.FrameRate, Math.Round(rate).ToString("0", CultureInfo.CurrentCulture));
     }

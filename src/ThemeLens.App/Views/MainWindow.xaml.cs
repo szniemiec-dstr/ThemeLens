@@ -21,6 +21,9 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         _runtime = runtime;
         InitializeComponent();
+
+        // The window grows with what it shows, up to the height of the screen's work area; beyond that it scrolls.
+        MaxHeight = SystemParameters.WorkArea.Height;
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelChanged;
         viewModel.ShowWindowRequested += BringToFront;

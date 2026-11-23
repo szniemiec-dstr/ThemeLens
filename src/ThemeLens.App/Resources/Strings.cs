@@ -112,6 +112,52 @@ public static class Strings
 
     public static string PercentValue => Get();
 
+    public static string MappingHeading => Get();
+
+    public static string MappingEmpty => Get();
+
+    public static string MappingFound => Get();
+
+    public static string MappingShare => Get();
+
+    public static string MappingUsedAs => Get();
+
+    public static string MappingShownAs => Get();
+
+    public static string MappingColour => Get();
+
+    public static string MappingContrast => Get();
+
+    public static string MappingOnLight => Get();
+
+    public static string MappingOnDark => Get();
+
+    public static string MappingPinned => Get();
+
+    public static string MappingRowName => Get();
+
+    public static string MappingRoleOf => Get();
+
+    public static string ResetMapping => Get();
+
+    public static string RolePage => Get();
+
+    public static string RolePanel => Get();
+
+    public static string RoleText => Get();
+
+    public static string RoleQuietText => Get();
+
+    public static string RoleLink => Get();
+
+    public static string RoleGood => Get();
+
+    public static string RoleWarning => Get();
+
+    public static string RoleBad => Get();
+
+    public static string RoleOtherAccent => Get();
+
     public static string HandleText => Get();
 
     public static string StartFailed => Get();

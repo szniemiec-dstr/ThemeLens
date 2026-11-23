@@ -94,10 +94,8 @@ jobs:
         timeout-minutes: 5
         run: dotnet test --project tests/ThemeLens.Platform.Tests -c Release --no-build --filter-class "*LensRuntimeSmokeTests"
 
-      # The app itself, started as a user starts it and driven through UI Automation. New, so for now a
-      # failure here is reported but does not fail the run.
+      # The app itself, started as a user starts it and driven through UI Automation.
       - name: The app on this desktop
         if: ${{ !cancelled() }}
-        continue-on-error: true
         timeout-minutes: 10
         run: dotnet test --project tests/ThemeLens.UiTests -c Release --no-build

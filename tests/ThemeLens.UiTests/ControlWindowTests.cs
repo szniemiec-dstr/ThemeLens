@@ -133,6 +133,42 @@ public sealed partial class ControlWindowTests
         WaitFor(() => !reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("after going back there is nothing to take back");
     }
 
+    /// <summary>FR-08, FR-09: the table lists the colours under the lens; choosing a role pins it until the mapping is reset.</summary>
+    [WindowsFact]
+    public void The_mapping_table_lists_the_colours_and_a_chosen_role_is_pinned_until_reset()
+    {
+        using var session = AppSession.Start();
+        session.Find("MappingEmpty").Properties.Name.ValueOrDefault.ShouldBe("Switch the lens on to see the colours under it.");
+        session.Find("LensSwitch").Patterns.Toggle.Pattern.Toggle();
+        WaitFor(() => session.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
+            $"the status should read Live, but reads '{session.Status()}'");
+
+        // One role list per colour found under the lens.
+        AutomationElement[] roleLists = [];
+        WaitFor(() => (roleLists = RoleLists(session)).Length >= 2).ShouldBeTrue(
+            $"the table should list the colours of the test pattern, but has {roleLists.Length} rows");
+        AutomationElement reset = session.Find("ResetMappingButton");
+        reset.Properties.IsEnabled.ValueOrDefault.ShouldBeFalse("no role has been chosen yet, so there is no mapping to reset");
+
+        // Give the second colour another role than it has.
+        AutomationElement list = roleLists[1];
+        list.Patterns.ExpandCollapse.Pattern.Expand();
+        AutomationElement[] roles = [];
+        WaitFor(() => (roles = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length == 9).ShouldBeTrue(
+            $"the list should offer the nine roles, but offers {roles.Length}");
+        AutomationElement other = roles.First(role => !role.Patterns.SelectionItem.Pattern.IsSelected.Value);
+        other.Patterns.SelectionItem.Pattern.Select();
+        list.Patterns.ExpandCollapse.Pattern.Collapse();
+
+        WaitFor(() => reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("a chosen role should make \"Reset mapping\" available");
+        Thread.Sleep(TimeSpan.FromSeconds(1));
+        session.Status().ShouldStartWith("Live");
+
+        reset.Patterns.Invoke.Pattern.Invoke();
+        WaitFor(() => !reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("after the reset there is nothing left to reset");
+        session.Status().ShouldStartWith("Live");
+    }
+
     /// <summary>FR-18: the theme, and that the lens was on, are remembered from one run to the next.</summary>
     [WindowsFact]
     public void The_next_start_brings_back_the_theme_and_the_lens()
@@ -196,6 +232,11 @@ public sealed partial class ControlWindowTests
         session.Process.ExitCode.ShouldBe(0);
         WaitFor(() => !IsShown(LensWindowClass)).ShouldBeTrue("the lens must not outlive the app");
     }
+
+    /// <summary>The "Used as" lists of the mapping table, one per row.</summary>
+    private static AutomationElement[] RoleLists(AppSession session) =>
+        [.. session.Window.FindAllDescendants(c => c.ByControlType(ControlType.ComboBox))
+            .Where(list => (list.Properties.Name.ValueOrDefault ?? string.Empty).StartsWith("Used as, for ", StringComparison.Ordinal))];
 
     private static bool WaitFor(Func<bool> condition)
     {

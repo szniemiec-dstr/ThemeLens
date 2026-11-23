@@ -206,6 +206,98 @@
     <value>{0}%</value>
     <comment>A slider's value in per cent. {0} is the number.</comment>
   </data>
+  <data name="MappingHeading" xml:space="preserve">
+    <value>Colours on screen now, and what you see</value>
+    <comment>Heading of the table that maps each colour found under the lens to the colour shown.</comment>
+  </data>
+  <data name="MappingEmpty" xml:space="preserve">
+    <value>Switch the lens on to see the colours under it.</value>
+    <comment>Shown in place of the mapping table while the lens is off or has not looked at the screen yet.</comment>
+  </data>
+  <data name="MappingFound" xml:space="preserve">
+    <value>Found</value>
+    <comment>Column heading: the colour found on screen.</comment>
+  </data>
+  <data name="MappingShare" xml:space="preserve">
+    <value>Share</value>
+    <comment>Column heading: how much of the lens the colour covers.</comment>
+  </data>
+  <data name="MappingUsedAs" xml:space="preserve">
+    <value>Used as</value>
+    <comment>Column heading: the role the colour was given.</comment>
+  </data>
+  <data name="MappingShownAs" xml:space="preserve">
+    <value>Shown as</value>
+    <comment>Column heading: the colour the lens shows instead.</comment>
+  </data>
+  <data name="MappingColour" xml:space="preserve">
+    <value>{0} {1}</value>
+    <comment>A colour in the mapping table. {0} is its name ("near black"), {1} its hex value.</comment>
+  </data>
+  <data name="MappingContrast" xml:space="preserve">
+    <value>{0} : 1</value>
+    <comment>Contrast of a shown colour against the shown page. {0} is the ratio with one decimal.</comment>
+  </data>
+  <data name="MappingOnLight" xml:space="preserve">
+    <value>on light</value>
+    <comment>Under a found colour: it was found in a light part of the screen.</comment>
+  </data>
+  <data name="MappingOnDark" xml:space="preserve">
+    <value>on dark</value>
+    <comment>Under a found colour: it was found in a dark part of the screen.</comment>
+  </data>
+  <data name="MappingPinned" xml:space="preserve">
+    <value>Pinned</value>
+    <comment>Marks a row whose role the user chose.</comment>
+  </data>
+  <data name="MappingRowName" xml:space="preserve">
+    <value>{0}, {1} of the lens, used as {2}, shown as {3}</value>
+    <comment>One row of the mapping table as a sentence for screen readers. {0} found colour, {1} share, {2} role, {3} shown colour.</comment>
+  </data>
+  <data name="MappingRoleOf" xml:space="preserve">
+    <value>Used as, for {0}</value>
+    <comment>Name of the role list of one row, for screen readers. {0} is the found colour.</comment>
+  </data>
+  <data name="ResetMapping" xml:space="preserve">
+    <value>Reset mapping</value>
+    <comment>Button that removes every pinned role.</comment>
+  </data>
+  <data name="RolePage" xml:space="preserve">
+    <value>Page</value>
+    <comment>Role: the largest background.</comment>
+  </data>
+  <data name="RolePanel" xml:space="preserve">
+    <value>Panel</value>
+    <comment>Role: secondary backgrounds.</comment>
+  </data>
+  <data name="RoleText" xml:space="preserve">
+    <value>Text</value>
+    <comment>Role: main reading text.</comment>
+  </data>
+  <data name="RoleQuietText" xml:space="preserve">
+    <value>Quiet text</value>
+    <comment>Role: secondary text, borders, icons.</comment>
+  </data>
+  <data name="RoleLink" xml:space="preserve">
+    <value>Link</value>
+    <comment>Role: interactive accent.</comment>
+  </data>
+  <data name="RoleGood" xml:space="preserve">
+    <value>Good</value>
+    <comment>Role: status colour for success.</comment>
+  </data>
+  <data name="RoleWarning" xml:space="preserve">
+    <value>Warning</value>
+    <comment>Role: status colour for warnings.</comment>
+  </data>
+  <data name="RoleBad" xml:space="preserve">
+    <value>Bad</value>
+    <comment>Role: status colour for errors.</comment>
+  </data>
+  <data name="RoleOtherAccent" xml:space="preserve">
+    <value>Other colour</value>
+    <comment>Role: any other strong colour; keeps its hue.</comment>
+  </data>
   <data name="HandleText" xml:space="preserve">
     <value>Lens: {0}</value>
     <comment>Text on the handle of the lens. {0} is the name of the theme.</comment>
