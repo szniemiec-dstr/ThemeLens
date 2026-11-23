@@ -91,12 +91,11 @@ public static class ClusterFinder
         centres = Refine(bins, centres);
         centres = Merge(bins, centres);
 
-        // Label every unique colour, drop the weakest clusters until at most eight remain, and label again.
-        List<Accumulator> clusters;
+        // Drop the weakest clusters until at most eight remain. The histogram is enough to decide that, and is
+        // far smaller than the list of unique colours when the screen shows a photo.
         while (true)
         {
-            clusters = Label(uniques, centres);
-            int weakest = Weakest(clusters, n);
+            int weakest = Weakest(centres, bins, n);
             if (weakest < 0)
             {
                 break;
@@ -105,10 +104,34 @@ public static class ClusterFinder
             centres.RemoveAt(weakest);
         }
 
+        List<Accumulator> clusters = Label(uniques, centres);
+        clusters.RemoveAll(static c => c.Count == 0);
+
+        // The commonest flat colour of the light regions and of the dark regions: the backgrounds text sits on.
+        Unique? lightBackground = null;
+        Unique? darkBackground = null;
+        foreach (Unique u in uniques)
+        {
+            if (u.Thin * 2 > u.Count)
+            {
+                continue;
+            }
+
+            if (u.InLightRegion * 2 >= u.Count)
+            {
+                lightBackground = lightBackground is null || u.Count > lightBackground.Count ? u : lightBackground;
+            }
+            else
+            {
+                darkBackground = darkBackground is null || u.Count > darkBackground.Count ? u : darkBackground;
+            }
+        }
+
         var result = new List<ColourCluster>(clusters.Count);
         foreach (Accumulator c in clusters)
         {
-            Rgb8 colour = c.Representative();
+            Unique? background = c.InLightRegion * 2 >= c.Count ? lightBackground ?? darkBackground : darkBackground ?? lightBackground;
+            Rgb8 colour = c.Representative(background?.Lab);
             result.Add(new ColourCluster
             {
                 Colour = colour,
@@ -222,10 +245,12 @@ public static class ClusterFinder
         var map = new Dictionary<int, Bin>();
         foreach (Unique u in uniques)
         {
+            // Greys have a and b of zero up to rounding noise, and that noise differs between operating systems.
+            // The half-bin shift puts zero in the middle of a bin, so every grey lands in the same bin everywhere.
             int l = Math.Clamp((int)(u.Lab.L * BinsL), 0, BinsL - 1);
-            int a = Math.Clamp((int)((u.Lab.A + AbExtent) / (2 * AbExtent) * BinsAb), 0, BinsAb - 1);
-            int b = Math.Clamp((int)((u.Lab.B + AbExtent) / (2 * AbExtent) * BinsAb), 0, BinsAb - 1);
-            int key = (((l * BinsAb) + a) * BinsAb) + b;
+            int a = Math.Clamp((int)MathF.Floor(((u.Lab.A + AbExtent) / (2 * AbExtent) * BinsAb) + 0.5f), 0, BinsAb);
+            int b = Math.Clamp((int)MathF.Floor(((u.Lab.B + AbExtent) / (2 * AbExtent) * BinsAb) + 0.5f), 0, BinsAb);
+            int key = (((l * (BinsAb + 1)) + a) * (BinsAb + 1)) + b;
             if (!map.TryGetValue(key, out Bin? bin))
             {
                 bin = new Bin(key);
@@ -409,27 +434,35 @@ public static class ClusterFinder
     }
 
     /// <summary>Returns the index of a cluster that should be dropped, or −1 when the set is acceptable.</summary>
-    private static int Weakest(List<Accumulator> clusters, int total)
+    private static int Weakest(List<Oklab> centres, List<Bin> bins, int total)
     {
-        if (clusters.Count <= 1)
+        if (centres.Count <= 1)
         {
             return -1;
+        }
+
+        long[] count = new long[centres.Count];
+        double[] chromaSum = new double[centres.Count];
+        foreach (Bin bin in bins)
+        {
+            int nearest = Nearest(centres, bin.Mean);
+            count[nearest] += bin.Count;
+            chromaSum[nearest] += bin.Mean.Chroma * bin.Count;
         }
 
         int weakestSmall = -1;
         float weakestSmallScore = float.MaxValue;
         int weakest = -1;
         float weakestScore = float.MaxValue;
-        for (int i = 0; i < clusters.Count; i++)
+        for (int i = 0; i < centres.Count; i++)
         {
-            Accumulator c = clusters[i];
-            if (c.Count == 0)
+            if (count[i] == 0)
             {
                 return i;
             }
 
-            float share = (float)c.Count / total;
-            float chroma = c.MeanLab().Chroma;
+            float share = (float)count[i] / total;
+            float chroma = (float)(chromaSum[i] / count[i]);
             bool strong = chroma >= StrongChroma;
 
             // Strongly coloured clusters are worth more than their area: links and status dots are small but matter.
@@ -452,7 +485,7 @@ public static class ClusterFinder
             return weakestSmall;
         }
 
-        return clusters.Count > MaxClusters ? weakest : -1;
+        return centres.Count > MaxClusters ? weakest : -1;
     }
 
     private static int Nearest(List<Oklab> centres, Oklab lab)
@@ -518,6 +551,7 @@ public static class ClusterFinder
         private double _sumL;
         private double _sumA;
         private double _sumB;
+        private readonly List<Unique> _members = [];
         private Unique? _mostCommon;
 
         public int Count { get; private set; }
@@ -530,6 +564,7 @@ public static class ClusterFinder
 
         public void Add(Unique u)
         {
+            _members.Add(u);
             Count += u.Count;
             Thin += u.Thin;
             InLightRegion += u.InLightRegion;
@@ -550,11 +585,41 @@ public static class ClusterFinder
 
         /// <summary>
         /// Flat user-interface colours are exact, so the most common one is the true colour of the cluster and
-        /// is not pulled towards its anti-aliased edges. Photos and gradients have no dominant colour; the mean stands in.
+        /// is not pulled towards its anti-aliased edges. Thin text is different: most of its pixels are edge
+        /// blends, so the member furthest from the background it sits on is the true colour. Photos and
+        /// gradients have no dominant colour; the mean stands in.
         /// </summary>
-        public Rgb8 Representative() =>
-            _mostCommon is not null && _mostCommon.Count >= Count * 0.10f
-                ? _mostCommon.Colour
-                : Srgb.FromLinear(MeanLab().ToLinear());
+        public Rgb8 Representative(Oklab? background)
+        {
+            if (_mostCommon is null)
+            {
+                return Srgb.FromLinear(MeanLab().ToLinear());
+            }
+
+            if (background is { } bg && Thin * 10 >= Count * 6)
+            {
+                // Rank the members by distance from the background and take the one with a seventh of the
+                // pixels beyond it: far enough out to be the core of the strokes, not so far that a handful of
+                // stray pixels in another colour decide it.
+                var ranked = new List<(float Distance, Unique Member)>(_members.Count);
+                foreach (Unique u in _members)
+                {
+                    ranked.Add((Oklab.Distance(u.Lab, bg), u));
+                }
+
+                ranked.Sort(static (x, y) => y.Distance.CompareTo(x.Distance));
+                int beyond = 0;
+                foreach ((float _, Unique member) in ranked)
+                {
+                    beyond += member.Count;
+                    if (beyond * 7 >= Count)
+                    {
+                        return member.Colour;
+                    }
+                }
+            }
+
+            return _mostCommon.Count >= Count * 0.10f ? _mostCommon.Colour : Srgb.FromLinear(MeanLab().ToLinear());
+        }
     }
 }

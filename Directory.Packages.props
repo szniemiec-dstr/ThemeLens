@@ -13,7 +13,7 @@
     <PackageVersion Include="Vortice.DXGI" Version="3.8.3" />
   </ItemGroup>
   <ItemGroup Label="Tests only">
-    <PackageVersion Include="coverlet.collector" Version="10.1.1" />
+    <PackageVersion Include="coverlet.MTP" Version="10.1.1" />
     <PackageVersion Include="FlaUI.UIA3" Version="5.0.0" />
     <PackageVersion Include="FsCheck.Xunit.v3" Version="3.6.0" />
     <PackageVersion Include="JsonSchema.Net" Version="9.7.0" />

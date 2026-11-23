@@ -77,6 +77,9 @@ public static class RoleAssigner
     private const float MinTextContrast = 2.5f;
     private const float MaxPanelAnchorContrast = 1.8f;
 
+    /// <summary>An unthemed colour this close (OKLab) to a themed accent counts as a shade of that accent.</summary>
+    private const float ShadeOfAccent = 0.07f;
+
     /// <summary>From this thinness a cluster is line work or text; below it, a filled area.</summary>
     public const float ThinEnoughForForeground = 0.45f;
 
@@ -121,7 +124,9 @@ public static class RoleAssigner
 
         foreach (ColourCluster coloured in all)
         {
-            if (ReferenceEquals(coloured, c) || coloured.Share < c.Share || coloured.Chroma <= c.Chroma)
+            // The other end of the blend is a purer version of the same colour. With thin text it can cover less
+            // area than its own edges do, so it only has to be present, not larger.
+            if (ReferenceEquals(coloured, c) || coloured.Share < c.Share * 0.15f || coloured.Chroma <= c.Chroma * 1.1f)
             {
                 continue;
             }
@@ -145,7 +150,7 @@ public static class RoleAssigner
                 }
 
                 float t = (((c.Lab.L - coloured.Lab.L) * dl) + ((c.Lab.A - coloured.Lab.A) * da) + ((c.Lab.B - coloured.Lab.B) * db)) / length;
-                if (t is < 0.1f or > 0.9f)
+                if (t is < 0.03f or > 0.9f)
                 {
                     continue;
                 }
@@ -292,6 +297,25 @@ public static class RoleAssigner
             else
             {
                 role[c] = Role.OtherAccent;
+            }
+        }
+
+        // An Other accent holds its own hue against the pull of a neighbouring accent. One that sits right next
+        // to a themed accent is just a shade of it, though, and should go along with it.
+        foreach (ColourCluster c in clusters)
+        {
+            if (role.GetValueOrDefault(c, Role.OtherAccent) != Role.OtherAccent)
+            {
+                continue;
+            }
+
+            foreach (ColourCluster themed in accentAnchors)
+            {
+                if (Oklab.Distance(themed.Lab, c.Lab) < ShadeOfAccent)
+                {
+                    edges.Add(c);
+                    break;
+                }
             }
         }
 

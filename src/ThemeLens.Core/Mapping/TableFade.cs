@@ -11,8 +11,6 @@ namespace ThemeLens.Core.Mapping;
 /// </summary>
 public sealed class TableFade
 {
-    private static readonly float[] EncodeTable = BuildEncodeTable();
-
     private readonly Vector3[] _fromLight;
     private readonly Vector3[] _fromDark;
     private readonly Vector3[] _toLight;
@@ -74,33 +72,11 @@ public sealed class TableFade
         {
             Vector3 linear = Vector3.Lerp(from[n], to[n], t);
             int i = n * 3;
-            data[i] = EncodeFast(linear.X);
-            data[i + 1] = EncodeFast(linear.Y);
-            data[i + 2] = EncodeFast(linear.Z);
+            data[i] = Srgb.EncodeFast(linear.X);
+            data[i + 1] = Srgb.EncodeFast(linear.Y);
+            data[i + 2] = Srgb.EncodeFast(linear.Z);
         }
 
         return lut;
-    }
-
-    private const int EncodeSteps = 4096;
-
-    private static float[] BuildEncodeTable()
-    {
-        float[] table = new float[EncodeSteps + 2];
-        for (int i = 0; i < table.Length; i++)
-        {
-            table[i] = Srgb.Encode(MathF.Min(1f, (float)i / EncodeSteps));
-        }
-
-        return table;
-    }
-
-    /// <summary>sRGB encoding from a table. A fade rebuilds two tables every frame, so the power function is too slow here.</summary>
-    private static float EncodeFast(float linear)
-    {
-        float scaled = Math.Clamp(linear, 0f, 1f) * EncodeSteps;
-        int i = (int)scaled;
-        float t = scaled - i;
-        return EncodeTable[i] + ((EncodeTable[i + 1] - EncodeTable[i]) * t);
     }
 }

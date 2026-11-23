@@ -46,9 +46,9 @@ public static class TableBuilder
     private const float DefaultDarkText = 0.80f;
 
     /// <summary>Red–green assist: how far the red–green axis is moved onto blue–yellow and onto lightness.</summary>
-    private const float RedGreenKeep = 0.60f;
-    private const float RedGreenToBlueYellow = 1.30f;
-    private const float RedGreenToLightness = 0.90f;
+    private const float RedGreenKeep = 0.35f;
+    private const float RedGreenToBlueYellow = 1.80f;
+    private const float RedGreenToLightness = 1.50f;
 
     /// <summary>Warmth 1 removes this share of blue and of green, in linear light.</summary>
     private const float WarmthBlueCut = 1.0f;
@@ -59,6 +59,13 @@ public static class TableBuilder
     /// before the area guard would consider it.
     /// </summary>
     private const float AreaCeiling = 0.75f;
+
+    /// <summary>
+    /// Colours within this log-contrast of the source page are shown exactly as the page. Without it the table
+    /// entries on either side of the page colour would both be lifted slightly, and a page that falls between
+    /// two entries would come out a shade off.
+    /// </summary>
+    private const float PageDeadZone = 0.07f;
 
     private const float Flare = Wcag.Flare;
 
@@ -109,12 +116,15 @@ public static class TableBuilder
         // the current warmth and that one is applied on top of them.
         Vector3 authored = Vector3.Max(WarmGains(theme.AuthoredWarmth), new Vector3(0.05f));
         var context = new RoleContext(theme, WarmGains(theme.Warmth) / authored);
-        Lut3D light = BuildRoleTable(context, roles, RegionPolarity.Light);
-        Lut3D dark = BuildRoleTable(context, roles, RegionPolarity.Dark);
+        Lut3D? light = null;
+        Lut3D? dark = null;
+        Parallel.Invoke(
+            () => light = BuildRoleTable(context, roles, RegionPolarity.Light),
+            () => dark = BuildRoleTable(context, roles, RegionPolarity.Dark));
 
         return new LensTables(
-            light,
-            dark,
+            light!,
+            dark!,
             common with
             {
                 Direction = theme.Base == ThemeBase.Dark ? 1f : -1f,
@@ -126,6 +136,32 @@ public static class TableBuilder
             },
             theme,
             roles);
+    }
+
+    /// <summary>Runs <paramref name="body"/> for every table entry, one slice of the table per task.</summary>
+    private static void ForEachEntry(Action<int> body)
+    {
+        const int slice = Lut3D.Size * Lut3D.Size;
+        Parallel.For(0, Lut3D.Size, b =>
+        {
+            int end = (b + 1) * slice;
+            for (int n = b * slice; n < end; n++)
+            {
+                body(n);
+            }
+        });
+    }
+
+    /// <summary>
+    /// The colour a role colour of <paramref name="theme"/> is shown as at the theme's current warmth. Used when
+    /// the current settings are saved as a new theme, whose file then lists the colours as they look.
+    /// </summary>
+    public static Rgb8 ShownAtCurrentWarmth(Theme theme, Rgb8 roleColour)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        Vector3 authored = Vector3.Max(WarmGains(theme.AuthoredWarmth), new Vector3(0.05f));
+        Vector3 linear = Srgb.ToLinear(roleColour) * (WarmGains(theme.Warmth) / authored);
+        return Srgb.FromLinear(linear);
     }
 
     private static Vector3 WarmGains(float warmth) =>
@@ -175,7 +211,7 @@ public static class TableBuilder
         float pivot = Math.Clamp(scene.MedianLightness, 0.05f, 0.95f);
         float gamma = 1f + theme.Contrast.Amount;
 
-        Parallel.For(0, Lut3D.EntryCount, n =>
+        ForEachEntry(n =>
         {
             Vector3 linear = Nodes.Linear[n];
             float y = Nodes.Luminance[n];
@@ -212,7 +248,7 @@ public static class TableBuilder
             linear *= maxLum;
             linear *= warmGains;
 
-            Vector3 encoded = Srgb.Encode(Vector3.Clamp(linear, Vector3.Zero, Vector3.One));
+            Vector3 encoded = Srgb.EncodeFast(linear);
             int i = n * 3;
             lut.Data[i] = encoded.X;
             lut.Data[i + 1] = encoded.Y;
@@ -230,7 +266,7 @@ public static class TableBuilder
     {
         var mapper = new RegionMapper(context, roles, region);
         var lut = new Lut3D();
-        Parallel.For(0, Lut3D.EntryCount, n =>
+        ForEachEntry(n =>
         {
             Vector3 encoded = mapper.Map(Nodes.Lab[n], Nodes.Luminance[n]);
             int i = n * 3;
@@ -376,7 +412,7 @@ public static class TableBuilder
                 linear = warm;
             }
 
-            return Srgb.Encode(Vector3.Clamp(linear, Vector3.Zero, Vector3.One));
+            return Srgb.EncodeFast(linear);
         }
 
         private float SignedContrast(float luminance, float page) =>
@@ -401,17 +437,18 @@ public static class TableBuilder
             _sourceTextIsDarker = region == RegionPolarity.Light;
             _redGreen = context.Theme.ColourVision == ColourVisionMode.RedGreen;
             _contrastGamma = context.Theme.Contrast.IsOn ? 1f + (1.5f * context.Theme.Contrast.Amount) : 1f;
-            _otherSideCap = context.LogPanel;
 
+            // With no page found for this region, everything from the assumed page colour outwards counts as page.
+            _otherSideCap = roles.Anchor(region, Role.Page) is null ? 0f : context.LogPanel;
             _sourcePage = roles.Anchor(region, Role.Page)?.Cluster.Luminance
                 ?? (_sourceTextIsDarker ? DefaultLightPage : DefaultDarkPage);
-            float logFarthest = SourceLog(_sourceTextIsDarker ? 0f : 1f);
+            float logFarthest = SourceDistance(_sourceTextIsDarker ? 0f : 1f);
 
             // Text anchor. A source "text" with very little contrast is not allowed to stretch the curve without limit.
-            float logSourceText = roles.Anchor(region, Role.Text) is { } text ? SourceLog(text.Cluster.Luminance) : -1f;
+            float logSourceText = roles.Anchor(region, Role.Text) is { } text ? SourceDistance(text.Cluster.Luminance) : -1f;
             if (logSourceText <= 0.05f)
             {
-                logSourceText = SourceLog(_sourceTextIsDarker ? DefaultLightText : DefaultDarkText);
+                logSourceText = SourceDistance(_sourceTextIsDarker ? DefaultLightText : DefaultDarkText);
             }
 
             logSourceText = Math.Clamp(MathF.Max(logSourceText, context.LogText / MaxSlope), 0.05f, MathF.Max(logFarthest, 0.05f));
@@ -430,7 +467,7 @@ public static class TableBuilder
 
             if (roles.Anchor(region, Role.Panel) is { } panel && context.LogPanel > 0f)
             {
-                float x = SourceLog(panel.Cluster.Luminance);
+                float x = SourceDistance(panel.Cluster.Luminance);
                 if (x > 0f && x < logSourceText * 0.6f)
                 {
                     points.Add((x, context.LogPanel));
@@ -439,7 +476,7 @@ public static class TableBuilder
 
             if (roles.Anchor(region, Role.QuietText) is { } quiet && context.LogQuiet < context.LogText)
             {
-                float x = SourceLog(quiet.Cluster.Luminance);
+                float x = SourceDistance(quiet.Cluster.Luminance);
                 if (x > 0f && x < logSourceText * 0.95f)
                 {
                     points.Add((x, context.LogQuiet));
@@ -492,12 +529,23 @@ public static class TableBuilder
                 ? MathF.Log((_sourcePage + Flare) / (luminance + Flare))
                 : MathF.Log((luminance + Flare) / (_sourcePage + Flare));
 
+        /// <summary><see cref="SourceLog"/> with the dead zone around the page taken out, so that it still starts at zero.</summary>
+        private float SourceDistance(float luminance)
+        {
+            float x = SourceLog(luminance);
+            return MathF.Sign(x) * MathF.Max(0f, MathF.Abs(x) - PageDeadZone);
+        }
+
         /// <summary>The rule for a colour that belongs to no accent cluster.</summary>
         private LumLab General(LumLab source, float sourceLuminance)
         {
-            float x = SourceLog(sourceLuminance);
+            float x = SourceDistance(sourceLuminance);
             float chroma = source.Chroma;
-            float colourAsContrast = ChromaAsContrast * chroma;
+            float coloured = Smooth.Step(GreyChroma, ColouredChroma, chroma);
+
+            // Only real colour counts as contrast. Near-greys must not, or the table entries just beside the grey
+            // axis would be lifted and put a bump into every grey ramp that passes between them.
+            float colourAsContrast = ChromaAsContrast * chroma * coloured;
 
             float log = x >= 0f
                 ? _curve.Evaluate(MathF.Sqrt((x * x) + (colourAsContrast * colourAsContrast)))
@@ -514,13 +562,18 @@ public static class TableBuilder
 
             float j = MathF.Cbrt(_c.LuminanceAt(log));
             (float tintA, float tintB) = _c.TintAt(log);
-            float coloured = Smooth.Step(GreyChroma, ColouredChroma, chroma);
             float keep = chroma > 1e-6f ? SoftLimit(chroma, _c.Theme.Limits.MaxChroma) / chroma : 0f;
-            var result = new LumLab(
-                j,
-                Smooth.Lerp(tintA, source.A * keep, coloured),
-                Smooth.Lerp(tintB, source.B * keep, coloured));
-            return _redGreen ? RedGreenAssist(result) : result;
+            var own = new LumLab(j, source.A * keep, source.B * keep);
+            if (_redGreen)
+            {
+                // Applied to the source's own colour only. The theme's neutral tint is not a red or a green.
+                own = RedGreenAssist(own);
+            }
+
+            return new LumLab(
+                Smooth.Lerp(j, own.J, coloured),
+                Smooth.Lerp(tintA, own.A, coloured),
+                Smooth.Lerp(tintB, own.B, coloured));
         }
 
         public Vector3 Map(LumLab source, float sourceLuminance)
@@ -545,6 +598,11 @@ public static class TableBuilder
                         // The weight grows without bound towards the anchor, so each anchor's own colour lands
                         // exactly on its target however close the next anchor is.
                         float d2 = ((l * l) + (a * a) + (b * b)) / (AccentReach * AccentReach);
+                        if (d2 > 12f)
+                        {
+                            continue;   // further than three and a half reaches: the pull is below one in a million
+                        }
+
                         float w = MathF.Exp(-d2) / (d2 + 0.02f);
                         total += w;
                         dj += w * accent.DeltaJ;
