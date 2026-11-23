@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>ThemeLens</value>
+    <comment>The name of the app; the title of the control window.</comment>
+  </data>
+  <data name="LensLabel" xml:space="preserve">
+    <value>Lens</value>
+    <comment>Label beside the on/off switch.</comment>
+  </data>
+  <data name="LensOn" xml:space="preserve">
+    <value>On</value>
+    <comment>Text on the lens switch while the lens is on.</comment>
+  </data>
+  <data name="LensOff" xml:space="preserve">
+    <value>Off</value>
+    <comment>Text on the lens switch while the lens is off.</comment>
+  </data>
+  <data name="LensSwitchName" xml:space="preserve">
+    <value>Lens on or off</value>
+    <comment>Name of the lens switch for screen readers.</comment>
+  </data>
+  <data name="ThemeLabel" xml:space="preserve">
+    <value>Theme</value>
+    <comment>Label beside the theme list; also its name for screen readers.</comment>
+  </data>
+  <data name="BaseDark" xml:space="preserve">
+    <value>Dark base</value>
+    <comment>Group heading in the theme list.</comment>
+  </data>
+  <data name="BaseLight" xml:space="preserve">
+    <value>Light base</value>
+    <comment>Group heading in the theme list.</comment>
+  </data>
+  <data name="BaseKeep" xml:space="preserve">
+    <value>Keep my colours</value>
+    <comment>Group heading in the theme list.</comment>
+  </data>
+  <data name="FillScreen" xml:space="preserve">
+    <value>Fill this screen</value>
+    <comment>Button: the lens covers the whole monitor it is mostly on; again to restore.</comment>
+  </data>
+  <data name="EditMode" xml:space="preserve">
+    <value>Edit mode</value>
+    <comment>Button: the lens can be moved and resized.</comment>
+  </data>
+  <data name="EditModeHelp" xml:space="preserve">
+    <value>In edit mode, drag the lens to move it and drag an edge to resize it. Arrow keys move, Shift with arrow keys resizes, Enter or Esc locks it again.</value>
+    <comment>Help text under the two buttons.</comment>
+  </data>
+  <data name="StatusLabel" xml:space="preserve">
+    <value>Status</value>
+    <comment>Name of the status line for screen readers.</comment>
+  </data>
+  <data name="StatusOff" xml:space="preserve">
+    <value>Off</value>
+    <comment>Status: the lens is off.</comment>
+  </data>
+  <data name="StatusLive" xml:space="preserve">
+    <value>Live, {0} ms</value>
+    <comment>Status: the lens shows the recoloured screen. {0} is the delay in milliseconds.</comment>
+  </data>
+  <data name="StatusLiveReduced" xml:space="preserve">
+    <value>Live, reduced speed</value>
+    <comment>Status: the lens runs slower than its standard budget.</comment>
+  </data>
+  <data name="StatusHolding" xml:space="preserve">
+    <value>Holding background</value>
+    <comment>Status: the lens shows the plain page colour.</comment>
+  </data>
+  <data name="StatusEditing" xml:space="preserve">
+    <value>Edit mode: {0}</value>
+    <comment>Status while the lens is in edit mode. {0} is the live status text.</comment>
+  </data>
+  <data name="SlowStrongSharpen" xml:space="preserve">
+    <value>Strong sharpen costs the most time. Nothing has been switched off.</value>
+    <comment>Shown with "Live, reduced speed".</comment>
+  </data>
+  <data name="SlowLocalContrast" xml:space="preserve">
+    <value>Local contrast costs the most time. Nothing has been switched off.</value>
+    <comment>Shown with "Live, reduced speed".</comment>
+  </data>
+  <data name="SlowCpuRendering" xml:space="preserve">
+    <value>The lens is drawn by the processor, because this computer has no usable graphics processor.</value>
+    <comment>Shown with "Live, reduced speed" on a machine without a GPU.</comment>
+  </data>
+  <data name="FrameRate" xml:space="preserve">
+    <value>{0} fps</value>
+    <comment>Frame-rate read-out. {0} is a whole number.</comment>
+  </data>
+  <data name="FrameRateName" xml:space="preserve">
+    <value>Lens updates per second</value>
+    <comment>Name of the frame-rate read-out for screen readers.</comment>
+  </data>
+  <data name="SoftwareRendering" xml:space="preserve">
+    <value>No usable graphics processor was found. The lens is drawn by the processor and may be slower.</value>
+    <comment>Note shown when rendering runs on the CPU.</comment>
+  </data>
+  <data name="DevModeNote" xml:space="preserve">
+    <value>Development mode: the lens is not kept on top and covers at most a quarter of the screen.</value>
+    <comment>Note shown when the app was started with --dev.</comment>
+  </data>
+  <data name="PatternNote" xml:space="preserve">
+    <value>Test pattern: the lens shows a built-in picture, not the screen.</value>
+    <comment>Note shown when the app was started with --source pattern.</comment>
+  </data>
+  <data name="CaptureNote" xml:space="preserve">
+    <value>Screenshots and screen sharing show the original screen, not the lens.</value>
+    <comment>A side effect users should know about.</comment>
+  </data>
+  <data name="ShortcutsHeading" xml:space="preserve">
+    <value>Keyboard shortcuts</value>
+    <comment>Heading above the list of shortcuts.</comment>
+  </data>
+  <data name="ShortcutGesture" xml:space="preserve">
+    <value>Win+Alt+{0}</value>
+    <comment>A shortcut as shown to the user. {0} is the letter key.</comment>
+  </data>
+  <data name="ShortcutNotSet" xml:space="preserve">
+    <value>not set</value>
+    <comment>Shown for a shortcut that Windows or another app already owns.</comment>
+  </data>
+  <data name="ShortcutToggleLens" xml:space="preserve">
+    <value>Lens on or off</value>
+  </data>
+  <data name="ShortcutEditMode" xml:space="preserve">
+    <value>Edit mode (move and resize)</value>
+  </data>
+  <data name="ShortcutFillScreen" xml:space="preserve">
+    <value>Fill this screen, or restore</value>
+  </data>
+  <data name="ShortcutNextTheme" xml:space="preserve">
+    <value>Next theme</value>
+  </data>
+  <data name="ShortcutControlWindow" xml:space="preserve">
+    <value>Open control window</value>
+  </data>
+  <data name="ShortcutEverythingOff" xml:space="preserve">
+    <value>Turn everything off now</value>
+  </data>
+  <data name="ShortcutRowName" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>How a shortcut row is read out. {0} is the action, {1} the keys or "not set".</comment>
+  </data>
+  <data name="HandleText" xml:space="preserve">
+    <value>Lens: {0}</value>
+    <comment>Text on the handle of the lens. {0} is the name of the theme.</comment>
+  </data>
+  <data name="StartFailed" xml:space="preserve">
+    <value>ThemeLens could not start.
+
+{0}</value>
+    <comment>Message when the lens cannot be created at start-up. {0} is the reason reported by Windows.</comment>
+  </data>
+  <data name="UnknownOption" xml:space="preserve">
+    <value>ThemeLens does not know the option "{0}". It understands --dev and --source pattern.</value>
+    <comment>Message for a command-line option that is not understood.</comment>
+  </data>
+</root>

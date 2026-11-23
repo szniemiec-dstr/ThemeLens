@@ -1,0 +1,35 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  A plain message in the app's own dark look. The system message box is white unless Windows is in dark mode,
+  and a white box is the last thing to show this audience when something has gone wrong.
+-->
+<Window x:Class="ThemeLens.App.Views.MessageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="clr-namespace:ThemeLens.App"
+        Title="{x:Static app:Strings.AppTitle}"
+        AutomationProperties.Name="{x:Static app:Strings.AppTitle}"
+        Width="460"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        Background="{StaticResource Brush.Background}"
+        Foreground="{StaticResource Brush.Text}"
+        FontFamily="Segoe UI"
+        FontSize="15"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="24">
+    <TextBlock x:Name="MessageText"
+               Style="{StaticResource Label}"
+               TextWrapping="Wrap" />
+    <Button x:Name="CloseButton"
+            Margin="0,20,0,0"
+            MinWidth="96"
+            HorizontalAlignment="Right"
+            AutomationProperties.Name="{x:Static app:Strings.CloseButton}"
+            Content="{x:Static app:Strings.CloseButton}"
+            IsCancel="True"
+            IsDefault="True"
+            Click="OnClose" />
+  </StackPanel>
+</Window>

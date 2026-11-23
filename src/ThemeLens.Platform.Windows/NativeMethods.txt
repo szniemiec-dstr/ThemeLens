@@ -78,6 +78,8 @@ EnumDisplaySettingsW
 GetDpiForWindow
 GetDpiForMonitor
 SetThreadDpiAwarenessContext
+SetProcessDpiAwarenessContext
+DwmSetWindowAttribute
 
 // Hotkeys
 RegisterHotKey
