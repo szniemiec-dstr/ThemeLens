@@ -65,6 +65,10 @@ public sealed partial class MappingRowView : ObservableObject
     [ObservableProperty]
     public partial string ShownDetail { get; set; } = string.Empty;
 
+    /// <summary>True while this row's role list is open. The table holds still for as long as one is.</summary>
+    [ObservableProperty]
+    public partial bool IsListOpen { get; set; }
+
     /// <summary>The whole row as one sentence, for screen readers.</summary>
     [ObservableProperty]
     public partial string Spoken { get; set; } = string.Empty;

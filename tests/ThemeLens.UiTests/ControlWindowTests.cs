@@ -150,15 +150,37 @@ public sealed partial class ControlWindowTests
         AutomationElement reset = session.Find("ResetMappingButton");
         reset.Properties.IsEnabled.ValueOrDefault.ShouldBeFalse("no role has been chosen yet, so there is no mapping to reset");
 
-        // Give the second colour another role than it has.
-        AutomationElement list = roleLists[1];
-        list.Patterns.ExpandCollapse.Pattern.Expand();
+        // Give one colour another role than it has. The table may put its rows in a new order between looking
+        // and opening (two colours of the same share swap places), so a list that came to nothing is looked up again.
         AutomationElement[] roles = [];
-        WaitFor(() => (roles = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length == 9).ShouldBeTrue(
-            $"the list should offer the nine roles, but offers {roles.Length}");
+        AutomationElement? list = null;
+        for (int attempt = 0; attempt < 5 && roles.Length != 9; attempt++)
+        {
+            roleLists = RoleLists(session);
+            if (roleLists.Length < 2)
+            {
+                Thread.Sleep(300);
+                continue;
+            }
+
+            list = roleLists[1];
+            try
+            {
+                list.Patterns.ExpandCollapse.Pattern.Expand();
+                AutomationElement open = list;
+                WaitFor(() => (roles = open.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length == 9, TimeSpan.FromSeconds(3));
+            }
+            catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException or FlaUI.Core.Exceptions.FlaUIException)
+            {
+                // The row was replaced while it was being opened.
+                roles = [];
+            }
+        }
+
+        roles.Length.ShouldBe(9, "an open role list should offer the nine roles");
         AutomationElement other = roles.First(role => !role.Patterns.SelectionItem.Pattern.IsSelected.Value);
         other.Patterns.SelectionItem.Pattern.Select();
-        list.Patterns.ExpandCollapse.Pattern.Collapse();
+        list!.Patterns.ExpandCollapse.Pattern.Collapse();
 
         WaitFor(() => reset.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("a chosen role should make \"Reset mapping\" available");
         Thread.Sleep(TimeSpan.FromSeconds(1));
@@ -238,10 +260,12 @@ public sealed partial class ControlWindowTests
         [.. session.Window.FindAllDescendants(c => c.ByControlType(ControlType.ComboBox))
             .Where(list => (list.Properties.Name.ValueOrDefault ?? string.Empty).StartsWith("Used as, for ", StringComparison.Ordinal))];
 
-    private static bool WaitFor(Func<bool> condition)
+    private static bool WaitFor(Func<bool> condition) => WaitFor(condition, Patience);
+
+    private static bool WaitFor(Func<bool> condition, TimeSpan limit)
     {
         var watch = Stopwatch.StartNew();
-        while (watch.Elapsed < Patience)
+        while (watch.Elapsed < limit)
         {
             if (condition())
             {

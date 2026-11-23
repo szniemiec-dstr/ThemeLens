@@ -311,14 +311,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Brings the mapping table up to date (FR-08 asks for twice a second). While the same colours are on
-    /// screen the rows are updated where they stand, so a role list that is open stays open; when the colours
-    /// change, the table is built again.
+    /// Brings the mapping table up to date (FR-08 asks for twice a second). The engine lists the largest
+    /// colour first, and two colours of about the same share swap places now and then. While a role list is
+    /// open the table therefore holds still: the rows keep their places and only what they show is renewed, so
+    /// the list under the pointer does not close or jump away. Otherwise the table follows the engine's order.
     /// </summary>
     private void ShowRows()
     {
         IReadOnlyList<MappingRow> rows = _runtime.Controller.State == LensState.Off || !_session.SelectedTheme.HasRoles ? [] : _session.Rows;
         HasPins = _session.Pins.Count > 0;
+
+        if (Rows.Any(static view => view.IsListOpen))
+        {
+            foreach (MappingRowView view in Rows)
+            {
+                if (rows.FirstOrDefault(view.IsFor) is { } current)
+                {
+                    view.Show(current);
+                }
+            }
+
+            // Not remembered as shown: once the list is closed, the next round puts the table in order.
+            _shownRows = [];
+            return;
+        }
+
         if (ReferenceEquals(rows, _shownRows))
         {
             return;
