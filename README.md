@@ -38,17 +38,36 @@ cd ThemeLens
 code .
 ```
 
-Press F5. The `ThemeLens` launch configuration starts the app in `--dev` mode, in which the lens is not
-topmost and covers at most a quarter of the screen, so stopping at a breakpoint cannot leave a frozen rectangle
-over your editor.
-
-From a terminal:
+Press F5, or from a terminal:
 
 ```
 dotnet build ThemeLens.slnx
+dotnet run --project src/ThemeLens.App
+```
+
+Switch the lens on in the control window. The lens stays on top of other windows and lets every click
+through. Drag its handle (the small bar on its top edge) to move it. The handle's two buttons switch edit mode,
+in which the lens is moved by dragging it and resized by dragging its edges, and fill the screen it is on.
+Win+Alt+X switches everything off at once.
+
+To run the tests:
+
+```
 dotnet test --solution ThemeLens.slnx
+```
+
+### When you are debugging
+
+A lens that stays on top is in the way when the debugger stops at a breakpoint: the app is frozen, and so is
+the rectangle over your editor. For that there is development mode:
+
+```
 dotnet run --project src/ThemeLens.App -- --dev
 ```
+
+In development mode the lens is **not** kept on top and covers at most a quarter of the screen, so "fill this
+screen" and resizing stop short. It is for stepping through code, not for trying the lens out. The second and
+third launch configurations in VS Code start it.
 
 The colour engine (`ThemeLens.Core`, `ThemeLens.Engine`) and its tests build and run on Linux and macOS too.
 The Windows-only projects compile there but only run on Windows.

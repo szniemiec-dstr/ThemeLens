@@ -89,6 +89,66 @@ public sealed partial class LensRuntimeSmokeTests
         WaitFor(() => !IsWindowVisible(lens), StartUp).ShouldBeTrue("the lens window is still shown after everything was switched off");
     }
 
+    /// <summary>FR-05: the lens fills the screen it is on, and goes back to its rectangle.</summary>
+    [WindowsFact]
+    public void Fill_this_screen_covers_the_whole_screen_and_goes_back()
+    {
+        using var runtime = new LensRuntime(Options(FrameSourceKind.Pattern) with { DevMode = false });
+        runtime.ToggleLens();
+        WaitFor(() => runtime.Controller.State == LensState.Live, StartUp).ShouldBeTrue(Describe(runtime, "did not go live"));
+        PixelRect before = runtime.LensBounds;
+        PixelRect screen = runtime.Screens[0].Bounds;
+
+        runtime.ToggleFillScreen();
+        WaitFor(() => runtime.LensBounds == screen, StartUp).ShouldBeTrue(
+            $"the lens should cover the screen {screen}, but is at {runtime.LensBounds}");
+        nint lens = FindWindow("ThemeLens.Lens", null);
+        WaitFor(() => WindowRect(lens) == screen, StartUp).ShouldBeTrue(
+            $"the lens window should cover the screen {screen}, but is at {WindowRect(lens)}");
+        runtime.Controller.State.ShouldBe(LensState.Live, Describe(runtime, "did not survive filling the screen"));
+
+        runtime.ToggleFillScreen();
+        WaitFor(() => runtime.LensBounds == before, StartUp).ShouldBeTrue(
+            $"the lens should be back at {before}, but is at {runtime.LensBounds}");
+        runtime.EverythingOff();
+    }
+
+    /// <summary>FR-04, with the real pointer: in edit mode the lens is dragged to move it, and by an edge to resize it.</summary>
+    [WindowsFact]
+    public void In_edit_mode_the_pointer_moves_and_resizes_the_lens()
+    {
+        using var runtime = new LensRuntime(Options(FrameSourceKind.Pattern) with { DevMode = false });
+        runtime.ToggleLens();
+        WaitFor(() => runtime.Controller.State == LensState.Live, StartUp).ShouldBeTrue(Describe(runtime, "did not go live"));
+        runtime.SetEditMode(true);
+        WaitFor(() => runtime.Controller.State == LensState.Edit, StartUp).ShouldBeTrue(Describe(runtime, "did not enter edit mode"));
+        Thread.Sleep(TimeSpan.FromSeconds(0.3));
+
+        // Drag the middle of the lens: it moves.
+        PixelRect start = runtime.LensBounds;
+        DragPointer(start.X + (start.Width / 2), start.Y + (start.Height / 2), 60, 40);
+        WaitFor(() => Near(runtime.LensBounds.X, start.X + 60) && Near(runtime.LensBounds.Y, start.Y + 40), StartUp).ShouldBeTrue(
+            $"dragging the lens by 60 and 40 pixels should move it from {start} by that much, but it is at {runtime.LensBounds}");
+        Near(runtime.LensBounds.Width, start.Width).ShouldBeTrue("moving the lens must not change its width");
+
+        // Drag its right edge: it gets wider.
+        PixelRect moved = runtime.LensBounds;
+        DragPointer(moved.Right - 3, moved.Y + (moved.Height / 2), 80, 0);
+        WaitFor(() => Near(runtime.LensBounds.Width, moved.Width + 80), StartUp).ShouldBeTrue(
+            $"dragging the right edge by 80 pixels should widen the lens from {moved}, but it is at {runtime.LensBounds}");
+        Near(runtime.LensBounds.X, moved.X).ShouldBeTrue("resizing by the right edge must not move the left edge");
+
+        // Drag its bottom edge up: it gets shorter.
+        PixelRect widened = runtime.LensBounds;
+        DragPointer(widened.X + (widened.Width / 2), widened.Bottom - 3, 0, -50);
+        WaitFor(() => Near(runtime.LensBounds.Height, widened.Height - 50), StartUp).ShouldBeTrue(
+            $"dragging the bottom edge up by 50 pixels should shorten the lens from {widened}, but it is at {runtime.LensBounds}");
+
+        runtime.SetEditMode(false);
+        WaitFor(() => runtime.Controller.State == LensState.Live, StartUp).ShouldBeTrue(Describe(runtime, "did not leave edit mode"));
+        runtime.EverythingOff();
+    }
+
     /// <summary>With real screen capture, whichever way this machine offers.</summary>
     [WindowsFact]
     public void The_lens_goes_live_over_the_real_screen()
@@ -129,6 +189,32 @@ public sealed partial class LensRuntimeSmokeTests
         return condition();
     }
 
+    private static bool Near(int actual, int expected) => Math.Abs(actual - expected) <= 2;
+
+    private static PixelRect WindowRect(nint window) =>
+        GetWindowRect(window, out Rect r) ? new PixelRect(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top) : default;
+
+    /// <summary>Presses the left button at a point of the screen, moves the pointer in steps, and lets go.</summary>
+    private static void DragPointer(int x, int y, int byX, int byY)
+    {
+        const uint leftDown = 0x0002;
+        const uint leftUp = 0x0004;
+        SetCursorPos(x, y).ShouldBeTrue("the pointer could not be placed");
+        Thread.Sleep(80);
+        mouse_event(leftDown, 0, 0, 0, 0);
+        Thread.Sleep(80);
+        const int steps = 8;
+        for (int i = 1; i <= steps; i++)
+        {
+            SetCursorPos(x + (byX * i / steps), y + (byY * i / steps));
+            Thread.Sleep(30);
+        }
+
+        Thread.Sleep(80);
+        mouse_event(leftUp, 0, 0, 0, 0);
+        Thread.Sleep(80);
+    }
+
     private static string Describe(LensRuntime runtime, string what)
     {
         LensStatus status = runtime.Controller.Status;
@@ -149,6 +235,26 @@ public sealed partial class LensRuntimeSmokeTests
 
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static partial nint GetWindowLongPtr(nint window, int index);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(nint window, out Rect rect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetCursorPos(int x, int y);
+
+    [LibraryImport("user32.dll")]
+    private static partial void mouse_event(uint flags, int dx, int dy, uint data, nuint extraInfo);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point

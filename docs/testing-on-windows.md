@@ -34,54 +34,47 @@ To run only the two that start the lens:
 dotnet test --project tests/ThemeLens.Platform.Tests --filter-class "*LensRuntimeSmokeTests"
 ```
 
-## 2. The lens over a test pattern
-
-```
-dotnet run --project src/ThemeLens.App -- --dev --source pattern
-```
-
-`--dev` keeps the lens from being topmost and limits it to a quarter of the screen, so nothing can get stuck
-over your work. `--source pattern` feeds the lens a built-in picture, so screen capture is not involved yet.
-
-| Step | What should happen |
-| --- | --- |
-| The app starts | A small control window appears. No lens yet. |
-| Switch the lens on | A rectangle appears showing the test pattern in the chosen theme's colours. It shows the plain page colour first, then the picture. |
-| Pick another theme | The lens cross-fades to the new colours in about a fifth of a second. No flash. |
-| Drag the handle above the lens | The lens follows. Double-click the handle: the lens fills the screen it is on, and goes back on the next double-click. |
-| Click inside the lens | The click goes to whatever is underneath, not to the lens. |
-| Win+Alt+E | Edit mode: the lens can be moved and resized by its edges. The same keys leave edit mode. |
-| Win+Alt+L | Lens off (it fades out), and on again. |
-| Win+Alt+X | Everything off at once. |
-
-## 3. The lens over the real screen
-
-```
-dotnet run --project src/ThemeLens.App -- --dev
-```
-
-| Step | What should happen |
-| --- | --- |
-| Switch the lens on over a white document | Black page, soft off-white text (Soft dark). No yellow capture border around the screen, no second mouse pointer inside the lens. |
-| Type and scroll under the lens | The lens keeps up. Text stays sharp. |
-| Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
-| Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |
-| Take a screenshot (Win+Shift+S) | The screenshot shows the original screen without the lens. That is intended. |
-
-## 4. Without `--dev`
+## 2. The lens over the real screen
 
 ```
 dotnet run --project src/ThemeLens.App
 ```
 
-The lens is now topmost and may cover the whole screen. Win+Alt+X switches everything off.
+Do not add `--dev` when you try the lens out. Development mode is for stepping through code with a
+debugger: in it the lens is deliberately not kept on top and limited to a quarter of the screen.
 
 | Step | What should happen |
 | --- | --- |
-| Lens on, then open the Start menu or a context menu over it | The menu is recoloured too, or appears above the lens unrecoloured. Either is worth knowing. |
+| The app starts | A small control window appears. No lens yet. |
+| Switch the lens on, over a white document | A rectangle appears. It shows the plain page colour for a moment, then the document with a black page and soft off-white text (Soft dark). No yellow capture border round the screen, no second mouse pointer inside the lens. |
+| Click on another window, open a menu | The lens stays on top. A menu or tooltip that opens over the lens is recoloured too, within a fifth of a second. |
+| Click inside the lens, type, scroll | Everything goes to the app underneath. The lens keeps up and text stays sharp. |
+| Drag the handle (the small bar on the lens's top edge) | The lens follows. Double-click the handle: the lens fills the screen it is on, and goes back on the next double-click. The handle's right-hand button does the same. |
+| Press the handle's edit button, or Win+Alt+E | Edit mode: the outline gets thicker. Drag inside the lens to move it; drag an edge or a corner to resize it. Arrow keys move, Shift with arrow keys resizes. Enter, Esc or the same button again leaves edit mode. |
+| Pick another theme | The lens cross-fades to the new colours in about a fifth of a second. No flash. |
+| Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
+| Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |
+| Take a screenshot (Win+Shift+S) | The screenshot shows the original screen without the lens. That is intended. |
+| Win+Alt+L | Lens off (it fades out), and on again. |
+| Win+Alt+X | Everything off at once. |
+
+## 3. Harder cases
+
+| Step | What should happen |
+| --- | --- |
+| Lens on, then open the Start menu | The Start menu appears above the lens in its own colours. Windows keeps it above every app; that cannot be changed. |
 | Lock the screen and unlock (Win+L) | The lens shows the page colour for a moment and then the picture again. It never shows the original bright screen. |
 | Unplug or switch off a second monitor while the lens is on it | The lens moves to a screen that is still there. |
 | Settings, Privacy, Screenshots and screen recording: switch access off for desktop apps | The lens shows the plain page colour and the status reads "Holding background". (A message that says why is not built yet.) |
+
+## 4. If something is wrong with the picture only
+
+```
+dotnet run --project src/ThemeLens.App -- --source pattern
+```
+
+This feeds the lens a built-in picture instead of the screen. If the lens is fine over the pattern and wrong
+over the screen, the fault is in screen capture; if it is wrong over both, it is in drawing.
 
 ## 5. Things I already know are missing
 

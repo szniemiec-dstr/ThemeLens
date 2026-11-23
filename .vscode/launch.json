@@ -7,18 +7,35 @@
       "request": "launch",
       "preLaunchTask": "build",
       "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
-      "args": ["--dev"],
+      "args": [],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
       "stopAtEntry": false
     },
     {
-      "name": "ThemeLens (test pattern, no capture)",
+      "name": "ThemeLens for breakpoints (lens small and not on top)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
       "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
-      "args": ["--dev", "--source", "pattern"],
+      "args": [
+        "--dev"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "ThemeLens for breakpoints, over a test pattern (no screen capture)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/ThemeLens.App/bin/Debug/net10.0-windows10.0.22621.0/ThemeLens.App.dll",
+      "args": [
+        "--dev",
+        "--source",
+        "pattern"
+      ],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
     }
