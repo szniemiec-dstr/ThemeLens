@@ -32,6 +32,9 @@ internal sealed unsafe class LensWindow : NativeWindow
     private const string ClassName = "ThemeLens.Lens";
     private const nuint FadeTimer = 1;
     private const uint FadeTickMilliseconds = 15;
+    private const nuint OrderTimer = 2;
+    private const uint OrderTickMilliseconds = 200;
+    private const int OrderWalkLimit = 64;
     private const int GripDip = 12;
     private const int KeyStepDip = 16;
 
@@ -50,6 +53,9 @@ internal sealed unsafe class LensWindow : NativeWindow
     private long _fadeStarted;
     private TimeSpan _fadeDuration;
 
+    /// <summary>A window the lens went above once and found above itself again: left alone until another one turns up.</summary>
+    private HWND _keptBelow;
+
     /// <param name="devMode">True to leave the window out of the topmost band (section 10.2).</param>
     /// <param name="bounds">Where the window starts, in physical pixels. It starts hidden.</param>
     public LensWindow(bool devMode, PixelRect bounds)
@@ -62,8 +68,13 @@ internal sealed unsafe class LensWindow : NativeWindow
         // A layered window stays invisible until its attributes have been set once.
         PInvoke.SetLayeredWindowAttributes(Hwnd, default, 255, LAYERED_WINDOW_ATTRIBUTES_FLAGS.LWA_ALPHA);
 
-        // No feedback loop: the capture sees the desktop as if the lens were not there.
-        CaptureExclusion.Apply(Handle);
+        // No feedback loop: the capture sees the desktop as if the lens were not there. Without this the lens
+        // would recolour its own picture again and again, so a refusal is a reason not to start at all.
+        if (!CaptureExclusion.Apply(Handle) || !CaptureExclusion.IsApplied(Handle))
+        {
+            Destroy();
+            throw new InvalidOperationException(PlatformStrings.LensCannotBeExcluded);
+        }
     }
 
     [Flags]
@@ -87,6 +98,12 @@ internal sealed unsafe class LensWindow : NativeWindow
 
     /// <summary>Sets the opacity of the lens picture, 0 to 1. Supplied by the surface, which owns the composition visual.</summary>
     public Action<float>? ApplyOpacity { get; set; }
+
+    /// <summary>
+    /// The lens went back above a window that had come up over it. Supplied by the surface, which then raises
+    /// what belongs above the lens (its outline, its handle, the control window).
+    /// </summary>
+    public Action? RaisedAgain { get; set; }
 
     public bool IsEditMode => _edit;
 
@@ -112,6 +129,12 @@ internal sealed unsafe class LensWindow : NativeWindow
             _bounds.Width,
             _bounds.Height,
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
+        if (!_devMode)
+        {
+            _keptBelow = default;
+            PInvoke.SetTimer(Hwnd, OrderTimer, OrderTickMilliseconds, null);
+        }
+
         if (_edit)
         {
             TakeKeyboard();
@@ -247,9 +270,87 @@ internal sealed unsafe class LensWindow : NativeWindow
                 StepFade();
                 return true;
 
+            case PInvoke.WM_TIMER when wParam.Value == OrderTimer:
+                KeepOnTop();
+                return true;
+
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// A menu, a tooltip or a drop-down list is a topmost window too, and one that opens after the lens lies
+    /// above it, in its original colours. While the lens is shown it looks a few times a second whether another
+    /// program's window has come up over it, and goes back on top if so. It stays click-through, and the menu
+    /// is then seen through the lens like everything else.
+    /// </summary>
+    private void KeepOnTop()
+    {
+        if (!_visible || _devMode || _fading)
+        {
+            return;
+        }
+
+        HWND above = OtherWindowAbove();
+        if (above == default)
+        {
+            _keptBelow = default;
+            return;
+        }
+
+        if (above == _keptBelow)
+        {
+            // Tried already. Windows keeps some of its own above everything (the Start menu, the lock screen),
+            // and another always-on-top program may insist: no tug of war.
+            return;
+        }
+
+        _keptBelow = above;
+        PInvoke.SetWindowPos(
+            Hwnd,
+            HWND.HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        RaisedAgain?.Invoke();
+    }
+
+    /// <summary>The nearest visible window of another program that lies above the lens and over its area, if any.</summary>
+    private HWND OtherWindowAbove()
+    {
+        uint own = (uint)Environment.ProcessId;
+        HWND window = Hwnd;
+        for (int i = 0; i < OrderWalkLimit; i++)
+        {
+            window = PInvoke.GetWindow(window, GET_WINDOW_CMD.GW_HWNDPREV);
+            if (window == default)
+            {
+                return default;
+            }
+
+            if (!PInvoke.IsWindowVisible(window))
+            {
+                continue;
+            }
+
+            uint process = 0;
+            if (PInvoke.GetWindowThreadProcessId(window, &process) == 0 || process == own)
+            {
+                continue;
+            }
+
+            if (PInvoke.GetWindowRect(window, out RECT area)
+                && area.right > _bounds.X && area.left < _bounds.Right
+                && area.bottom > _bounds.Y && area.top < _bounds.Bottom)
+            {
+                return window;
+            }
+        }
+
+        return default;
     }
 
     private static bool AnimationsEnabled()
@@ -459,6 +560,7 @@ internal sealed unsafe class LensWindow : NativeWindow
 
         EndDrag();
         _visible = false;
+        PInvoke.KillTimer(Hwnd, OrderTimer);
         PInvoke.ShowWindow(Hwnd, SHOW_WINDOW_CMD.SW_HIDE);
         if (wasFading)
         {

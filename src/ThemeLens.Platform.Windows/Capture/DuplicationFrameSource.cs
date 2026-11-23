@@ -35,6 +35,13 @@ public sealed class DuplicationFrameSource : CaptureFrameSource
         _renderer = renderer;
     }
 
+    /// <summary>
+    /// While the lock screen or a consent prompt is up, Windows refuses to duplicate the desktop. That ends when
+    /// the user comes back, however long it takes, so it is waited out and not counted as a failure.
+    /// </summary>
+    protected override bool CountsAgainstStarting(Exception failure) =>
+        failure is not SharpGenException { ResultCode.Code: HResults.AccessDenied or HResults.DxgiAccessLost };
+
     protected override void StartCore(PixelRect area)
     {
         ID3D11Device device = _renderer.Device;
@@ -87,7 +94,7 @@ public sealed class DuplicationFrameSource : CaptureFrameSource
             {
                 _duplication = output1.DuplicateOutput(device);
             }
-            catch (SharpGenException e) when (e.ResultCode.Code is HResults.DxgiUnsupported or HResults.DxgiNotCurrentlyAvailable or InvalidArgument)
+            catch (SharpGenException e) when (e.ResultCode.Code is HResults.DxgiNotCurrentlyAvailable or InvalidArgument)
             {
                 throw new CaptureUnavailableException(PlatformStrings.CaptureUnsupported, e);
             }

@@ -20,6 +20,10 @@
     <value>This computer cannot capture the screen in a way the lens can use, so the lens stays off. ThemeLens needs Windows 10 version 2004 or later and a display that Windows can capture.</value>
     <comment>Shown in the control window when no capture method works (FR-20).</comment>
   </data>
+  <data name="LensCannotBeExcluded" xml:space="preserve">
+    <value>Windows would not keep the lens out of screen capture, so the lens would show its own picture over and over. ThemeLens needs Windows 10 version 2004 or later.</value>
+    <comment>Shown when the app cannot start because the lens window could not be excluded from capture.</comment>
+  </data>
   <data name="CaptureFailed" xml:space="preserve">
     <value>The screen could not be captured, so the lens stays off. Windows reported: {0}</value>
     <comment>Shown in the control window when capture keeps failing. {0} is the error text from Windows.</comment>

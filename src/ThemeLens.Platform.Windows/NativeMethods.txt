@@ -16,6 +16,8 @@ GetWindowRect
 GetClientRect
 IsWindow
 IsWindowVisible
+GetWindow
+GetWindowThreadProcessId
 GetWindowLongW
 SetWindowLongW
 SetLayeredWindowAttributes

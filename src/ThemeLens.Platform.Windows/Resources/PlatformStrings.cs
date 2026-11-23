@@ -17,6 +17,8 @@ internal static class PlatformStrings
 
     public static string CaptureUnsupported => Get(nameof(CaptureUnsupported));
 
+    public static string LensCannotBeExcluded => Get(nameof(LensCannotBeExcluded));
+
     public static string CaptureFailed => Get(nameof(CaptureFailed));
 
     public static string CaptureRotated => Get(nameof(CaptureRotated));

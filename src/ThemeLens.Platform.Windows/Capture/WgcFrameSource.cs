@@ -120,7 +120,12 @@ public sealed class WgcFrameSource : CaptureFrameSource
 
             // The pointer is drawn by Windows on top of the lens; a second, recoloured one inside it would only confuse.
             session.IsCursorCaptureEnabled = false;
-            RequestBorderlessAccess();
+            if (!BorderlessAccessAllowed())
+            {
+                // Windows would draw its yellow border round the whole screen. The other way of capturing has none.
+                throw new CaptureUnavailableException(PlatformStrings.CaptureUnsupported);
+            }
+
             session.IsBorderRequired = false;
 
             lock (_frameGate)
@@ -216,24 +221,40 @@ public sealed class WgcFrameSource : CaptureFrameSource
 
     protected override void DisposeCore() => _device = null;
 
-    private static void RequestBorderlessAccess()
+    /// <summary>
+    /// Asks Windows whether this app may capture without the border, and answers false only on a clear no.
+    /// A desktop app gets its answer without a prompt. The wait is short because this can run on the thread
+    /// that owns the windows; no answer in time counts as yes, as it did before the answer was looked at.
+    /// </summary>
+    private static bool BorderlessAccessAllowed()
     {
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
         {
-            return;
+            return true;
         }
 
         try
         {
-            // Windows wants to be asked before the border can be turned off. A desktop app gets its answer without
-            // a prompt; do not wait long for it, because this can run on the app's main thread.
             IAsyncOperation<global::Windows.Security.Authorization.AppCapabilityAccess.AppCapabilityAccessStatus> request =
                 GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless);
-            request.AsTask().Wait(TimeSpan.FromMilliseconds(300));
+            Task<global::Windows.Security.Authorization.AppCapabilityAccess.AppCapabilityAccessStatus> answer = request.AsTask();
+            if (!answer.Wait(TimeSpan.FromMilliseconds(300)))
+            {
+                return true;
+            }
+
+            if (answer.Result == global::Windows.Security.Authorization.AppCapabilityAccess.AppCapabilityAccessStatus.Allowed)
+            {
+                return true;
+            }
+
+            PlatformLog.Warn($"Capture without a border is not allowed here ({answer.Result}); using the other capture path");
+            return false;
         }
         catch (Exception e)
         {
             PlatformLog.Warn("Asking for capture without a border failed", e);
+            return true;
         }
     }
 

@@ -59,6 +59,36 @@ public sealed partial class LensRuntimeSmokeTests
         WaitFor(() => !IsWindowVisible(lens), StartUp).ShouldBeTrue("the lens window is still shown after the lens was switched off");
     }
 
+    /// <summary>
+    /// As the app runs for a user: the lens in the topmost band, where it also looks after its place above
+    /// menus and tooltips that open later.
+    /// </summary>
+    [WindowsFact]
+    public void Outside_development_mode_the_lens_is_on_top_and_still_lets_the_pointer_through()
+    {
+        using var runtime = new LensRuntime(Options(FrameSourceKind.Pattern) with { DevMode = false });
+
+        runtime.ToggleLens();
+        WaitFor(() => runtime.Controller.State == LensState.Live, StartUp).ShouldBeTrue(Describe(runtime, "did not go live"));
+        nint lens = FindWindow("ThemeLens.Lens", null);
+        lens.ShouldNotBe(0, "there is no lens window");
+        WaitFor(() => IsWindowVisible(lens), StartUp).ShouldBeTrue("the lens window is not shown");
+
+        // Long enough for the lens to look after its place several times.
+        Thread.Sleep(TimeSpan.FromSeconds(1.5));
+        runtime.Controller.State.ShouldBe(LensState.Live, Describe(runtime, "did not stay live"));
+        const int extendedStyle = -20;
+        const long topmost = 0x0000_0008;
+        (GetWindowLongPtr(lens, extendedStyle) & topmost).ShouldBe(topmost, "the lens is not in the topmost band");
+        PixelRect bounds = runtime.LensBounds;
+        var middle = new Point { X = bounds.X + (bounds.Width / 2), Y = bounds.Y + (bounds.Height / 2) };
+        WindowFromPoint(middle).ShouldNotBe(lens, "the pointer must pass through the lens to whatever is underneath");
+
+        runtime.EverythingOff();
+        WaitFor(() => runtime.Controller.State == LensState.Off, StartUp).ShouldBeTrue(Describe(runtime, "did not switch off"));
+        WaitFor(() => !IsWindowVisible(lens), StartUp).ShouldBeTrue("the lens window is still shown after everything was switched off");
+    }
+
     /// <summary>With real screen capture, whichever way this machine offers.</summary>
     [WindowsFact]
     public void The_lens_goes_live_over_the_real_screen()
@@ -116,6 +146,9 @@ public sealed partial class LensRuntimeSmokeTests
 
     [LibraryImport("user32.dll")]
     private static partial nint WindowFromPoint(Point point);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static partial nint GetWindowLongPtr(nint window, int index);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point

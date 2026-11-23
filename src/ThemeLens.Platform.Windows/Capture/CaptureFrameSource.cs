@@ -72,7 +72,7 @@ public abstract class CaptureFrameSource : IFrameSource
             {
                 StopCore();
                 PlatformLog.Warn($"{GetType().Name} could not start", e);
-                if (++_failedStarts > _maximumFailedStarts)
+                if (CountsAgainstStarting(e) && ++_failedStarts > _maximumFailedStarts)
                 {
                     _failedStarts = 0;
                     throw new CaptureUnavailableException(PlatformStrings.Format(PlatformStrings.CaptureFailed, e.Message), e);
@@ -161,6 +161,12 @@ public abstract class CaptureFrameSource : IFrameSource
     /// taken as a passing problem and the start is tried again.
     /// </summary>
     protected abstract void StartCore(PixelRect area);
+
+    /// <summary>
+    /// Whether a failed start uses up one of the attempts this source gets before it is given up. A failure
+    /// that is known to end by itself, however long it lasts, does not.
+    /// </summary>
+    protected virtual bool CountsAgainstStarting(Exception failure) => true;
 
     /// <summary>Stops capturing and frees what <see cref="StartCore"/> made. Must be safe to call when not started.</summary>
     protected abstract void StopCore();

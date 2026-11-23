@@ -90,6 +90,7 @@ public sealed class WindowsLensSurface : ILensSurface, IDisposable
         _windows.Invoke(() => window = new LensWindow(devMode, lens));
         _window = window!;
         _window.ApplyOpacity = SetOpacity;
+        _window.RaisedAgain = () => Raised?.Invoke();
         _emergency = new EmergencyFill(devMode);
         try
         {
