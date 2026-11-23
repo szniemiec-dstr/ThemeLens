@@ -310,6 +310,14 @@
     <value>The theme could not be saved. {0}</value>
     <comment>Shown under the save button when writing the theme file failed. {0} is the reason from Windows.</comment>
   </data>
+  <data name="TrayQuit" xml:space="preserve">
+    <value>Quit ThemeLens</value>
+    <comment>Entry in the menu of the notification-area icon.</comment>
+  </data>
+  <data name="TrayTip" xml:space="preserve">
+    <value>ThemeLens: {0}</value>
+    <comment>Tooltip of the notification-area icon. {0} is the status, for example "Live, 9 ms".</comment>
+  </data>
   <data name="HandleText" xml:space="preserve">
     <value>Lens: {0}</value>
     <comment>Text on the handle of the lens. {0} is the name of the theme.</comment>

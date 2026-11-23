@@ -9,6 +9,7 @@
         xmlns:app="clr-namespace:ThemeLens.App"
         xmlns:vm="clr-namespace:ThemeLens.App.ViewModels"
         Title="{x:Static app:Strings.AppTitle}"
+        Icon="/Resources/app.ico"
         AutomationProperties.Name="{x:Static app:Strings.AppTitle}"
         Width="560"
         MinWidth="560"

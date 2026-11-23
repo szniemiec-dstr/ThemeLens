@@ -56,6 +56,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Shows the window and brings it to the front, from the notification-area icon.</summary>
+    public void ShowFromTray() => BringToFront();
+
     private void BringToFront()
     {
         if (WindowState == WindowState.Minimized)

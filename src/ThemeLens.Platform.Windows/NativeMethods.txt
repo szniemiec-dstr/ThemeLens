@@ -59,6 +59,9 @@ BeginPaint
 EndPaint
 FillRect
 CreateSolidBrush
+CreatePen
+MoveToEx
+LineTo
 DeleteObject
 SelectObject
 SetBkMode

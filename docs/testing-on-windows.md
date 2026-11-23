@@ -59,6 +59,7 @@ debugger: in it the lens is deliberately not kept on top and limited to a quarte
 | Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
 | Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |
 | Take a screenshot (Win+Shift+S) | The screenshot shows the original screen without the lens. That is intended. |
+| Look at the notification area (the icons by the clock) | A ThemeLens icon: an empty outline while the lens is off, a filled lens with lines while it is on, a filled lens with a pause mark while it holds the background. A click opens the control window; a right-click gives a menu with lens on or off, fill this screen, open control window and quit. The icons are shown in `docs/icons.html`. |
 | Win+Alt+L | Lens off (it fades out), and on again. |
 | Win+Alt+X | Everything off at once. |
 
@@ -82,7 +83,8 @@ over the screen, the fault is in screen capture; if it is wrong over both, it is
 
 ## 5. Things I already know are missing
 
-- The first-run window, the tray icon and the settings page.
+- The first-run window and the settings page.
+- Closing the control window still ends the app; it does not yet stay in the notification area.
 - Changing the keyboard shortcuts. The logic exists and is tested; the window has no controls for it yet.
 - A message that says why when Windows refuses screen capture.
 - HDR screens, and scaling of the lens's inner sizes with display scaling above 100%.

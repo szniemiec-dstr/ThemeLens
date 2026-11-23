@@ -19,6 +19,7 @@ public partial class App : Application
     private LensRuntime? _runtime;
     private LensSession? _session;
     private MainViewModel? _viewModel;
+    private TrayIcon? _tray;
 
     public App(AppOptions options)
     {
@@ -67,6 +68,7 @@ public partial class App : Application
         var window = new MainWindow(_viewModel, runtime);
         MainWindow = window;
         window.Show();
+        _tray = new TrayIcon(_viewModel, window.ShowFromTray, Shutdown);
 
         if (_session.Settings.LensWasOn)
         {
@@ -77,6 +79,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _tray?.Dispose();
         _viewModel?.Dispose();
         _session?.Dispose();
         _runtime?.Dispose();

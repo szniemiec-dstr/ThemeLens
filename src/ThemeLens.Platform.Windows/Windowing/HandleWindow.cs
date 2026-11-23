@@ -412,24 +412,13 @@ internal sealed unsafe class HandleWindow : NativeWindow
                 PInvoke.SelectObject(dc, previous);
             }
 
-            // Edit mode: a rectangle with a grip on each corner.
-            int editCentre = width - (2 * button) + (button / 2);
-            int half = Scaled(8);
-            int grip = Scaled(5);
-            HBRUSH editBrush = _editOn ? accent : text;
-            Frame(dc, editCentre - half, (height / 2) - half, 2 * half, 2 * half, line, editBrush);
-            foreach ((int sx, int sy) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })
-            {
-                Fill(dc, editCentre + (sx * half) - (grip / 2), (height / 2) + (sy * half) - (grip / 2), grip, grip, editBrush);
-            }
-
-            // Fill this screen: a screen outline with a solid top bar.
-            int fillCentre = width - (button / 2);
-            int halfWide = Scaled(10);
-            int halfHigh = Scaled(7);
-            HBRUSH fillBrush = _fillOn ? accent : text;
-            Frame(dc, fillCentre - halfWide, (height / 2) - halfHigh, 2 * halfWide, 2 * halfHigh, line, fillBrush);
-            Fill(dc, fillCentre - halfWide, (height / 2) - halfHigh, 2 * halfWide, Scaled(4), fillBrush);
+            // The two buttons, drawn after assets/icons (docs/icons.html) on its grid of 24 units. Amber means
+            // "on": the left button shows "edit mode" and, in edit mode, "done"; the right one shows "fill this
+            // screen" and, while the lens fills the screen, "back to its size".
+            float unit = Scaled(20) / 24f;
+            int middle = height / 2;
+            DrawEditButton(dc, width - (2 * button) + (button / 2), middle, unit, line, _editOn ? _colours.Accent : _colours.Text, _editOn ? accent : text);
+            DrawFillButton(dc, width - (button / 2), middle, unit, line, _fillOn ? _colours.Accent : _colours.Text, _fillOn ? accent : text);
         }
         finally
         {
@@ -438,6 +427,65 @@ internal sealed unsafe class HandleWindow : NativeWindow
             PInvoke.DeleteObject(accent);
             PInvoke.EndPaint(Hwnd, in paint);
         }
+    }
+
+    private void DrawEditButton(HDC dc, int cx, int cy, float unit, int line, Rgb8 colour, HBRUSH brush)
+    {
+        if (_editOn)
+        {
+            // "Done": a tick.
+            Lines(dc, cx, cy, unit, line + 1, colour, (5f, 12.5f), (9.5f, 17f), (19f, 7.5f));
+            return;
+        }
+
+        // "Edit mode": the lens with a grip on each corner.
+        Box(dc, cx, cy, unit, line, brush, 5f, 5f, 19f, 19f);
+        foreach ((float x, float y) in new[] { (2.5f, 2.5f), (16.5f, 2.5f), (2.5f, 16.5f), (16.5f, 16.5f) })
+        {
+            Fill(dc, At(cx, unit, x), At(cy, unit, y), At(cx, unit, x + 5f) - At(cx, unit, x), At(cy, unit, y + 5f) - At(cy, unit, y), brush);
+        }
+    }
+
+    private void DrawFillButton(HDC dc, int cx, int cy, float unit, int line, Rgb8 colour, HBRUSH brush)
+    {
+        // The screen.
+        Box(dc, cx, cy, unit, line, brush, 3f, 4.5f, 21f, 19.5f);
+        if (_fillOn)
+        {
+            // "Back to its size": a smaller lens inside the screen.
+            Box(dc, cx, cy, unit, line, brush, 8f, 9f, 16f, 15.5f);
+            return;
+        }
+
+        // "Fill this screen": an arrow into each corner.
+        Lines(dc, cx, cy, unit, line, colour, (9.5f, 8f), (8f, 8f), (8f, 9.5f));
+        Lines(dc, cx, cy, unit, line, colour, (14.5f, 8f), (16f, 8f), (16f, 9.5f));
+        Lines(dc, cx, cy, unit, line, colour, (9.5f, 16f), (8f, 16f), (8f, 14.5f));
+        Lines(dc, cx, cy, unit, line, colour, (14.5f, 16f), (16f, 16f), (16f, 14.5f));
+        Lines(dc, cx, cy, unit, line, colour, (8f, 8f), (10.6f, 10.6f));
+        Lines(dc, cx, cy, unit, line, colour, (16f, 8f), (13.4f, 10.6f));
+        Lines(dc, cx, cy, unit, line, colour, (8f, 16f), (10.6f, 13.4f));
+        Lines(dc, cx, cy, unit, line, colour, (16f, 16f), (13.4f, 13.4f));
+    }
+
+    /// <summary>A place on an icon's grid of 24 units, as a pixel: the grid's middle (12) lies on <paramref name="centre"/>.</summary>
+    private static int At(int centre, float unit, float position) => centre + (int)MathF.Round((position - 12f) * unit);
+
+    private static void Box(HDC dc, int cx, int cy, float unit, int line, HBRUSH brush, float left, float top, float right, float bottom) =>
+        Frame(dc, At(cx, unit, left), At(cy, unit, top), At(cx, unit, right) - At(cx, unit, left), At(cy, unit, bottom) - At(cy, unit, top), line, brush);
+
+    private static void Lines(HDC dc, int cx, int cy, float unit, int width, Rgb8 colour, params ReadOnlySpan<(float X, float Y)> points)
+    {
+        HPEN pen = PInvoke.CreatePen(PEN_STYLE.PS_SOLID, width, ToColorRef(colour));
+        HGDIOBJ previous = PInvoke.SelectObject(dc, pen);
+        PInvoke.MoveToEx(dc, At(cx, unit, points[0].X), At(cy, unit, points[0].Y), null);
+        for (int i = 1; i < points.Length; i++)
+        {
+            PInvoke.LineTo(dc, At(cx, unit, points[i].X), At(cy, unit, points[i].Y));
+        }
+
+        PInvoke.SelectObject(dc, previous);
+        PInvoke.DeleteObject(pen);
     }
 
     private static void Fill(HDC dc, int x, int y, int width, int height, HBRUSH brush)

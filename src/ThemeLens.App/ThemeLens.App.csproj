@@ -5,6 +5,11 @@
     <!-- The oldest Windows the lens can run on: version 2004 (section 7.7). -->
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- Windows Forms only for the icon in the notification area, which WPF does not have. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Windows Forms wants DPI awareness set its own way. This is a WPF app: the manifest and Program.Main settle it. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <RootNamespace>ThemeLens.App</RootNamespace>
     <AssemblyName>ThemeLens.App</AssemblyName>
     <!-- Per-monitor DPI awareness v2, and no administrator rights (NFR-05). -->
@@ -20,5 +25,10 @@
     <ApplicationDefinition Remove="App.xaml" />
     <Page Include="App.xaml" />
     <EmbeddedResource Update="Resources\Strings.resx" LogicalName="ThemeLens.App.Strings.resources" />
+    <!-- Made from assets/icons by build/make-icons.cjs and build/make-icons.py. -->
+    <Resource Include="Resources\*.ico" />
+    <!-- Every file here means WPF when it says Application, Window or Button. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 </Project>

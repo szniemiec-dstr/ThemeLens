@@ -164,6 +164,10 @@ public static class Strings
 
     public static string SaveThemeFailed => Get();
 
+    public static string TrayQuit => Get();
+
+    public static string TrayTip => Get();
+
     public static string HandleText => Get();
 
     public static string StartFailed => Get();

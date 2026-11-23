@@ -16,8 +16,10 @@ evening. Clicks and typing go straight through to the app below.
 | Executable specifications: 165 scenario examples, plus golden images for every theme | All passing in CI on Ubuntu and Windows. |
 | GPU renderer (`ThemeLens.Platform.Windows`, `lens.hlsl`) | Compared with the reference renderer in CI on the Windows software rasteriser: 15 looks on 12 test screens, all matching. |
 | Capture, lens and handle windows, hotkeys (`ThemeLens.Platform.Windows`) | In CI the whole lens starts on a Windows desktop, goes live over a test pattern and over the real screen, survives edit mode and switches off. **Nobody has looked at it yet**: whether the picture is right, clicks pass through and nothing flickers needs a person at a Windows 11 machine. See [`docs/testing-on-windows.md`](docs/testing-on-windows.md). |
-| App (`ThemeLens.App`) | A control window: lens on and off, theme, the table of colours found and shown with roles you can change, brightness limit, warmth, contrast, sharpen, keep background, fill screen, edit mode, status. It remembers the theme, your values for it, where the lens was and whether it was on. CI starts it on a Windows desktop and drives it through UI Automation. You can save your values as a theme of your own. First run, the tray icon and the settings page come next (M3). |
+| App (`ThemeLens.App`) | A control window: lens on and off, theme, the table of colours found and shown with roles you can change, brightness limit, warmth, contrast, sharpen, keep background, fill screen, edit mode, status. It remembers the theme, your values for it, where the lens was and whether it was on. CI starts it on a Windows desktop and drives it through UI Automation. You can save your values as a theme of your own. There is an icon in the notification area with a small menu. First run and the settings page come next (M3). |
 | Installer, updates, signing | Script only (`build/pack.ps1`), not exercised (M5). |
+
+The icons are shown in [`docs/icons.html`](docs/icons.html); their SVG sources are in `assets/icons`.
 
 The full product and technical specification is in [`docs/spec.html`](docs/spec.html). Where the code had to
 settle something the specification leaves open, the decision is recorded in
@@ -82,6 +84,7 @@ The Windows-only projects compile there but only run on Windows.
 | `src/ThemeLens.App` | The WPF app: first run, control window, tray. |
 | `tests/` | Unit and property tests, executable specifications (Reqnroll), platform and UI tests. |
 | `themes/` | Built-in themes and the theme file schema. |
+| `assets/icons/` | The icons as SVG. [`docs/icons.html`](docs/icons.html) shows them all. |
 
 ## Privacy
 
