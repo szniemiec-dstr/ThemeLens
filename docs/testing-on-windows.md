@@ -52,6 +52,8 @@ debugger: in it the lens is deliberately not kept on top and limited to a quarte
 | Drag the handle (the small bar on the lens's top edge) | The lens follows. Double-click the handle: the lens fills the screen it is on, and goes back on the next double-click. The handle's right-hand button does the same. |
 | Press the handle's edit button, or Win+Alt+E | Edit mode: the outline gets thicker. Drag inside the lens to move it; drag an edge or a corner to resize it. Arrow keys move, Shift with arrow keys resizes. Enter, Esc or the same button again leaves edit mode. |
 | Pick another theme | The lens cross-fades to the new colours in about a fifth of a second. No flash. |
+| Move the sliders under "Adjust this theme" | The lens follows while you drag: darker with a lower brightness limit, less blue with more warmth. "Back to the theme's own values" undoes it. |
+| Close the app with the lens on, and start it again | The same theme, your slider values and the lens's place are back, and the lens switches itself on. |
 | Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
 | Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |
 | Take a screenshot (Win+Shift+S) | The screenshot shows the original screen without the lens. That is intended. |
@@ -78,11 +80,15 @@ over the screen, the fault is in screen capture; if it is wrong over both, it is
 
 ## 5. Things I already know are missing
 
-- The first-run window, the mapping table, the tray icon and the settings page. The control window is a
-  minimal one to drive the lens.
-- Remembering the lens position per monitor layout (the logic exists and is tested; it is not wired to the windows yet).
+- The first-run window, the mapping table ("colours on screen now, and what you see"), the tray icon and the
+  settings page.
+- Saving your slider values as a theme of your own, and changing the keyboard shortcuts. The logic for both
+  exists and is tested; the window has no controls for them yet.
+- A message that says why when Windows refuses screen capture.
 - HDR screens, and scaling of the lens's inner sizes with display scaling above 100%.
 - An installer.
+
+The app keeps its settings in `%AppData%\ThemeLens\settings.json`. Delete that file to start from scratch.
 
 ## What to send back
 
