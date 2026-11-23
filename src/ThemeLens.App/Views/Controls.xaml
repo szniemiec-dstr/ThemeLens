@@ -204,6 +204,20 @@
     </Setter>
   </Style>
 
+  <!-- Text boxes: dark like the rest of the window. A white box would be the brightest thing on a dark screen. -->
+  <Style TargetType="TextBox">
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="10,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="{StaticResource Brush.Panel}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+    <Setter Property="CaretBrush" Value="{StaticResource Brush.Text}" />
+    <Setter Property="SelectionBrush" Value="{StaticResource Brush.Accent}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="FontSize" Value="15" />
+  </Style>
+
   <!-- Sliders: a thin track and a thumb large enough to grab, in the window's own colours. -->
   <Style x:Key="SliderThumb" TargetType="Thumb">
     <Setter Property="Width" Value="20" />

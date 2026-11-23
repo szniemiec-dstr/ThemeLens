@@ -158,6 +158,12 @@ public static class Strings
 
     public static string RoleOtherAccent => Get();
 
+    public static string SaveAsTheme => Get();
+
+    public static string NewThemeName => Get();
+
+    public static string SaveThemeFailed => Get();
+
     public static string HandleText => Get();
 
     public static string StartFailed => Get();

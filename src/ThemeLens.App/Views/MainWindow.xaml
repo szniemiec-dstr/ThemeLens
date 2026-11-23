@@ -300,6 +300,54 @@
             Command="{Binding ResetAdjustmentsCommand}"
             Content="{x:Static app:Strings.ResetAdjustments}" />
 
+    <!-- Save what the lens shows now as a theme of the user's own (FR-15) -->
+    <Grid Margin="0,12,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="NewThemeName"
+               Grid.Column="0"
+               AutomationProperties.Name="{x:Static app:Strings.NewThemeName}"
+               MaxLength="80"
+               Text="{Binding NewThemeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+      <TextBlock Grid.Column="0"
+                 Margin="12,0,0,0"
+                 IsHitTestVisible="False"
+                 Text="{x:Static app:Strings.NewThemeName}">
+        <TextBlock.Style>
+          <Style TargetType="TextBlock" BasedOn="{StaticResource Quiet}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding NewThemeName}" Value="">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
+      <Button x:Name="SaveThemeButton"
+              Grid.Column="2"
+              AutomationProperties.Name="{x:Static app:Strings.SaveAsTheme}"
+              Command="{Binding SaveAsThemeCommand}"
+              Content="{x:Static app:Strings.SaveAsTheme}" />
+    </Grid>
+    <TextBlock x:Name="SaveProblem"
+               Margin="0,6,0,0"
+               Text="{Binding SaveProblem}">
+      <TextBlock.Style>
+        <Style TargetType="TextBlock" BasedOn="{StaticResource Quiet}">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding SaveProblem}" Value="">
+              <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </TextBlock.Style>
+    </TextBlock>
+
     <!-- Colours on screen now, and what you see (figure 5, FR-08, FR-09) -->
     <TextBlock Margin="0,20,0,6"
                Style="{StaticResource Heading}"

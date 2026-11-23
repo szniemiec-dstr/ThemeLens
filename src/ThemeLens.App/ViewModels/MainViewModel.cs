@@ -72,10 +72,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _session = session;
         _dispatcher = dispatcher;
 
-        Themes = [.. session.Catalogue.All.Select(static theme => new ThemeChoice(theme, GroupName(theme.Base)))];
-        var view = new ListCollectionView(Themes.ToList());
-        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ThemeChoice.Group)));
-        ThemesView = view;
+        ListThemes();
         KeepChoices =
         [
             new KeepChoice(KeepBackgroundMode.Strict, Strings.KeepStrict),
@@ -121,10 +118,50 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>The "open control window" shortcut was pressed.</summary>
     public event Action? ShowWindowRequested;
 
-    public IReadOnlyList<ThemeChoice> Themes { get; }
+    public IReadOnlyList<ThemeChoice> Themes { get; private set; } = [];
 
-    /// <summary>The themes grouped by base, for the drop-down list.</summary>
-    public ICollectionView ThemesView { get; }
+    /// <summary>The themes grouped by base, for the drop-down list. Built again when the user saves a theme.</summary>
+    public ICollectionView ThemesView { get; private set; } = null!;
+
+    /// <summary>The name typed for a theme of the user's own.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveAsThemeCommand))]
+    public partial string NewThemeName { get; set; } = string.Empty;
+
+    /// <summary>Why the last save did not work. Empty when it did.</summary>
+    [ObservableProperty]
+    public partial string SaveProblem { get; set; } = string.Empty;
+
+    private bool CanSaveAsTheme => !string.IsNullOrWhiteSpace(NewThemeName);
+
+    /// <summary>
+    /// Saves what the lens shows now, the selected theme with the user's values for it, as a theme of the
+    /// user's own under the typed name, and selects it (FR-15). A theme of the user's with the same name is replaced.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSaveAsTheme))]
+    private void SaveAsTheme()
+    {
+        Theme saved;
+        try
+        {
+            saved = _session.SaveAsTheme(NewThemeName);
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            SaveProblem = Strings.Format(Strings.SaveThemeFailed, e.Message);
+            return;
+        }
+
+        SaveProblem = string.Empty;
+        NewThemeName = string.Empty;
+        Sync(() =>
+        {
+            ListThemes();
+            SelectedTheme = Themes.FirstOrDefault(choice => choice.Theme.Id == saved.Id);
+            ShowAdjustments();
+        });
+        _runtime.SetHandleText(HandleText(saved.Name));
+    }
 
     public IReadOnlyList<ShortcutRow> Shortcuts { get; }
 
@@ -371,6 +408,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _session.PinRow(row, role);
         HasPins = true;
+    }
+
+    /// <summary>Reads the list of themes from the catalogue: the built-in ones and the user's own.</summary>
+    private void ListThemes()
+    {
+        Themes = [.. _session.Catalogue.All.Select(static theme => new ThemeChoice(theme, GroupName(theme.Base)))];
+        var view = new ListCollectionView(Themes.ToList());
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ThemeChoice.Group)));
+        ThemesView = view;
+        OnPropertyChanged(nameof(Themes));
+        OnPropertyChanged(nameof(ThemesView));
     }
 
     private static string Percent(double share) =>

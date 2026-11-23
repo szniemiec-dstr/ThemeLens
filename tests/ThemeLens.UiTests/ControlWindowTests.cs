@@ -191,6 +191,48 @@ public sealed partial class ControlWindowTests
         session.Status().ShouldStartWith("Live");
     }
 
+    /// <summary>FR-15: what the sliders show can be saved as a theme of one's own, which is still there at the next start.</summary>
+    [WindowsFact]
+    public void The_users_values_can_be_saved_as_a_theme_of_their_own()
+    {
+        const string name = "Evening reading";
+        string folder = Path.Combine(Path.GetTempPath(), "ThemeLens.UiTests." + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using (var first = AppSession.Start(folder))
+            {
+                AutomationElement save = first.Find("SaveThemeButton");
+                save.Properties.IsEnabled.ValueOrDefault.ShouldBeFalse("a theme needs a name before it can be saved");
+                first.Find("BrightnessSlider").Patterns.RangeValue.Pattern.SetValue(0.4);
+                AutomationElement box = first.Find("NewThemeName");
+                box.Properties.Name.ValueOrDefault.ShouldBe("Name for your theme");
+                box.Patterns.Value.Pattern.SetValue(name);
+                WaitFor(() => save.Properties.IsEnabled.ValueOrDefault).ShouldBeTrue("with a name typed, the theme can be saved");
+
+                save.Patterns.Invoke.Pattern.Invoke();
+
+                WaitFor(() => SelectedTheme(first) == name).ShouldBeTrue(
+                    $"the saved theme should be the chosen one, but the list shows '{SelectedTheme(first)}'");
+                first.Find("BrightnessSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.4, 0.01);
+                first.Find("ResetButton").Properties.IsEnabled.ValueOrDefault.ShouldBeFalse(
+                    "the values are the new theme's own now, so there is nothing to go back from");
+                first.Window.Close();
+                WaitFor(() => first.Process.HasExited).ShouldBeTrue("the app should end when its control window is closed");
+            }
+
+            using var second = AppSession.Start(folder);
+            SelectedTheme(second).ShouldBe(name);
+            second.Find("BrightnessSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.4, 0.01);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
     /// <summary>FR-18: the theme, and that the lens was on, are remembered from one run to the next.</summary>
     [WindowsFact]
     public void The_next_start_brings_back_the_theme_and_the_lens()
@@ -253,6 +295,18 @@ public sealed partial class ControlWindowTests
         WaitFor(() => session.Process.HasExited).ShouldBeTrue("the app should end when its control window is closed");
         session.Process.ExitCode.ShouldBe(0);
         WaitFor(() => !IsShown(LensWindowClass)).ShouldBeTrue("the lens must not outlive the app");
+    }
+
+    /// <summary>The name of the theme the theme list shows as chosen, read by opening the list as a screen reader would.</summary>
+    private static string SelectedTheme(AppSession session)
+    {
+        AutomationElement list = session.Find("ThemeList");
+        list.Patterns.ExpandCollapse.Pattern.Expand();
+        AutomationElement[] items = [];
+        WaitFor(() => (items = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13, TimeSpan.FromSeconds(5));
+        string chosen = items.FirstOrDefault(item => item.Patterns.SelectionItem.Pattern.IsSelected.Value)?.Properties.Name.ValueOrDefault ?? string.Empty;
+        list.Patterns.ExpandCollapse.Pattern.Collapse();
+        return chosen;
     }
 
     /// <summary>The "Used as" lists of the mapping table, one per row.</summary>

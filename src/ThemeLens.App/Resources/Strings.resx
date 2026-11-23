@@ -298,6 +298,18 @@
     <value>Other colour</value>
     <comment>Role: any other strong colour; keeps its hue.</comment>
   </data>
+  <data name="SaveAsTheme" xml:space="preserve">
+    <value>Save as theme</value>
+    <comment>Button that saves the selected theme with the user's own values as a new theme.</comment>
+  </data>
+  <data name="NewThemeName" xml:space="preserve">
+    <value>Name for your theme</value>
+    <comment>Label and screen-reader name of the box for the new theme's name.</comment>
+  </data>
+  <data name="SaveThemeFailed" xml:space="preserve">
+    <value>The theme could not be saved. {0}</value>
+    <comment>Shown under the save button when writing the theme file failed. {0} is the reason from Windows.</comment>
+  </data>
   <data name="HandleText" xml:space="preserve">
     <value>Lens: {0}</value>
     <comment>Text on the handle of the lens. {0} is the name of the theme.</comment>
