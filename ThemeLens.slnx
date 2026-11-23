@@ -10,5 +10,6 @@
     <Project Path="tests/ThemeLens.Platform.Tests/ThemeLens.Platform.Tests.csproj" />
     <Project Path="tests/ThemeLens.Specs/ThemeLens.Specs.csproj" />
     <Project Path="tests/ThemeLens.Testing/ThemeLens.Testing.csproj" />
+    <Project Path="tests/ThemeLens.UiTests/ThemeLens.UiTests.csproj" />
   </Folder>
 </Solution>
