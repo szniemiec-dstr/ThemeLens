@@ -11,7 +11,8 @@
 //   PsWide            sixteenth         -> sixty-fourth    Neighbourhood.Build, wide level
 //   PsRecolourFinal   source            -> lens            ReferenceRenderer pass 2 when nothing else is switched on
 //   PsRecolourMapped  source            -> "mapped"        ReferenceRenderer pass 2, with the area flag in alpha
-//   PsShrink          any RGBA          -> a quarter of it ReferenceRenderer.Shrink (pass 3, run twice)
+//   PsShrink          any RGBA          -> a quarter of it ReferenceRenderer.Shrink (pass 3, run up to four times)
+//   PsThick           quarter of mapped -> "thick"         ReferenceRenderer.Thick, for the area guard
 //   PsBlurRows        mapped            -> row blur        ReferenceRenderer.BlurRows
 //   PsFinish          mapped and copies -> lens            ReferenceRenderer pass 4
 //
@@ -24,6 +25,11 @@
 //
 // Numbers that live in LensConstants arrive through the Rules buffer, so they cannot drift. The few literals
 // below name the member they repeat.
+//
+// Two ways of reading between texels are used. Where the value read goes straight into a colour, the sampler
+// does it (Sample). Where it is compared with a threshold (which region is this, is there enough of an area),
+// Between() spells the arithmetic out: a sampler rounds the position between two texels to 1/256, and that is
+// enough to tip a pixel to the other side.
 
 static const int Block = 4;         // LensConstants.BlockSize
 static const int CoarseScale = 16;  // LensConstants.CoarseScale
@@ -31,6 +37,7 @@ static const int WideScale = 64;    // LensConstants.WideScale
 static const float LutSize = 33.0;  // Lut3D.Size
 static const float Flare = 0.05;    // Wcag.Flare
 static const float3 LuminanceWeights = float3(0.2126, 0.7152, 0.0722);  // Wcag.LuminanceWeights
+static const float ThickWindow[5] = { 0.5, 1.0, 1.0, 1.0, 0.5 };        // LensConstants.ThickWindow
 
 // One-to-one with FrameParameters, plus where the lens sits in the captured frame. Filled once per frame.
 cbuffer Frame : register(b0)
@@ -54,7 +61,8 @@ cbuffer Frame : register(b0)
     int2 CoarseSize;                // sixteenth-size level: ceil(FineSize / 4)
     int2 WideSize;                  // sixty-fourth-size level: ceil(CoarseSize / 4)
     float OneTable;                 // 1 when the light and dark tables are the same table
-    float3 FrameUnused;
+    float CoreEnough;               // LensConstants.GuardCoreEnough for this lens
+    float2 FrameUnused;
 };
 
 // LensConstants. Filled once.
@@ -76,7 +84,7 @@ cbuffer Rules : register(b1)
     float AreaFlagStart;            // LensConstants.AreaFlagStart
     float GuardLow;                 // LensConstants.GuardLow
     float GuardHigh;                // LensConstants.GuardHigh
-    float GuardWindowOffset;        // LensConstants.GuardWindowOffset
+    float UnanimousLow;             // LensConstants.UnanimousLow
     float GuardReach;               // LensConstants.GuardReach
     float GuardDetailGain;          // LensConstants.GuardDetailGain
     float SoftGateLow;              // LensConstants.SoftGateLow
@@ -90,14 +98,18 @@ cbuffer Rules : register(b1)
     float StrongSharpenGain;        // LensConstants.StrongSharpenGain
     float HaloAllowance;            // LensConstants.HaloAllowance
     float StrongKernel4;            // LensConstants.StrongKernel[4]
-    float2 RulesUnused;
+    float UnanimousHigh;            // LensConstants.UnanimousHigh
+    float GuardCoreStart;           // LensConstants.GuardCoreStart
     float4 StrongKernel0123;        // LensConstants.StrongKernel[0..3]
+    float GuardCoreOffset;          // LensConstants.GuardCoreOffset
+    float GuardCoreWindow;          // LensConstants.GuardCoreWindow
+    float2 RulesUnused;
 };
 
 Texture2D<float4> Source : register(t0);        // the captured frame
 Texture2D<float4> Fine : register(t1);          // light votes, dark votes, luma range
-Texture2D<float4> Coarse : register(t2);        // light votes, dark votes, soft share
-Texture2D<float4> Wide : register(t3);          // light votes, dark votes
+Texture2D<float4> Coarse : register(t2);        // light verdict, dark verdict, soft share
+Texture2D<float4> Wide : register(t3);          // light verdict, dark verdict
 Texture3D<float4> LutLight : register(t4);      // LensTables.Light
 Texture3D<float4> LutDark : register(t5);       // LensTables.Dark
 Texture2D<float4> Mapped : register(t6);        // recoloured picture, area flag in alpha
@@ -105,6 +117,8 @@ Texture2D<float4> MappedFine : register(t7);    // Mapped at a quarter of its si
 Texture2D<float4> MappedCoarse : register(t8);  // Mapped at a sixteenth of its size
 Texture2D<float> BlurredRows : register(t9);    // luma of Mapped, blurred along rows
 Texture2D<float4> ShrinkSource : register(t10); // whatever PsShrink is asked to shrink
+Texture2D<float4> Thick : register(t11);        // where flagged pixels form something thick, quarter size
+Texture2D<float4> ThickWide : register(t12);    // Thick at a sixteenth of its size
 
 SamplerState LinearClamp : register(s0);        // bilinear, clamp addressing: Bilinear.Sample and Lut3D.Sample
 
@@ -187,7 +201,26 @@ float RefineLightFraction(float wider, float lightVotes, float darkVotes)
 {
     float votes = lightVotes + darkVotes;
     float own = lightVotes / max(votes, 1e-4);
-    return lerp(wider, own, saturate(votes / VoteConfidence));
+    return lerp(wider, own, saturate(votes));
+}
+
+// LensConstants.Verdict
+float2 Verdict(float lightVotes, float darkVotes)
+{
+    float votes = lightVotes + darkVotes;
+    float light = lightVotes / max(votes, 1e-4);
+    float sure = saturate(votes / VoteConfidence);
+    return float2(light * sure, (1.0 - light) * sure);
+}
+
+// LensConstants.LightFraction
+float LightFraction(float wholeLens, float2 wideVerdict, float2 coarseVerdict)
+{
+    float wide = RefineLightFraction(wholeLens, wideVerdict.r, wideVerdict.g);
+    float coarse = RefineLightFraction(wide, coarseVerdict.r, coarseVerdict.g);
+    float unanimity = abs((2.0 * wide) - 1.0);
+    float wideStands = smoothstep(UnanimousLow, UnanimousHigh, unanimity) * saturate(wideVerdict.r + wideVerdict.g);
+    return lerp(coarse, wide, wideStands);
 }
 
 // LensConstants.Polarity
@@ -228,6 +261,24 @@ float3 LoadMapped(int2 xy)
 float2 ShrunkUv(float2 centre, int scale, int2 size)
 {
     return centre / (float(scale) * float2(size));
+}
+
+// Bilinear.Sample, spelled out with four texels and the reference's own arithmetic. `centre` is as for ShrunkUv.
+float4 Between(Texture2D<float4> tex, float2 centre, int scale, int2 size)
+{
+    float2 uv = (centre / float(scale)) - 0.5;
+    float2 whole = floor(uv);
+    float2 f = uv - whole;
+    int2 last = size - 1;
+    int2 a = clamp(int2(whole), int2(0, 0), last);
+    int2 b = clamp(int2(whole) + 1, int2(0, 0), last);
+    float4 p00 = tex.Load(int3(a.x, a.y, 0));
+    float4 p10 = tex.Load(int3(b.x, a.y, 0));
+    float4 p01 = tex.Load(int3(a.x, b.y, 0));
+    float4 p11 = tex.Load(int3(b.x, b.y, 0));
+    float4 top = p00 + ((p10 - p00) * f.x);
+    float4 bottom = p01 + ((p11 - p01) * f.x);
+    return top + ((bottom - top) * f.y);
 }
 
 // Lut3D.Sample: a 33-cubed table read between texel centres.
@@ -352,8 +403,9 @@ float4 PsCoarse(float4 position : SV_Position) : SV_Target
         }
     }
 
+    // Cells are compared by verdict, not by how many votes each happened to collect.
     float count = float(Block * Block);
-    return float4(light / count, dark / count, soft / count, 0.0);
+    return float4(Verdict(light / count, dark / count), soft / count, 0.0);
 }
 
 float4 PsWide(float4 position : SV_Position) : SV_Target
@@ -372,7 +424,7 @@ float4 PsWide(float4 position : SV_Position) : SV_Target
     }
 
     float count = float(Block * Block);
-    return float4(light / count, dark / count, 0.0, 0.0);
+    return float4(Verdict(light / count, dark / count), 0.0, 0.0);
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -382,10 +434,9 @@ float4 PsWide(float4 position : SV_Position) : SV_Target
 // Neighbourhood.LightFractionAt
 float LightFractionAt(float2 centre)
 {
-    float2 wideVotes = Wide.SampleLevel(LinearClamp, ShrunkUv(centre, WideScale, WideSize), 0).rg;
-    float fraction = RefineLightFraction(WholeLensLightFraction, wideVotes.r, wideVotes.g);
-    float2 coarseVotes = Coarse.SampleLevel(LinearClamp, ShrunkUv(centre, CoarseScale, CoarseSize), 0).rg;
-    return RefineLightFraction(fraction, coarseVotes.r, coarseVotes.g);
+    float2 wideVerdict = Between(Wide, centre, WideScale, WideSize).rg;
+    float2 coarseVerdict = Between(Coarse, centre, CoarseScale, CoarseSize).rg;
+    return LightFraction(WholeLensLightFraction, wideVerdict, coarseVerdict);
 }
 
 float3 Recolour(float4 position)
@@ -439,6 +490,27 @@ float4 PsShrink(float4 position : SV_Position) : SV_Target
     return sum / float(Block * Block) / 255.0;
 }
 
+// ReferenceRenderer.Thick: how thick the flagged pixels around each quarter-size texel are, from a window of
+// 16 by 16 pixels. Written to all four channels, so that PsShrink can shrink it like any other picture.
+float4 PsThick(float4 position : SV_Position) : SV_Target
+{
+    int2 xy = int2(position.xy);
+    float sum = 0.0;
+    float total = 0.0;
+    for (int dy = -2; dy <= 2; dy++)
+    {
+        for (int dx = -2; dx <= 2; dx++)
+        {
+            float weight = ThickWindow[dx + 2] * ThickWindow[dy + 2];
+            sum += weight * MappedFine.Load(int3(clamp(xy + int2(dx, dy), int2(0, 0), FineSize - 1), 0)).a;
+            total += weight;
+        }
+    }
+
+    float thick = smoothstep(GuardLow, GuardHigh, sum / total);
+    return float4(thick, thick, thick, thick);
+}
+
 // ReferenceRenderer.BlurRows: the horizontal half of the strong-sharpen blur.
 float PsBlurRows(float4 position : SV_Position) : SV_Target
 {
@@ -456,15 +528,10 @@ float PsBlurRows(float4 position : SV_Position) : SV_Target
 // Pass 4: finish. Area guard, local contrast, sharpen, then clamp to the theme's limits.
 // ---------------------------------------------------------------------------------------------------------
 
-// ReferenceRenderer.FlaggedShare: four bilinear taps of the quarter-size copy, a window of about 16 by 16 pixels.
-float FlaggedShare(float2 centre)
+// One tap of the thick map, for the pixel whose centre is given.
+float ThickAt(float2 centre)
 {
-    float o = GuardWindowOffset;
-    return 0.25 * (
-        MappedFine.SampleLevel(LinearClamp, ShrunkUv(centre + float2(-o, -o), Block, FineSize), 0).a
-        + MappedFine.SampleLevel(LinearClamp, ShrunkUv(centre + float2(o, -o), Block, FineSize), 0).a
-        + MappedFine.SampleLevel(LinearClamp, ShrunkUv(centre + float2(-o, o), Block, FineSize), 0).a
-        + MappedFine.SampleLevel(LinearClamp, ShrunkUv(centre + float2(o, o), Block, FineSize), 0).a);
+    return Thick.SampleLevel(LinearClamp, ShrunkUv(centre, Block, FineSize), 0).r;
 }
 
 float4 PsFinish(float4 position : SV_Position) : SV_Target
@@ -478,20 +545,29 @@ float4 PsFinish(float4 position : SV_Position) : SV_Target
 
     if (GuardOn())
     {
-        // How much of the window around this pixel is flagged, read here and at four places nearby, which
-        // covers the rim of an area, where the window is only half inside it.
+        // Is this pixel in or right beside something thick? Read here and at four places nearby, which covers
+        // the rim of an area, where the thickness window is only half inside it.
         float reach = GuardReach;
-        float flagged = FlaggedShare(centre);
-        flagged = max(flagged, FlaggedShare(centre + float2(-reach, -reach)));
-        flagged = max(flagged, FlaggedShare(centre + float2(reach, -reach)));
-        flagged = max(flagged, FlaggedShare(centre + float2(-reach, reach)));
-        flagged = max(flagged, FlaggedShare(centre + float2(reach, reach)));
+        float isThick = ThickAt(centre);
+        isThick = max(isThick, ThickAt(centre + float2(-reach, -reach)));
+        isThick = max(isThick, ThickAt(centre + float2(reach, -reach)));
+        isThick = max(isThick, ThickAt(centre + float2(-reach, reach)));
+        isThick = max(isThick, ThickAt(centre + float2(reach, reach)));
 
-        guard = GuardStrength * smoothstep(GuardLow, GuardHigh, flagged);
+        // And is there enough of it nearby to call it an area? Four taps of the smallest copy add up the thick
+        // core over a wide window that slides with the pixel.
+        float spread = GuardCoreOffset;
+        float core = 0.25 * GuardCoreWindow * (
+            Between(ThickWide, centre + float2(-spread, -spread), WideScale, WideSize).r
+            + Between(ThickWide, centre + float2(spread, -spread), WideScale, WideSize).r
+            + Between(ThickWide, centre + float2(-spread, spread), WideScale, WideSize).r
+            + Between(ThickWide, centre + float2(spread, spread), WideScale, WideSize).r);
+
+        guard = GuardStrength * isThick * smoothstep(GuardCoreStart * CoreEnough, CoreEnough, core);
         if (GuardSoftGate > 0.0)
         {
             // Neighbourhood.SoftFractionAt
-            float softShare = Coarse.SampleLevel(LinearClamp, ShrunkUv(centre, CoarseScale, CoarseSize), 0).b;
+            float softShare = Between(Coarse, centre, CoarseScale, CoarseSize).b;
             guard *= 1.0 - (GuardSoftGate * smoothstep(SoftGateLow, SoftGateHigh, softShare));
         }
 

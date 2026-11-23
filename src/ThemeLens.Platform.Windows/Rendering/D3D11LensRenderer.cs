@@ -31,7 +31,7 @@ namespace ThemeLens.Platform.Windows;
 /// </remarks>
 public sealed class D3D11LensRenderer : IDisposable
 {
-    private const int ResourceSlots = 11;
+    private const int ResourceSlots = 13;
     private const int SourceSlot = 0;
     private const int FineSlot = 1;
     private const int CoarseSlot = 2;
@@ -43,6 +43,8 @@ public sealed class D3D11LensRenderer : IDisposable
     private const int MappedCoarseSlot = 8;
     private const int BlurredRowsSlot = 9;
     private const int ShrinkSourceSlot = 10;
+    private const int ThickSlot = 11;
+    private const int ThickWideSlot = 12;
 
     private const Format FrameFormat = Format.B8G8R8A8_UNorm;
     private const Format IntermediateFormat = Format.R8G8B8A8_UNorm;
@@ -82,6 +84,9 @@ public sealed class D3D11LensRenderer : IDisposable
     private RenderTexture? _mapped;
     private RenderTexture? _mappedFine;
     private RenderTexture? _mappedCoarse;
+    private RenderTexture? _thick;
+    private RenderTexture? _thickCoarse;
+    private RenderTexture? _thickWide;
     private RenderTexture? _blurredRows;
     private ID3D11Texture2D? _regionCopy;
     private bool _fineValid;
@@ -593,9 +598,13 @@ public sealed class D3D11LensRenderer : IDisposable
         _mapped?.Dispose();
         _mappedFine?.Dispose();
         _mappedCoarse?.Dispose();
+        _thick?.Dispose();
+        _thickCoarse?.Dispose();
+        _thickWide?.Dispose();
         _blurredRows?.Dispose();
         _regionCopy?.Dispose();
         _fineVotes = _fineCentre = _coarse = _wide = _mapped = _mappedFine = _mappedCoarse = _blurredRows = null;
+        _thick = _thickCoarse = _thickWide = null;
         _regionCopy = null;
         _fineValid = false;
         _width = 0;
@@ -664,6 +673,7 @@ public sealed class D3D11LensRenderer : IDisposable
             WideWidth = wideWidth,
             WideHeight = wideHeight,
             OneTable = oneTable ? 1f : 0f,
+            CoreEnough = LensConstants.GuardCoreEnough(width, height),
         };
         _context.UpdateSubresource(in constants, _frameBuffer);
 
@@ -734,7 +744,7 @@ public sealed class D3D11LensRenderer : IDisposable
                 _mapped ??= new RenderTexture(_device, width, height, IntermediateFormat);
                 Draw(LensPass.RecolourMapped, _mapped.Target, width, height);
 
-                // Pass 3: the recoloured picture at a quarter and a sixteenth of its size, and the row blur.
+                // Pass 3: the recoloured picture at a quarter and a sixteenth of its size, the thick map and the row blur.
                 bool guard = p.GuardOn;
                 bool localContrast = p.LocalContrast > 0f;
                 bool strongSharpen = p.StrongSharpen > 0f;
@@ -754,6 +764,26 @@ public sealed class D3D11LensRenderer : IDisposable
                     Draw(LensPass.Shrink, _mappedCoarse.Target, coarseWidth, coarseHeight);
                 }
 
+                if (guard)
+                {
+                    // For the guard: where the flagged pixels form something thick, and that map at a sixteenth
+                    // of its size, from which the finish pass reads how much of it there is nearby.
+                    _thick ??= new RenderTexture(_device, fineWidth, fineHeight, IntermediateFormat);
+                    Array.Clear(_resources);
+                    _resources[MappedFineSlot] = _mappedFine!.Resource;
+                    Draw(LensPass.Thick, _thick.Target, fineWidth, fineHeight);
+
+                    _thickCoarse ??= new RenderTexture(_device, coarseWidth, coarseHeight, IntermediateFormat);
+                    Array.Clear(_resources);
+                    _resources[ShrinkSourceSlot] = _thick.Resource;
+                    Draw(LensPass.Shrink, _thickCoarse.Target, coarseWidth, coarseHeight);
+
+                    _thickWide ??= new RenderTexture(_device, wideWidth, wideHeight, IntermediateFormat);
+                    Array.Clear(_resources);
+                    _resources[ShrinkSourceSlot] = _thickCoarse.Resource;
+                    Draw(LensPass.Shrink, _thickWide.Target, wideWidth, wideHeight);
+                }
+
                 if (strongSharpen)
                 {
                     // The reference keeps the row blur in floats, so this one target is not 8-bit.
@@ -769,6 +799,8 @@ public sealed class D3D11LensRenderer : IDisposable
                 if (guard)
                 {
                     _resources[MappedFineSlot] = _mappedFine!.Resource;
+                    _resources[ThickSlot] = _thick!.Resource;
+                    _resources[ThickWideSlot] = _thickWide!.Resource;
                 }
 
                 if (softGate)

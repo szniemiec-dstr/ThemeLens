@@ -15,6 +15,7 @@ internal enum LensPass
     RecolourFinal,
     RecolourMapped,
     Shrink,
+    Thick,
     BlurRows,
     Finish,
     Copy,

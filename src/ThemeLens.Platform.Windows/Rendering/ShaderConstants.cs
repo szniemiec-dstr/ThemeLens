@@ -55,16 +55,16 @@ internal struct FrameConstants
 
     // Row 7
     public float OneTable;
+    public float CoreEnough;
     public float Unused0;
     public float Unused1;
-    public float Unused2;
 }
 
 /// <summary>The <c>Rules</c> constant buffer of <c>lens.hlsl</c>: every number the shader takes from <see cref="LensConstants"/>.</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 internal struct RuleConstants
 {
-    public const int SizeInBytes = 9 * 16;
+    public const int SizeInBytes = 10 * 16;
 
     // Row 0
     public float LightVoteLow;
@@ -91,7 +91,7 @@ internal struct RuleConstants
     public float GuardHigh;
 
     // Row 4
-    public float GuardWindowOffset;
+    public float UnanimousLow;
     public float GuardReach;
     public float GuardDetailGain;
     public float SoftGateLow;
@@ -111,20 +111,27 @@ internal struct RuleConstants
     // Row 7
     public float HaloAllowance;
     public float StrongKernel4;
-    public float Unused0;
-    public float Unused1;
+    public float UnanimousHigh;
+    public float GuardCoreStart;
 
     // Row 8
     public Vector4 StrongKernel0123;
 
+    // Row 9
+    public float GuardCoreOffset;
+    public float GuardCoreWindow;
+    public float Unused0;
+    public float Unused1;
+
     public static RuleConstants FromLensConstants()
     {
-        // lens.hlsl repeats these four as literals, because its loops need them at compile time.
+        // lens.hlsl repeats these as literals, because its loops need them at compile time.
         if (LensConstants.BlockSize != 4 || LensConstants.CoarseScale != 16 || LensConstants.WideScale != 64
-            || LensConstants.StrongKernel.Length != 5)
+            || LensConstants.StrongKernel.Length != 5
+            || !LensConstants.ThickWindow.AsSpan().SequenceEqual([0.5f, 1f, 1f, 1f, 0.5f]))
         {
             throw new InvalidOperationException(
-                "lens.hlsl assumes 4×4 blocks and a nine-tap kernel. LensConstants changed; change the shader with it.");
+                "lens.hlsl assumes 4×4 blocks, a nine-tap kernel and its own thickness window. LensConstants changed; change the shader with it.");
         }
 
         return new RuleConstants
@@ -145,7 +152,7 @@ internal struct RuleConstants
             AreaFlagStart = LensConstants.AreaFlagStart,
             GuardLow = LensConstants.GuardLow,
             GuardHigh = LensConstants.GuardHigh,
-            GuardWindowOffset = LensConstants.GuardWindowOffset,
+            UnanimousLow = LensConstants.UnanimousLow,
             GuardReach = LensConstants.GuardReach,
             GuardDetailGain = LensConstants.GuardDetailGain,
             SoftGateLow = LensConstants.SoftGateLow,
@@ -159,6 +166,10 @@ internal struct RuleConstants
             StrongSharpenGain = LensConstants.StrongSharpenGain,
             HaloAllowance = LensConstants.HaloAllowance,
             StrongKernel4 = LensConstants.StrongKernel[4],
+            UnanimousHigh = LensConstants.UnanimousHigh,
+            GuardCoreStart = LensConstants.GuardCoreStart,
+            GuardCoreOffset = LensConstants.GuardCoreOffset,
+            GuardCoreWindow = LensConstants.GuardCoreWindow,
             StrongKernel0123 = new Vector4(
                 LensConstants.StrongKernel[0],
                 LensConstants.StrongKernel[1],
