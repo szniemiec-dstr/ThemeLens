@@ -90,6 +90,8 @@ public static class Strings
 
     public static string StartFailed => Get();
 
+    public static string CloseButton => Get();
+
     public static string UnknownOption => Get();
 
     /// <summary>Fills the placeholders of a text in the user's culture.</summary>

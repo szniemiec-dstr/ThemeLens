@@ -3,6 +3,7 @@
     <Project Path="src/ThemeLens.Core/ThemeLens.Core.csproj" />
     <Project Path="src/ThemeLens.Engine/ThemeLens.Engine.csproj" />
     <Project Path="src/ThemeLens.Platform.Windows/ThemeLens.Platform.Windows.csproj" />
+    <Project Path="src/ThemeLens.App/ThemeLens.App.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ThemeLens.Core.Tests/ThemeLens.Core.Tests.csproj" />
