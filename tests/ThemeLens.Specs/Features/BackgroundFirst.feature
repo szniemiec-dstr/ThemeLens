@@ -45,6 +45,12 @@ Feature: The background stays the one I chose
         | Red–green assist dark | chart.png             |
         | Red–green assist dark | dark-editor.png       |
         | Red–green assist dark | mixed-halves.png      |
+        | Wake up dark          | light-document.png    |
+        | Wake up dark          | light-spreadsheet.png |
+        | Wake up dark          | web-buttons.png       |
+        | Wake up dark          | status-dashboard.png  |
+        | Wake up dark          | dark-editor.png       |
+        | Wake up dark          | mixed-halves.png      |
 
     Scenario Outline: Pictures and gradients under a dark theme
       A photo or a sweep of colours has no page colour to check, but it must not glare either.
@@ -104,6 +110,15 @@ Feature: The background stays the one I chose
         | Evening paper       | terminal.png         |
         | Evening paper       | light-document.png   |
         | Evening paper       | mixed-halves.png     |
+        | Wake up             | dark-editor.png      |
+        | Wake up             | terminal.png         |
+        | Wake up             | light-document.png   |
+        | Wake up             | mixed-halves.png     |
+        | Wake up sky         | dark-editor.png      |
+        | Wake up sky         | dark-spreadsheet.png |
+        | Wake up sky         | terminal.png         |
+        | Wake up sky         | light-document.png   |
+        | Wake up sky         | mixed-halves.png     |
 
   Rule: When the picture cannot be trusted, show the background
 

@@ -12,7 +12,7 @@ evening. Clicks and typing go straight through to the app below.
 | --- | --- |
 | Colour engine (`ThemeLens.Core`): colour maths, cluster analysis, roles, lookup tables, regions, CPU reference renderer | Working and tested on Linux and Windows. This is milestone M1. |
 | Engine (`ThemeLens.Engine`): lens states, frame loop, fades, watchdog, settings, shortcuts, the app's logic without windows | Working and tested against a fake clock and fake screen. |
-| 13 built-in themes and the theme file schema | Done. Colours the specification does not fix are provisional. |
+| 16 built-in themes and the theme file schema | Done. Colours the specification does not fix are provisional. |
 | Executable specifications: 165 scenario examples, plus golden images for every theme | All passing in CI on Ubuntu and Windows. |
 | GPU renderer (`ThemeLens.Platform.Windows`, `lens.hlsl`) | Compared with the reference renderer in CI on the Windows software rasteriser: 15 looks on 12 test screens, all matching. |
 | Capture, lens and handle windows, hotkeys (`ThemeLens.Platform.Windows`) | In CI the whole lens starts on a Windows desktop, goes live over a test pattern and over the real screen, survives edit mode and switches off. **Nobody has looked at it yet**: whether the picture is right, clicks pass through and nothing flickers needs a person at a Windows 11 machine. See [`docs/testing-on-windows.md`](docs/testing-on-windows.md). |

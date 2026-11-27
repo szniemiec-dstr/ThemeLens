@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "wake-up-dark",
+  "name": "Wake up dark",
+  "description": "Deep blue page with bright cool text",
+  "base": "dark",
+  "roles": {
+    "page": "#03183A", "panel": "#0A2550",
+    "text": "#DCEBFF", "quietText": "#9DB8DC",
+    "link": "#6FC3FF", "good": "#5FE0C0",
+    "warning": "#FFD479", "bad": "#FF9C8F"
+  },
+  "limits": {
+    "maxLuminance": 1.0,
+    "minTextContrast": 7.0
+  },
+  "keepBackground": "strict"
+}

@@ -15,12 +15,12 @@ public class ThemeFilesTests
     public static TheoryData<string> BuiltInIds => new(BuiltInThemes.All.Select(t => t.Id));
 
     [Fact]
-    public void All_thirteen_built_in_themes_load_in_the_order_they_are_offered()
+    public void All_sixteen_built_in_themes_load_in_the_order_they_are_offered()
     {
         BuiltInThemes.All.Select(t => t.Name).ShouldBe(
         [
-            "Soft dark", "High contrast dark", "Red–green assist dark", "Night warm",
-            "Clear white", "Soft paper", "High contrast light", "Evening paper",
+            "Soft dark", "High contrast dark", "Red–green assist dark", "Night warm", "Wake up dark",
+            "Clear white", "Soft paper", "High contrast light", "Evening paper", "Wake up", "Wake up sky",
             "Passthrough", "Red–green assist", "Less blue", "Greyscale", "Dimmer",
         ]);
     }
@@ -64,6 +64,9 @@ public class ThemeFilesTests
     [InlineData("soft-paper", 14.1)]
     [InlineData("high-contrast-light", 21.0)]
     [InlineData("evening-paper", 12.1)]
+    [InlineData("wake-up-dark", 14.5)]
+    [InlineData("wake-up", 16.0)]
+    [InlineData("wake-up-sky", 14.2)]
     public void Text_contrast_is_the_figure_in_the_specification(string id, double contrast)
     {
         ThemeRoles roles = BuiltInThemes.ById(id).RequireRoles();

@@ -58,8 +58,8 @@ public sealed class LensSessionTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ThemeBase.Dark, "Soft dark", 4)]
-    [InlineData(ThemeBase.Light, "Clear white", 4)]
+    [InlineData(ThemeBase.Dark, "Soft dark", 5)]
+    [InlineData(ThemeBase.Light, "Clear white", 6)]
     [InlineData(ThemeBase.Keep, "Passthrough", 5)]
     public void First_run_offers_three_bases_and_then_the_themes_of_the_chosen_one(ThemeBase themeBase, string defaultName, int count)
     {
@@ -258,7 +258,7 @@ public sealed class LensSessionTests : IDisposable
     public void Next_theme_stays_within_the_base_and_wraps_round()
     {
         (LensSession session, _) = Start();
-        session.CompleteFirstRun(ThemeBase.Dark, "night-warm", false);
+        session.CompleteFirstRun(ThemeBase.Dark, "wake-up-dark", false);
         session.NextTheme();
         session.SelectedTheme.Id.ShouldBe("soft-dark");
         session.SelectedTheme.Base.ShouldBe(ThemeBase.Dark);

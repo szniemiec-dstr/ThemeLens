@@ -14,8 +14,8 @@ public static class BuiltInThemes
     /// <summary>Order in which the themes are offered, grouped by base as in section 5.3.</summary>
     private static readonly string[] Order =
     [
-        "soft-dark", "high-contrast-dark", "red-green-assist-dark", "night-warm",
-        "clear-white", "soft-paper", "high-contrast-light", "evening-paper",
+        "soft-dark", "high-contrast-dark", "red-green-assist-dark", "night-warm", "wake-up-dark",
+        "clear-white", "soft-paper", "high-contrast-light", "evening-paper", "wake-up", "wake-up-sky",
         "passthrough", "red-green-assist", "less-blue", "greyscale", "dimmer",
     ];
 

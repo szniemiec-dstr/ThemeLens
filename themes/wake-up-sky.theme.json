@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "wake-up-sky",
+  "name": "Wake up sky",
+  "description": "Sky-blue page, the most blue",
+  "base": "light",
+  "roles": {
+    "page": "#CFE4FF", "panel": "#BCD7FA",
+    "text": "#06142B", "quietText": "#34496E",
+    "link": "#0A3FA8", "good": "#06574A",
+    "warning": "#6A3F00", "bad": "#9A1C16"
+  },
+  "limits": {
+    "maxLuminance": 1.0,
+    "minTextContrast": 7.0
+  },
+  "keepBackground": "strict"
+}

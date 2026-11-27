@@ -38,6 +38,15 @@ Feature: Text is readable in every theme
       | Soft paper            | light-document.png    | 7     |
       | Evening paper         | light-document.png    | 7     |
       | Evening paper         | dark-editor.png       | 7     |
+      | Wake up dark          | light-document.png    | 7     |
+      | Wake up dark          | dark-editor.png       | 7     |
+      | Wake up dark          | terminal.png          | 7     |
+      | Wake up               | light-document.png    | 7     |
+      | Wake up               | dark-editor.png       | 7     |
+      | Wake up               | terminal.png          | 7     |
+      | Wake up sky           | light-document.png    | 7     |
+      | Wake up sky           | dark-editor.png       | 7     |
+      | Wake up sky           | terminal.png          | 7     |
       | Evening paper         | terminal.png          | 7     |
 
   Scenario Outline: A lower brightness limit keeps text as readable as the limit allows

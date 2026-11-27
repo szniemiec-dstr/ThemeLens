@@ -65,6 +65,74 @@ public readonly record struct SharpenSettings(float Amount, SharpenMode Mode)
     public bool IsOn => Amount > 0f;
 }
 
+/// <summary>
+/// The "rectangles only" option (section 5.6). With it on, the lens leaves the screen as it is and changes only
+/// large rectangles of the wrong kind: bright ones under a dark theme, dark ones under a light theme. How bright
+/// (or dark) a rectangle has to be depends on its size.
+/// </summary>
+/// <remarks>
+/// This is the user's setting, kept once for dark themes and once for light themes. It is not part of a theme
+/// file; the app lays it over the theme the same way it lays the slider values over it.
+/// </remarks>
+public sealed record RectangleSettings
+{
+    public static readonly RectangleSettings Off = new();
+
+    /// <summary>Under a dark theme the brightness threshold can be set from here up to 100%.</summary>
+    public const float LowestBrightThreshold = 0.70f;
+
+    /// <summary>Under a light theme the threshold can be set from 0% up to here.</summary>
+    public const float HighestDarkThreshold = 0.30f;
+
+    /// <summary>The smallest share of the screen either area can be set to.</summary>
+    public const float LeastArea = 0.005f;
+
+    public bool On { get; init; }
+
+    /// <summary>
+    /// Share of the screen, 0..1. A rectangle of this size is changed only when it is pure white (pure black
+    /// under a light theme). Smaller rectangles are never changed.
+    /// </summary>
+    public float SmallestArea { get; init; } = 0.02f;
+
+    /// <summary>Share of the screen, 0..1. From this size on, the brightness threshold alone decides.</summary>
+    public float FullArea { get; init; } = 0.20f;
+
+    /// <summary>
+    /// Brightness, 0..1. Under a dark theme a large rectangle is changed when it is at least this bright; under
+    /// a light theme, when it is at most this bright.
+    /// </summary>
+    public float Brightness { get; init; } = 0.75f;
+
+    /// <summary>What the option starts with for a base: bright rectangles from 75% up, dark ones from 25% down.</summary>
+    public static RectangleSettings DefaultFor(ThemeBase themeBase) =>
+        themeBase == ThemeBase.Light ? new RectangleSettings { Brightness = 0.25f } : new RectangleSettings();
+
+    /// <summary>The same settings with every value inside the range the option works in for <paramref name="themeBase"/>.</summary>
+    public RectangleSettings For(ThemeBase themeBase)
+    {
+        float smallest = Math.Clamp(float.IsFinite(SmallestArea) ? SmallestArea : LeastArea, LeastArea, 1f);
+        float full = Math.Clamp(float.IsFinite(FullArea) ? FullArea : 1f, smallest, 1f);
+        float brightness = float.IsFinite(Brightness) ? Brightness : DefaultFor(themeBase).Brightness;
+        brightness = themeBase == ThemeBase.Light
+            ? Math.Clamp(brightness, 0f, HighestDarkThreshold)
+            : Math.Clamp(brightness, LowestBrightThreshold, 1f);
+        return this with
+        {
+            On = On && themeBase != ThemeBase.Keep,
+            SmallestArea = smallest,
+            FullArea = full,
+            Brightness = brightness,
+        };
+    }
+
+    /// <summary>
+    /// How strongly a rectangle has to be of the wrong kind before it is changed, 0..1: its brightness under a
+    /// dark theme, its darkness (1 − brightness) under a light theme.
+    /// </summary>
+    public float Strength(ThemeBase themeBase) => themeBase == ThemeBase.Light ? 1f - Brightness : Brightness;
+}
+
 /// <summary>The colours a theme gives to each role. Other accent has no colour of its own: it keeps its hue.</summary>
 public sealed record ThemeRoles(
     Rgb8 Page,
@@ -156,8 +224,14 @@ public sealed record Theme
 
     public SharpenSettings Sharpen { get; init; } = SharpenSettings.Off;
 
+    /// <summary>The "rectangles only" option. Not stored in theme files; see <see cref="RectangleSettings"/>.</summary>
+    public RectangleSettings Rectangles { get; init; } = RectangleSettings.Off;
+
     /// <summary>True when the base remaps lightness onto role colours.</summary>
     public bool HasRoles => Base != ThemeBase.Keep;
+
+    /// <summary>True when the lens changes only the rectangles it finds and leaves the rest of the screen alone.</summary>
+    public bool RectanglesOnly => HasRoles && Rectangles.On;
 
     /// <summary>
     /// True when the lens would show the screen exactly as it is (Passthrough with contrast and sharpen at zero).

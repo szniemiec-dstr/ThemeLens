@@ -92,8 +92,8 @@ public sealed partial class ControlWindowTests
         AutomationElement themes = session.Find("ThemeList");
         themes.Patterns.ExpandCollapse.Pattern.Expand();
         AutomationElement[] items = [];
-        WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
-            $"the list should offer the thirteen built-in themes, but offers {items.Length}");
+        WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 16).ShouldBeTrue(
+            $"the list should offer the sixteen built-in themes, but offers {items.Length}");
         AutomationElement last = items[^1];
         last.Patterns.SelectionItem.Pattern.IsSelected.Value.ShouldBeFalse("the last theme should not be the one the app starts with");
         last.Patterns.SelectionItem.Pattern.Select();
@@ -246,8 +246,8 @@ public sealed partial class ControlWindowTests
                 AutomationElement themes = first.Find("ThemeList");
                 themes.Patterns.ExpandCollapse.Pattern.Expand();
                 AutomationElement[] items = [];
-                WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
-                    $"the list should offer the thirteen built-in themes, but offers {items.Length}");
+                WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 16).ShouldBeTrue(
+                    $"the list should offer the sixteen built-in themes, but offers {items.Length}");
                 AutomationElement last = items[^1];
                 chosen = last.Properties.Name.ValueOrDefault ?? string.Empty;
                 last.Patterns.SelectionItem.Pattern.Select();
@@ -268,7 +268,7 @@ public sealed partial class ControlWindowTests
             AutomationElement list = second.Find("ThemeList");
             list.Patterns.ExpandCollapse.Pattern.Expand();
             AutomationElement[] again = [];
-            WaitFor(() => (again = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 13).ShouldBeTrue(
+            WaitFor(() => (again = list.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 16).ShouldBeTrue(
                 "the list should offer the themes again");
             again[^1].Properties.Name.ValueOrDefault.ShouldBe(chosen);
             again[^1].Patterns.SelectionItem.Pattern.IsSelected.Value.ShouldBeTrue($"the theme '{chosen}' should still be the chosen one");

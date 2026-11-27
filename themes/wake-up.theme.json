@@ -1,0 +1,18 @@
+{
+  "$schema": "./theme-1.schema.json",
+  "id": "wake-up",
+  "name": "Wake up",
+  "description": "Cool white with blue ink, for the morning",
+  "base": "light",
+  "roles": {
+    "page": "#F0F6FF", "panel": "#DFEAFB",
+    "text": "#0A1A33", "quietText": "#44567A",
+    "link": "#0B50C8", "good": "#0A6658",
+    "warning": "#7A4A00", "bad": "#B0241C"
+  },
+  "limits": {
+    "maxLuminance": 1.0,
+    "minTextContrast": 7.0
+  },
+  "keepBackground": "strict"
+}
