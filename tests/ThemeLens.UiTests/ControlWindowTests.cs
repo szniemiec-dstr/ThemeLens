@@ -233,6 +233,72 @@ public sealed partial class ControlWindowTests
         }
     }
 
+    /// <summary>
+    /// FR-26: "rectangles only" has a switch, one bar with two handles for the sizes, and a slider for the
+    /// brightness. The handles cannot pass each other, the lens stays live, and the values come back at the next start.
+    /// </summary>
+    [WindowsFact]
+    public void Rectangles_only_has_a_switch_two_size_handles_and_a_brightness_slider()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "ThemeLens.UiTests." + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using (var first = AppSession.Start(folder))
+            {
+                first.Find("LensSwitch").Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => first.Status().StartsWith("Live", StringComparison.Ordinal)).ShouldBeTrue(
+                    $"the status should read Live, but reads '{first.Status()}'");
+
+                AutomationElement only = first.Find("RectanglesSwitch");
+                only.Properties.Name.ValueOrDefault.ShouldBe("Only darken bright rectangles", "the app starts with a dark theme");
+                only.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off, "the option starts switched off");
+                AutomationElement smallest = first.Find("RectangleSmallestSlider");
+                AutomationElement full = first.Find("RectangleFullSlider");
+                AutomationElement brightness = first.Find("RectangleBrightnessSlider");
+                smallest.Properties.Name.ValueOrDefault.ShouldBe("Smallest size");
+                full.Properties.Name.ValueOrDefault.ShouldBe("Size for the brightness below");
+                brightness.Properties.Name.ValueOrDefault.ShouldBe("At least this bright");
+                brightness.Patterns.RangeValue.Pattern.Minimum.Value.ShouldBe(0.70, 0.001);
+                brightness.Patterns.RangeValue.Pattern.Maximum.Value.ShouldBe(1.0, 0.001);
+
+                only.Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => only.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On).ShouldBeTrue("the switch should be on");
+                smallest.Patterns.RangeValue.Pattern.SetValue(0.05);
+                full.Patterns.RangeValue.Pattern.SetValue(0.40);
+                brightness.Patterns.RangeValue.Pattern.SetValue(0.85);
+
+                string help = string.Empty;
+                WaitFor(() => (help = first.Find("RectanglesHelp").Properties.Name.ValueOrDefault ?? string.Empty).Contains("85%", StringComparison.Ordinal))
+                    .ShouldBeTrue($"the explanation should name the brightness, but reads '{help}'");
+                help.ShouldContain("40%");
+                help.ShouldContain("5%");
+
+                // The left handle pushes the right one along.
+                smallest.Patterns.RangeValue.Pattern.SetValue(0.60);
+                WaitFor(() => Math.Abs(full.Patterns.RangeValue.Pattern.Value.Value - 0.60) < 0.005).ShouldBeTrue(
+                    $"the right handle should have been pushed to 0.60, but is at {full.Patterns.RangeValue.Pattern.Value.Value:0.00}");
+
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+                first.Status().ShouldStartWith("Live");
+                first.Window.Close();
+                WaitFor(() => first.Process.HasExited).ShouldBeTrue("the app should end when its control window is closed");
+            }
+
+            using var second = AppSession.Start(folder);
+            second.Find("RectanglesSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
+            second.Find("RectangleSmallestSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.60, 0.01);
+            second.Find("RectangleFullSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.60, 0.01);
+            second.Find("RectangleBrightnessSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.85, 0.01);
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
+
     /// <summary>FR-18: the theme, and that the lens was on, are remembered from one run to the next.</summary>
     [WindowsFact]
     public void The_next_start_brings_back_the_theme_and_the_lens()

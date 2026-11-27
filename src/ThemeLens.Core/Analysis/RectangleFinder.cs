@@ -32,7 +32,7 @@ public readonly record struct LensRectangle(int Left, int Top, int Right, int Bo
 /// <summary>What <see cref="RectangleFinder"/> found in one thumbnail.</summary>
 /// <param name="Margin">
 /// Width, in lens pixels, of the band around each rectangle in which the analysis could not see where the edge
-/// is. The renderer settles it there per 4×4 block.
+/// is, or what lies between its samples. The renderer settles it there per 4×4 block.
 /// </param>
 public sealed record FoundRectangles(IReadOnlyList<LensRectangle> Items, int Margin)
 {
@@ -67,7 +67,9 @@ public static class RectangleFinder
         ArgumentNullException.ThrowIfNull(thumbnail);
         ArgumentNullException.ThrowIfNull(settings);
         settings = settings.For(themeBase);
-        int margin = thumbnail.SourcePixelsPerSample;
+        // Two samples: the width of the gaps the finder closes. Whatever bright thing lies that close to a
+        // rectangle was seen as part of it, so the renderer may treat it as part of it too.
+        int margin = 2 * thumbnail.SourcePixelsPerSample;
         if (!settings.On || screenPixels <= 0 || thumbnail.Width == 0 || thumbnail.Height == 0)
         {
             return new FoundRectangles([], margin);
@@ -102,7 +104,17 @@ public static class RectangleFinder
         bool[] grown = new bool[n];
         int[] labels = new int[n];
         var stack = new Stack<int>();
-        var areas = new List<(int Label, int Count, int Seed)>();
+        var areas = new List<Area>();
+        int[] unknown = new int[n];
+        int unknownCount = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (!flat[i])
+            {
+                unknown[unknownCount++] = i;
+            }
+        }
+
         bool havePrevious = false;
 
         // Smallest hole that is not filled: detail smaller than the smallest rectangle is detail, anything
@@ -126,7 +138,7 @@ public static class RectangleFinder
             {
                 state.CopyTo(previousState, 0);
                 havePrevious = true;
-                SettleUnknown(state, scratch, w, h);
+                SettleUnknown(state, scratch, unknown.AsSpan(0, unknownCount), w, h);
                 for (int i = 0; i < n; i++)
                 {
                     mask[i] = state[i] == Bright;
@@ -142,47 +154,44 @@ public static class RectangleFinder
                 {
                     if (mask[i] && labels[i] == 0)
                     {
-                        int label = areas.Count + 1;
-                        areas.Add((label, Flood(mask, labels, stack, w, h, i, label), i));
+                        areas.Add(Flood(mask, labels, stack, w, h, i, areas.Count + 1));
                     }
                 }
 
-                areas.Sort((a, b) => b.Count != a.Count ? b.Count.CompareTo(a.Count) : a.Seed.CompareTo(b.Seed));
+                areas.Sort((a, b) => b.Count != a.Count ? b.Count.CompareTo(a.Count) : a.Label.CompareTo(b.Label));
             }
 
-            foreach ((int label, int count, _) in areas)
+            foreach (Area area in areas)
             {
-                if (count * samplePixels < neededArea)
+                if (area.Count * samplePixels < neededArea || found.Count >= LensConstants.MaxRectangles)
                 {
                     break;
                 }
 
-                if (found.Count >= LensConstants.MaxRectangles)
+                if (area.Settled)
                 {
-                    break;
+                    continue;   // taken, or looked at and found not to be rectangular
                 }
 
+                area.Settled = true;
                 int already = 0;
-                for (int i = 0; i < n; i++)
+                for (int y = area.Y0; y <= area.Y1; y++)
                 {
-                    if (labels[i] == label && covered[i])
+                    for (int i = (y * w) + area.X0, end = (y * w) + area.X1; i <= end; i++)
                     {
-                        already++;
+                        if (labels[i] == area.Label && covered[i])
+                        {
+                            already++;
+                        }
                     }
                 }
 
-                if (already >= LensConstants.RectangleCover * count)
+                if (already >= LensConstants.RectangleCover * area.Count)
                 {
                     continue;   // found at an earlier step
                 }
 
-                List<(int X0, int Y0, int X1, int Y1)> pieces = Pieces(labels, label, w, h, count);
-                if (pieces.Count == 0)
-                {
-                    continue;   // not rectangular
-                }
-
-                foreach ((int x0, int y0, int x1, int y1) in pieces)
+                foreach ((int x0, int y0, int x1, int y1) in Pieces(labels, area, w))
                 {
                     if (found.Count >= LensConstants.MaxRectangles)
                     {
@@ -205,58 +214,50 @@ public static class RectangleFinder
     /// Blocks with text or an edge in them take the kind of the flat blocks around them, in three rounds. What
     /// is still undecided after that (the middle of a large picture, say) is not bright.
     /// </summary>
-    private static void SettleUnknown(byte[] state, byte[] scratch, int w, int h)
+    private static void SettleUnknown(byte[] state, byte[] scratch, ReadOnlySpan<int> unknown, int w, int h)
     {
         for (int round = 0; round < 3; round++)
         {
             bool changed = false;
-            state.CopyTo(scratch, 0);
-            for (int y = 0; y < h; y++)
+            foreach (int i in unknown)
             {
-                for (int x = 0; x < w; x++)
+                scratch[i] = state[i];
+                if (state[i] != Unknown)
                 {
-                    int i = (y * w) + x;
-                    if (scratch[i] != Unknown)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    int bright = 0;
-                    int other = 0;
-                    for (int dy = -1; dy <= 1; dy++)
+                int x = i % w;
+                int y = i / w;
+                int bright = 0;
+                int other = 0;
+                for (int yy = Math.Max(y - 1, 0), yEnd = Math.Min(y + 1, h - 1); yy <= yEnd; yy++)
+                {
+                    for (int j = (yy * w) + Math.Max(x - 1, 0), end = (yy * w) + Math.Min(x + 1, w - 1); j <= end; j++)
                     {
-                        int yy = y + dy;
-                        if (yy < 0 || yy >= h)
+                        byte s = state[j];
+                        if (s == Bright)
                         {
-                            continue;
+                            bright++;
                         }
-
-                        for (int dx = -1; dx <= 1; dx++)
+                        else if (s == Other)
                         {
-                            int xx = x + dx;
-                            if (xx < 0 || xx >= w)
-                            {
-                                continue;
-                            }
-
-                            byte s = scratch[(yy * w) + xx];
-                            if (s == Bright)
-                            {
-                                bright++;
-                            }
-                            else if (s == Other)
-                            {
-                                other++;
-                            }
+                            other++;
                         }
-                    }
-
-                    if (bright != other)
-                    {
-                        state[i] = bright > other ? Bright : Other;
-                        changed = true;
                     }
                 }
+
+                if (bright != other)
+                {
+                    scratch[i] = bright > other ? Bright : Other;
+                    changed = true;
+                }
+            }
+
+            // All samples of a round decide from the state before the round.
+            foreach (int i in unknown)
+            {
+                state[i] = scratch[i];
             }
 
             if (!changed)
@@ -272,59 +273,41 @@ public static class RectangleFinder
     /// </summary>
     private static void Close(bool[] mask, bool[] grown, int w, int h)
     {
+        // Grow: along rows into the scratch buffer, along columns back into the mask.
         for (int y = 0; y < h; y++)
         {
+            int row = y * w;
             for (int x = 0; x < w; x++)
             {
-                bool any = false;
-                for (int dy = -1; dy <= 1 && !any; dy++)
-                {
-                    int yy = y + dy;
-                    if (yy < 0 || yy >= h)
-                    {
-                        continue;
-                    }
-
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        int xx = x + dx;
-                        if (xx >= 0 && xx < w && mask[(yy * w) + xx])
-                        {
-                            any = true;
-                            break;
-                        }
-                    }
-                }
-
-                grown[(y * w) + x] = any;
+                grown[row + x] = mask[row + x] || (x > 0 && mask[row + x - 1]) || (x < w - 1 && mask[row + x + 1]);
             }
         }
 
         for (int y = 0; y < h; y++)
         {
+            int row = y * w;
             for (int x = 0; x < w; x++)
             {
-                bool all = true;
-                for (int dy = -1; dy <= 1 && all; dy++)
-                {
-                    int yy = y + dy;
-                    if (yy < 0 || yy >= h)
-                    {
-                        continue;
-                    }
+                mask[row + x] = grown[row + x] || (y > 0 && grown[row + x - w]) || (y < h - 1 && grown[row + x + w]);
+            }
+        }
 
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        int xx = x + dx;
-                        if (xx >= 0 && xx < w && !grown[(yy * w) + xx])
-                        {
-                            all = false;
-                            break;
-                        }
-                    }
-                }
+        // Shrink, the same way.
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                grown[row + x] = mask[row + x] && (x == 0 || mask[row + x - 1]) && (x == w - 1 || mask[row + x + 1]);
+            }
+        }
 
-                mask[(y * w) + x] = all;
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w;
+            for (int x = 0; x < w; x++)
+            {
+                mask[row + x] = grown[row + x] && (y == 0 || grown[row + x - w]) && (y == h - 1 || grown[row + x + w]);
             }
         }
     }
@@ -386,24 +369,28 @@ public static class RectangleFinder
         }
     }
 
-    private static int Flood(bool[] mask, int[] labels, Stack<int> stack, int w, int h, int start, int label)
+    private static Area Flood(bool[] mask, int[] labels, Stack<int> stack, int w, int h, int start, int label)
     {
-        int count = 0;
+        var area = new Area { Label = label, X0 = int.MaxValue, Y0 = int.MaxValue };
         labels[start] = label;
         stack.Push(start);
         while (stack.Count > 0)
         {
             int i = stack.Pop();
-            count++;
             int x = i % w;
             int y = i / w;
+            area.Count++;
+            area.X0 = Math.Min(area.X0, x);
+            area.X1 = Math.Max(area.X1, x);
+            area.Y0 = Math.Min(area.Y0, y);
+            area.Y1 = Math.Max(area.Y1, y);
             Visit(x - 1, y);
             Visit(x + 1, y);
             Visit(x, y - 1);
             Visit(x, y + 1);
         }
 
-        return count;
+        return area;
 
         void Visit(int x, int y)
         {
@@ -421,41 +408,60 @@ public static class RectangleFinder
         }
     }
 
+    /// <summary>One connected bright area of the thumbnail, with the box of samples around it.</summary>
+    private sealed class Area
+    {
+        public int Label;
+        public int Count;
+        public int X0;
+        public int Y0;
+        public int X1;
+        public int Y1;
+
+        /// <summary>True once the area has been taken or turned down; it is not looked at again while the picture of this step lasts.</summary>
+        public bool Settled;
+    }
+
     /// <summary>
     /// The rectangles an area is made of: the largest rectangle that fits in it, then the largest that fits in
     /// what is left, up to <see cref="LensConstants.RectanglePieces"/>. A window with another window over one
     /// corner is two rectangles; a page around a picture is four. Returns nothing when that many rectangles do
     /// not cover <see cref="LensConstants.RectangleCover"/> of the area: then it is not rectangular.
     /// </summary>
-    private static List<(int X0, int Y0, int X1, int Y1)> Pieces(int[] labels, int label, int w, int h, int count)
+    private static List<(int X0, int Y0, int X1, int Y1)> Pieces(int[] labels, Area area, int w)
     {
         var pieces = new List<(int, int, int, int)>();
-        bool[] left = new bool[w * h];
-        for (int i = 0; i < left.Length; i++)
+        int bw = area.X1 - area.X0 + 1;
+        int bh = area.Y1 - area.Y0 + 1;
+        bool[] left = new bool[bw * bh];
+        for (int y = 0; y < bh; y++)
         {
-            left[i] = labels[i] == label;
+            for (int x = 0; x < bw; x++)
+            {
+                left[(y * bw) + x] = labels[((y + area.Y0) * w) + x + area.X0] == area.Label;
+            }
         }
 
         int coveredCount = 0;
-        int[] heights = new int[w];
-        int[] starts = new int[w + 1];
-        int[] tall = new int[w + 1];
-        for (int piece = 0; piece < LensConstants.RectanglePieces && coveredCount < count; piece++)
+        int[] heights = new int[bw];
+        int[] starts = new int[bw + 1];
+        int[] tall = new int[bw + 1];
+        for (int piece = 0; piece < LensConstants.RectanglePieces && coveredCount < area.Count; piece++)
         {
             // Largest rectangle of true cells: for each row, the tallest column of true cells ending there,
             // then the largest rectangle under that skyline.
             Array.Clear(heights);
             int best = 0;
             (int X0, int Y0, int X1, int Y1) bestRect = default;
-            for (int y = 0; y < h; y++)
+            for (int y = 0; y < bh; y++)
             {
                 int top = 0;
-                for (int x = 0; x <= w; x++)
+                for (int x = 0; x <= bw; x++)
                 {
                     int height = 0;
-                    if (x < w)
+                    if (x < bw)
                     {
-                        heights[x] = left[(y * w) + x] ? heights[x] + 1 : 0;
+                        heights[x] = left[(y * bw) + x] ? heights[x] + 1 : 0;
                         height = heights[x];
                     }
 
@@ -463,10 +469,10 @@ public static class RectangleFinder
                     while (top > 0 && tall[top - 1] >= height)
                     {
                         top--;
-                        int area = tall[top] * (x - starts[top]);
-                        if (area > best)
+                        int size = tall[top] * (x - starts[top]);
+                        if (size > best)
                         {
-                            best = area;
+                            best = size;
                             bestRect = (starts[top], y - tall[top] + 1, x - 1, y);
                         }
 
@@ -487,15 +493,15 @@ public static class RectangleFinder
                 break;
             }
 
-            pieces.Add(bestRect);
+            pieces.Add((bestRect.X0 + area.X0, bestRect.Y0 + area.Y0, bestRect.X1 + area.X0, bestRect.Y1 + area.Y0));
             coveredCount += best;
             for (int y = bestRect.Y0; y <= bestRect.Y1; y++)
             {
-                Array.Fill(left, false, (y * w) + bestRect.X0, bestRect.X1 - bestRect.X0 + 1);
+                Array.Fill(left, false, (y * bw) + bestRect.X0, bestRect.X1 - bestRect.X0 + 1);
             }
         }
 
-        if (coveredCount < LensConstants.RectangleCover * count)
+        if (coveredCount < LensConstants.RectangleCover * area.Count)
         {
             pieces.Clear();
         }

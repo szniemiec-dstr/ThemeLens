@@ -58,7 +58,7 @@ public class ColourNameAndCatalogueTests : IDisposable
     public void A_catalogue_without_a_folder_offers_the_built_in_themes()
     {
         var catalogue = new ThemeCatalogue(null);
-        catalogue.All.Count().ShouldBe(13);
+        catalogue.All.Count().ShouldBe(BuiltInThemes.All.Count);
         catalogue.User.ShouldBeEmpty();
         catalogue.Find("soft-dark").ShouldNotBeNull();
         catalogue.IsBuiltIn("soft-dark").ShouldBeTrue();

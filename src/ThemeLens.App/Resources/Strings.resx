@@ -182,6 +182,58 @@
     <value>Sharpen</value>
     <comment>Label of the sharpen slider.</comment>
   </data>
+  <data name="RectanglesHeading" xml:space="preserve">
+    <value>Rectangles only</value>
+    <comment>Heading of the section for the option that changes only large rectangles and leaves the rest of the screen alone.</comment>
+  </data>
+  <data name="RectanglesSwitchDark" xml:space="preserve">
+    <value>Only darken bright rectangles</value>
+    <comment>Switch, shown while a dark theme is selected. On: the lens leaves the screen as it is and darkens only large bright rectangles.</comment>
+  </data>
+  <data name="RectanglesSwitchLight" xml:space="preserve">
+    <value>Only lighten dark rectangles</value>
+    <comment>Switch, shown while a light theme is selected. On: the lens leaves the screen as it is and lightens only large dark rectangles.</comment>
+  </data>
+  <data name="RectanglesSwitchKeep" xml:space="preserve">
+    <value>Change rectangles only</value>
+    <comment>Switch, shown disabled while a theme is selected that leaves light and dark as they are.</comment>
+  </data>
+  <data name="RectanglesAreaLabel" xml:space="preserve">
+    <value>Size</value>
+    <comment>Label of the slider with two handles that sets how large a rectangle has to be, as a share of the screen.</comment>
+  </data>
+  <data name="RectanglesSmallestName" xml:space="preserve">
+    <value>Smallest size</value>
+    <comment>Accessible name of the left handle: the size below which no rectangle is changed. Read by screen readers.</comment>
+  </data>
+  <data name="RectanglesFullName" xml:space="preserve">
+    <value>Size for the brightness below</value>
+    <comment>Accessible name of the right handle: the size from which the brightness set on the next slider is enough. Read by screen readers.</comment>
+  </data>
+  <data name="RectanglesAreaValue" xml:space="preserve">
+    <value>{0}–{1}%</value>
+    <comment>The two sizes in per cent of the screen, smallest first. {0} and {1} are numbers.</comment>
+  </data>
+  <data name="RectanglesBrightLabel" xml:space="preserve">
+    <value>At least this bright</value>
+    <comment>Label of the brightness slider while a dark theme is selected.</comment>
+  </data>
+  <data name="RectanglesDarkLabel" xml:space="preserve">
+    <value>At most this bright</value>
+    <comment>Label of the brightness slider while a light theme is selected.</comment>
+  </data>
+  <data name="RectanglesHelpDark" xml:space="preserve">
+    <value>A rectangle that covers {1}% of the screen or more is darkened when it is at least {2}% bright. One that covers {0}% is darkened only when it is pure white. Sizes in between need a brightness in between; smaller ones are left alone.</value>
+    <comment>Explains the three values under a dark theme. {0} smallest size, {1} larger size, {2} brightness, all numbers in per cent.</comment>
+  </data>
+  <data name="RectanglesHelpLight" xml:space="preserve">
+    <value>A rectangle that covers {1}% of the screen or more is lightened when it is at most {2}% bright. One that covers {0}% is lightened only when it is pure black. Sizes in between need a brightness in between; smaller ones are left alone.</value>
+    <comment>Explains the three values under a light theme. {0} smallest size, {1} larger size, {2} brightness, all numbers in per cent.</comment>
+  </data>
+  <data name="RectanglesHelpKeep" xml:space="preserve">
+    <value>Not available with this theme: it leaves light and dark as they are, so there is nothing to turn round.</value>
+    <comment>Shown instead of the explanation while a theme of the keep base is selected.</comment>
+  </data>
   <data name="KeepBackgroundLabel" xml:space="preserve">
     <value>Keep background</value>
     <comment>Label of the list that chooses how strictly large areas are held to the theme's background.</comment>

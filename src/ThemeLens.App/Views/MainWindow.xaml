@@ -349,6 +349,70 @@
       </TextBlock.Style>
     </TextBlock>
 
+    <!-- Rectangles only (section 5.6, FR-26): change large rectangles of the wrong kind, leave the rest alone -->
+    <TextBlock Margin="0,20,0,6"
+               Style="{StaticResource Heading}"
+               Text="{x:Static app:Strings.RectanglesHeading}" />
+    <ToggleButton x:Name="RectanglesSwitch"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.Name="{Binding RectanglesSwitchText}"
+                  Content="{Binding RectanglesSwitchText}"
+                  IsEnabled="{Binding CanUseRectangles}"
+                  IsChecked="{Binding RectanglesOnly, Mode=TwoWay}" />
+    <Grid Margin="0,6,0,0" IsEnabled="{Binding CanUseRectangles}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="130" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="56" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <!-- One bar, two handles: the smallest size on the left, the size for the brightness below on the right. -->
+      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.RectanglesAreaLabel}" />
+      <Grid Grid.Row="0" Grid.Column="1">
+        <Border Height="4"
+                VerticalAlignment="Center"
+                Background="{StaticResource Brush.Border}"
+                CornerRadius="2" />
+        <Slider x:Name="RectangleFullSlider"
+                Style="{StaticResource RangeEnd}"
+                AutomationProperties.Name="{x:Static app:Strings.RectanglesFullName}"
+                Minimum="0.005"
+                Maximum="1"
+                SmallChange="0.005"
+                LargeChange="0.05"
+                Value="{Binding RectangleFullArea, Mode=TwoWay}" />
+        <Slider x:Name="RectangleSmallestSlider"
+                Style="{StaticResource RangeEnd}"
+                AutomationProperties.Name="{x:Static app:Strings.RectanglesSmallestName}"
+                Minimum="0.005"
+                Maximum="1"
+                SmallChange="0.005"
+                LargeChange="0.05"
+                Value="{Binding RectangleSmallestArea, Mode=TwoWay}" />
+      </Grid>
+      <TextBlock Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleAreaText}" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessLabel}" />
+      <Slider x:Name="RectangleBrightnessSlider"
+              Grid.Row="1"
+              Grid.Column="1"
+              AutomationProperties.Name="{Binding RectangleBrightnessLabel}"
+              Minimum="{Binding RectangleBrightnessMinimum}"
+              Maximum="{Binding RectangleBrightnessMaximum}"
+              SmallChange="0.01"
+              LargeChange="0.05"
+              Value="{Binding RectangleBrightness, Mode=TwoWay}" />
+      <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessText}" />
+    </Grid>
+    <TextBlock x:Name="RectanglesHelp"
+               Margin="0,6,0,0"
+               Style="{StaticResource Quiet}"
+               Text="{Binding RectanglesHelp}" />
+
     <!-- Colours on screen now, and what you see (figure 5, FR-08, FR-09) -->
     <TextBlock Margin="0,20,0,6"
                Style="{StaticResource Heading}"

@@ -86,6 +86,15 @@ public sealed record AppSettings
     /// <summary>The user's values per theme id.</summary>
     public IReadOnlyDictionary<string, ThemeAdjustments> Adjustments { get; init; } = new Dictionary<string, ThemeAdjustments>();
 
+    /// <summary>
+    /// The "rectangles only" option under dark themes: bright rectangles are darkened, the rest of the screen
+    /// is left alone (section 5.6). Kept for all dark themes together, not per theme.
+    /// </summary>
+    public RectangleSettings BrightRectangles { get; init; } = RectangleSettings.DefaultFor(ThemeBase.Dark);
+
+    /// <summary>The same option under light themes: dark rectangles are lightened.</summary>
+    public RectangleSettings DarkRectangles { get; init; } = RectangleSettings.DefaultFor(ThemeBase.Light);
+
     /// <summary>The last lens rectangle and mode per monitor layout (key from <see cref="LensGeometry.LayoutKey"/>).</summary>
     public IReadOnlyDictionary<string, SavedPlacement> Placements { get; init; } = new Dictionary<string, SavedPlacement>();
 
@@ -108,6 +117,25 @@ public sealed record AppSettings
         }
 
         return this with { Adjustments = copy };
+    }
+
+    /// <summary>The "rectangles only" values that apply under a base. The keep base has none: it leaves light and dark as they are.</summary>
+    public RectangleSettings RectanglesFor(ThemeBase themeBase) => themeBase switch
+    {
+        ThemeBase.Dark => (BrightRectangles ?? RectangleSettings.DefaultFor(themeBase)).For(themeBase),
+        ThemeBase.Light => (DarkRectangles ?? RectangleSettings.DefaultFor(themeBase)).For(themeBase),
+        _ => RectangleSettings.Off,
+    };
+
+    public AppSettings WithRectangles(ThemeBase themeBase, RectangleSettings rectangles)
+    {
+        ArgumentNullException.ThrowIfNull(rectangles);
+        return themeBase switch
+        {
+            ThemeBase.Dark => this with { BrightRectangles = rectangles.For(themeBase) },
+            ThemeBase.Light => this with { DarkRectangles = rectangles.For(themeBase) },
+            _ => this,
+        };
     }
 
     public AppSettings WithPlacement(string layoutKey, LensPlacement placement)

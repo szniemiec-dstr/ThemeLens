@@ -15,7 +15,8 @@
 //   PsCoarse          quarter           -> sixteenth       Neighbourhood.Build, coarse level
 //   PsWide            sixteenth         -> sixty-fourth    Neighbourhood.Build, wide level
 //   PsRecolourFinal   source            -> lens            ReferenceRenderer pass 2 when nothing else is switched on
-//   PsRecolourMapped  source            -> "mapped"        ReferenceRenderer pass 2, with the area flag in alpha
+//   PsRecolourMapped  source            -> "mapped"        ReferenceRenderer pass 2, with the area flag in alpha;
+//                                                          a second target takes each pixel's share ("rectangles only")
 //   PsShrink          any RGBA          -> a quarter of it ReferenceRenderer.Shrink (pass 3, run twice)
 //   PsFlagShares      quarter of mapped -> quarter         the guard's two kinds: flagged and not. PsCore, PsSeed,
 //                                                          the spread passes and PsRegion then run once more, on these
@@ -45,6 +46,7 @@ static const float Flare = 0.05;    // Wcag.Flare
 static const float3 LuminanceWeights = float3(0.2126, 0.7152, 0.0722);  // Wcag.LuminanceWeights
 static const int CoreRadius = 2;    // LensConstants.CoreRadius
 static const int SpreadReach = 255; // LensConstants.SpreadReach
+static const int MaxRectangles = 16;    // LensConstants.MaxRectangles
 static const float WindowTotal = float(((2 * CoreRadius) + 1) * ((2 * CoreRadius) + 1)) * 255.0;    // RegionMap.Build: windowTotal
 
 // One-to-one with FrameParameters, plus where the lens sits in the captured frame. Filled once per frame.
@@ -69,7 +71,11 @@ cbuffer Frame : register(b0)
     int2 CoarseSize;                // sixteenth-size level: ceil(FineSize / 4)
     int2 WideSize;                  // sixty-fourth-size level: ceil(CoarseSize / 4)
     float OneTable;                 // 1 when the light and dark tables are the same table
-    float3 FrameUnused;
+    float RectanglesOnly;           // FrameParameters.RectanglesOnly
+    float RectangleCount;           // FrameParameters.Rectangles.Count, at most MaxRectangles
+    float RectangleMargin;          // FrameParameters.RectangleMargin
+    float4 RectangleBounds[MaxRectangles];  // LensRectangle: left, top, right, bottom, in lens pixels
+    float4 RectangleExtras[MaxRectangles];  // LensRectangle: Level in x, Weight in y
 };
 
 // LensConstants. Filled once.
@@ -107,7 +113,7 @@ cbuffer Rules : register(b1)
 };
 
 Texture2D<float4> Source : register(t0);        // the captured frame
-Texture2D<float4> Fine : register(t1);          // the two kinds per block (light and dark pixels, or flagged and not), luma range
+Texture2D<float4> Fine : register(t1);          // the two kinds per block (light and dark pixels, or flagged and not), luma range, brightest luma
 Texture2D<float4> Coarse : register(t2);        // light verdict, dark verdict, soft share
 Texture2D<float4> Wide : register(t3);          // light verdict, dark verdict
 Texture3D<float4> LutLight : register(t4);      // LensTables.Light
@@ -121,6 +127,7 @@ Texture2D<float4> Cores : register(t11);        // light core, dark core
 Texture2D<float4> Spreading : register(t12);    // region so far: home light, home dark, through light, through dark
 Texture2D<float4> Region : register(t13);       // RegionMap: home light, home dark, edge light, edge dark
 Texture2D<float4> Local : register(t14);        // RegionMap: local light verdict, local dark verdict
+Texture2D<float4> Shares : register(t15);       // "rectangles only": how much of the lens's work each pixel gets
 
 SamplerState LinearClamp : register(s0);        // bilinear, clamp addressing: Bilinear.Sample and Lut3D.Sample
 
@@ -361,7 +368,7 @@ float4 VsFullscreen(uint id : SV_VertexID) : SV_Position
 
 struct FineOutput
 {
-    float4 Votes : SV_Target0;      // FineLight, FineDark, FineRange, unused
+    float4 Votes : SV_Target0;      // FineLight, FineDark, FineRange, FineMax
     float4 Centre : SV_Target1;     // FinePoint (rgb), FineRange: everything the analysis thumbnail needs
 };
 
@@ -388,7 +395,7 @@ FineOutput PsFine(float4 position : SV_Position)
 
     float range = hi - lo;
     FineOutput result;
-    result.Votes = float4(light / float(Block * Block), dark / float(Block * Block), range, 0.0);
+    result.Votes = float4(light / float(Block * Block), dark / float(Block * Block), range, hi);
     result.Centre = float4(LoadSource(corner + (Block / 2)), range);
     return result;
 }
@@ -563,14 +570,60 @@ float PolarityAt(float4 position, float luminance)
     return Polarity(Surroundings(fraction, luminance), Region.Load(block), luminance);
 }
 
-float3 Recolour(float4 position)
+// LensConstants.Selected
+float Selected(int2 xy, float blockStrength)
 {
-    float3 encoded = LoadSource(int2(position.xy));
+    float2 p = float2(xy);
+    float selected = 0.0;
+    int count = min(int(RectangleCount), MaxRectangles);
+    [loop]
+    for (int i = 0; i < count; i++)
+    {
+        float4 r = RectangleBounds[i];
+        float m = RectangleMargin;
+        if (p.x >= r.x - m && p.x < r.z + m && p.y >= r.y - m && p.y < r.w + m)
+        {
+            bool inside = p.x >= r.x && p.x < r.z && p.y >= r.y && p.y < r.w;
+            if (inside || blockStrength >= RectangleExtras[i].x)
+            {
+                selected = max(selected, RectangleExtras[i].y);
+            }
+        }
+    }
+
+    return selected;
+}
+
+// Neighbourhood.ChangeAt, with LensConstants.BlockStrength and LensConstants.Change
+float ChangeAt(int2 xy, float polarity)
+{
+    float4 votes = Fine.Load(int3(min(xy / Block, FineSize - 1), 0));
+    float strength = Direction > 0.0 ? votes.a : 1.0 - (votes.a - votes.b);
+    float kind = Direction > 0.0 ? polarity : (Direction < 0.0 ? 1.0 - polarity : 1.0);
+    return lerp(1.0, Selected(xy, strength) * kind, RectanglesOnly);
+}
+
+// The recoloured pixel, the pixel as it was, and how much of the recolouring it gets ("rectangles only").
+float3 Recolour(float4 position, out float3 encoded, out float share)
+{
+    encoded = LoadSource(int2(position.xy));
     float3 mapped = SampleLut(LutLight, encoded);
+    bool only = RectanglesOnly > 0.0;
+    float polarity = 1.0;
+    if (OneTable < 0.5 || only)
+    {
+        polarity = PolarityAt(position, Luminance(encoded));
+    }
+
     if (OneTable < 0.5)
     {
-        float polarity = PolarityAt(position, Luminance(encoded));
         mapped = lerp(SampleLut(LutDark, encoded), mapped, polarity);
+    }
+
+    share = 1.0;
+    if (only)
+    {
+        share = ChangeAt(int2(position.xy), polarity);
     }
 
     return mapped;
@@ -579,14 +632,28 @@ float3 Recolour(float4 position)
 // Nothing else is switched on: this is the final picture.
 float4 PsRecolourFinal(float4 position : SV_Position) : SV_Target
 {
-    return float4(FinishClamp(Recolour(position)), 1.0);
+    float3 encoded;
+    float share;
+    float3 o = FinishClamp(Recolour(position, encoded, share));
+    return float4(lerp(encoded, o, share), 1.0);
 }
 
-// The finish pass follows: keep the unclamped colour and flag pixels that an area may not consist of.
-float4 PsRecolourMapped(float4 position : SV_Position) : SV_Target
+struct MappedOutput
 {
-    float3 o = Recolour(position);
-    return float4(o, AreaFlag(o));
+    float4 Mapped : SV_Target0;     // the unclamped colour, area flag in alpha
+    float4 Share : SV_Target1;      // the pixel's share, for the finish pass; only bound with "rectangles only"
+};
+
+// The finish pass follows: keep the unclamped colour and flag pixels that an area may not consist of.
+MappedOutput PsRecolourMapped(float4 position : SV_Position)
+{
+    float3 encoded;
+    float share;
+    float3 o = Recolour(position, encoded, share);
+    MappedOutput result;
+    result.Mapped = float4(o, AreaFlag(o) * share);
+    result.Share = float4(share, 0.0, 0.0, 1.0);
+    return result;
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -714,7 +781,14 @@ float4 PsFinish(float4 position : SV_Position) : SV_Target
     colour += delta * (1.0 - guard);
 
     // Clamp last: a sharpening halo can never exceed the brightness limit.
-    return float4(FinishClamp(colour), 1.0);
+    float3 finished = FinishClamp(colour);
+    if (RectanglesOnly > 0.0)
+    {
+        // Outside the found rectangles the pixel stays what it was.
+        finished = lerp(LoadSource(xy), finished, Shares.Load(int3(xy, 0)).r);
+    }
+
+    return float4(finished, 1.0);
 }
 
 // ---------------------------------------------------------------------------------------------------------

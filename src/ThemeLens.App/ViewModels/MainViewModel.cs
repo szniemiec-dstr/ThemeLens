@@ -259,6 +259,60 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ResetAdjustmentsCommand))]
     public partial bool HasAdjustments { get; set; }
 
+    // "Rectangles only" (section 5.6): one set of values for dark themes, one for light themes.
+
+    /// <summary>True when the lens changes only the rectangles it finds.</summary>
+    [ObservableProperty]
+    public partial bool RectanglesOnly { get; set; }
+
+    /// <summary>False under a theme that leaves light and dark as they are.</summary>
+    [ObservableProperty]
+    public partial bool CanUseRectangles { get; set; }
+
+    /// <summary>Share of the screen, 0.005 to 1: the left handle. Smaller rectangles are never changed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RectangleAreaText))]
+    [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
+    public partial double RectangleSmallestArea { get; set; } = 0.02;
+
+    /// <summary>Share of the screen, 0.005 to 1: the right handle. From this size on the brightness alone decides.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RectangleAreaText))]
+    [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
+    public partial double RectangleFullArea { get; set; } = 0.2;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RectangleBrightnessText))]
+    [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
+    public partial double RectangleBrightness { get; set; } = 0.75;
+
+    [ObservableProperty]
+    public partial double RectangleBrightnessMinimum { get; set; } = RectangleSettings.LowestBrightThreshold;
+
+    [ObservableProperty]
+    public partial double RectangleBrightnessMaximum { get; set; } = 1;
+
+    [ObservableProperty]
+    public partial string RectanglesSwitchText { get; set; } = Strings.RectanglesSwitchDark;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
+    public partial string RectangleBrightnessLabel { get; set; } = Strings.RectanglesBrightLabel;
+
+    public string RectangleAreaText =>
+        Strings.Format(Strings.RectanglesAreaValue, PercentNumber(RectangleSmallestArea), PercentNumber(RectangleFullArea));
+
+    public string RectangleBrightnessText => Percent(RectangleBrightness);
+
+    /// <summary>The three values in a sentence, so the two handles and the slider need no manual.</summary>
+    public string RectanglesHelp =>
+        !CanUseRectangles ? Strings.RectanglesHelpKeep
+        : Strings.Format(
+            RectangleBrightnessLabel == Strings.RectanglesDarkLabel ? Strings.RectanglesHelpLight : Strings.RectanglesHelpDark,
+            PercentNumber(RectangleSmallestArea),
+            PercentNumber(RectangleFullArea),
+            PercentNumber(RectangleBrightness));
+
     public string BrightnessText => Percent(BrightnessLimit);
 
     public string WarmthText => Percent(Warmth);
@@ -421,6 +475,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ThemesView));
     }
 
+    /// <summary>A share as a number of per cent: whole numbers, and one decimal below 10 where there is one.</summary>
+    private static string PercentNumber(double share)
+    {
+        double percent = Math.Round(share * 100, 1);
+        return percent.ToString(percent < 10 && percent != Math.Floor(percent) ? "0.0" : "0", CultureInfo.CurrentCulture);
+    }
+
     private static string Percent(double share) =>
         Strings.Format(Strings.PercentValue, Math.Round(share * 100).ToString("0", CultureInfo.CurrentCulture));
 
@@ -438,6 +499,76 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CanKeepBackground = shown.HasRoles;
         SelectedKeep = KeepChoices.FirstOrDefault(choice => choice.Mode == shown.KeepBackground);
         HasAdjustments = !_session.Adjustments.IsEmpty;
+        ShowRectangles();
+    }
+
+    /// <summary>Puts the "rectangles only" values for the selected theme's base into the controls. Call inside <see cref="Sync"/>.</summary>
+    private void ShowRectangles()
+    {
+        ThemeBase themeBase = _session.SelectedTheme.Base;
+        RectangleSettings rectangles = _session.RectanglesAvailable ? _session.Rectangles : RectangleSettings.DefaultFor(themeBase);
+        bool dark = themeBase == ThemeBase.Light;
+
+        // The range first: a slider pulls its value into the range it has at that moment.
+        if (dark)
+        {
+            RectangleBrightnessMinimum = 0;
+            RectangleBrightnessMaximum = RectangleSettings.HighestDarkThreshold;
+        }
+        else
+        {
+            RectangleBrightnessMaximum = 1;
+            RectangleBrightnessMinimum = RectangleSettings.LowestBrightThreshold;
+        }
+
+        RectangleBrightnessLabel = dark ? Strings.RectanglesDarkLabel : Strings.RectanglesBrightLabel;
+        RectanglesSwitchText = themeBase switch
+        {
+            ThemeBase.Dark => Strings.RectanglesSwitchDark,
+            ThemeBase.Light => Strings.RectanglesSwitchLight,
+            _ => Strings.RectanglesSwitchKeep,
+        };
+        CanUseRectangles = _session.RectanglesAvailable;
+        RectanglesOnly = rectangles.On;
+        RectangleFullArea = rectangles.FullArea;
+        RectangleSmallestArea = rectangles.SmallestArea;
+        RectangleBrightness = rectangles.Brightness;
+        OnPropertyChanged(nameof(RectanglesHelp));
+    }
+
+    private void SetRectangles(Func<RectangleSettings, RectangleSettings> change)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        _session.SetRectangles(change);
+    }
+
+    partial void OnRectanglesOnlyChanged(bool value) => SetRectangles(r => r with { On = value });
+
+    partial void OnRectangleBrightnessChanged(double value) => SetRectangles(r => r with { Brightness = (float)value });
+
+    partial void OnRectangleSmallestAreaChanged(double value)
+    {
+        // The handles cannot pass each other: the one that is moved pushes the other along.
+        if (value > RectangleFullArea)
+        {
+            RectangleFullArea = value;
+        }
+
+        SetRectangles(r => r with { SmallestArea = (float)RectangleSmallestArea, FullArea = (float)RectangleFullArea });
+    }
+
+    partial void OnRectangleFullAreaChanged(double value)
+    {
+        if (value < RectangleSmallestArea)
+        {
+            RectangleSmallestArea = value;
+        }
+
+        SetRectangles(r => r with { SmallestArea = (float)RectangleSmallestArea, FullArea = (float)RectangleFullArea });
     }
 
     private void Adjust(Func<ThemeAdjustments, ThemeAdjustments> change)

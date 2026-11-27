@@ -49,6 +49,8 @@ public static class Fixtures
         ["terminal.png"] = Terminal,
         ["mixed-halves.png"] = MixedHalves,
         ["dark-buttons.png"] = DarkButtons,
+        ["desktop-windows.png"] = () => DesktopWindows(mirrored: false),
+        ["desktop-windows-light.png"] = () => DesktopWindows(mirrored: true),
     };
 
     public static IReadOnlyCollection<string> Names => Builders.Keys;
@@ -576,6 +578,77 @@ public static class Fixtures
             ["toolbar-label"] = new(12, 364, 90, 26),
             ["slider"] = new(310, 369, 120, 14),
         });
+    }
+
+    /// <summary>
+    /// A dark desktop with windows on it, for the "rectangles only" option: a large white document window with a
+    /// dark picture in it, a small white dialog, a light-grey panel of about the same size, a tiny white note and
+    /// a dark window. Mirrored, every colour is its opposite: a light desktop with dark windows.
+    /// </summary>
+    private static Fixture DesktopWindows(bool mirrored)
+    {
+        Rgb8 desktop = Rgb8.FromHex("#1B2430");
+        Rgb8 night = Rgb8.FromHex("#101418");
+        Rgb8 soft = Rgb8.FromHex("#D4D4D4");
+        Rgb8 panelGrey = Rgb8.FromHex("#C8C8C8");
+        var c = new Canvas(Width, Height, desktop);
+
+        // Large document window, 44% of the screen: a light title bar, a white page, a dark picture.
+        c.Fill(20, 20, 380, 300, White);
+        c.Fill(20, 20, 380, 24, PanelLight);
+        c.Text(30, 37, "Report.docx", 8, 1.5f, Ink);
+        c.Text(40, 76, "Quarterly report", 13, 2.1f, Ink);
+        Paragraph(c, 40, 104, 340, 5, 8, 1.25f, 19, Ink, seed: 5);
+        c.Fill(60, 212, 220, 76, night);
+        c.Text(72, 236, "var theme = Load();", 8, 1.25f, soft);
+        c.Text(72, 258, "lens.Show(theme);", 8, 1.25f, soft);
+        c.Text(296, 256, "Figure 1", 8, 1.25f, Grey);
+
+        // Small white dialog, 8% of the screen.
+        c.Fill(430, 30, 180, 110, White);
+        c.Text(444, 56, "Save changes?", 9, 1.7f, Ink);
+        Paragraph(c, 444, 80, 150, 2, 7, 1.2f, 16, Grey, seed: 9);
+        c.RoundRect(534, 108, 64, 22, 4, Blue);
+        c.Text(552, 123, "Save", 7, 1.4f, White);
+
+        // Light-grey panel of about the same size: bright, but not white.
+        c.Fill(430, 160, 180, 120, panelGrey);
+        c.Text(444, 186, "Properties", 9, 1.7f, Ink);
+        Paragraph(c, 444, 210, 150, 3, 7, 1.2f, 16, Ink, seed: 13);
+
+        // A tiny white note, under 1% of the screen, and a dark window with light text.
+        c.Fill(440, 300, 60, 40, White);
+        c.Text(448, 324, "Note", 7, 1.3f, Ink);
+        c.Fill(520, 300, 100, 80, night);
+        c.Text(530, 324, "Console", 7, 1.3f, soft);
+        c.Text(530, 344, "ready", 7, 1.2f, soft);
+
+        ImageRgb8 image = c.Image;
+        if (mirrored)
+        {
+            for (int i = 0; i < image.Data.Length; i++)
+            {
+                image.Data[i] = (byte)(255 - image.Data[i]);
+            }
+        }
+
+        static Rgb8 Opposite(Rgb8 colour) => new((byte)(255 - colour.R), (byte)(255 - colour.G), (byte)(255 - colour.B));
+        return new Fixture(
+            mirrored ? "desktop-windows-light.png" : "desktop-windows.png",
+            image,
+            mirrored ? Opposite(desktop) : desktop,
+            mirrored ? Opposite(soft) : soft,
+            new Dictionary<string, Rect>
+            {
+                ["desktop"] = new(404, 344, 30, 50),
+                ["large-window"] = new(300, 60, 96, 130),
+                ["title-bar"] = new(200, 22, 190, 20),
+                ["picture"] = new(64, 268, 212, 16),
+                ["small-dialog"] = new(444, 34, 160, 8),
+                ["grey-panel"] = new(444, 256, 160, 20),
+                ["tiny-note"] = new(444, 328, 52, 8),
+                ["dark-window"] = new(524, 352, 92, 24),
+            });
     }
 
     private static void Paragraph(Canvas c, int x, int baseline, int width, int lines, float capHeight, float weight, int leading, Rgb8 colour, int seed)

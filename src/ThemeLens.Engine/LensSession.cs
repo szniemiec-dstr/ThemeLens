@@ -47,6 +47,7 @@ public sealed class LensSession : IDisposable
         Placement = Settings.PlacementFor(LensGeometry.LayoutKey(screens())) ?? DefaultPlacement();
 
         _controller.SetTheme(EffectiveTheme);
+        _controller.SetScreens([.. screens().Select(static s => s.Bounds)]);
         _controller.SetArea(Placement.Current(screens()));
         _controller.MappingChanged += OnMappingChanged;
         _controller.StatusChanged += OnStatusChanged;
@@ -84,8 +85,20 @@ public sealed class LensSession : IDisposable
     /// <summary>The user's values for the selected theme.</summary>
     public ThemeAdjustments Adjustments => Settings.AdjustmentsFor(SelectedTheme.Id);
 
+    /// <summary>
+    /// The "rectangles only" option as it applies to the selected theme (section 5.6). There is one set of
+    /// values for dark themes and one for light themes; a theme of the keep base has the option off.
+    /// </summary>
+    public RectangleSettings Rectangles => Settings.RectanglesFor(SelectedTheme.Base);
+
+    /// <summary>False for themes that leave light and dark as they are: there is nothing to turn round.</summary>
+    public bool RectanglesAvailable => SelectedTheme.HasRoles;
+
     /// <summary>The selected theme with the user's values laid over it: what the lens shows.</summary>
-    public Theme EffectiveTheme => Adjustments.ApplyTo(SelectedTheme);
+    public Theme EffectiveTheme => AdjustedTheme with { Rectangles = Rectangles };
+
+    /// <summary>The selected theme with the slider values, and nothing that a theme file cannot hold.</summary>
+    private Theme AdjustedTheme => Adjustments.ApplyTo(SelectedTheme);
 
     public LensPlacement Placement { get; private set; }
 
@@ -168,6 +181,23 @@ public sealed class LensSession : IDisposable
     }
 
     /// <summary>
+    /// Changes the "rectangles only" option, live. The values are remembered for all themes of the selected
+    /// theme's base. Does nothing under a theme of the keep base.
+    /// </summary>
+    public void SetRectangles(Func<RectangleSettings, RectangleSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        if (!RectanglesAvailable)
+        {
+            return;
+        }
+
+        Update(Settings.WithRectangles(SelectedTheme.Base, change(Rectangles)));
+        _controller.SetTheme(EffectiveTheme);
+        Changed?.Invoke();
+    }
+
+    /// <summary>
     /// True when a heavier option is switched on: Local contrast or Strong sharpen. When the lens runs past
     /// the Standard budget, the control window names the option and offers <see cref="ReturnToStandardModes"/>.
     /// </summary>
@@ -193,7 +223,7 @@ public sealed class LensSession : IDisposable
     /// <summary>Saves what the lens shows now as a named theme and selects it (FR-15).</summary>
     public Theme SaveAsTheme(string name)
     {
-        Theme saved = _catalogue.SaveAs(EffectiveTheme, name);
+        Theme saved = _catalogue.SaveAs(AdjustedTheme, name);
         SelectTheme(saved.Id);
         return saved;
     }
@@ -386,6 +416,7 @@ public sealed class LensSession : IDisposable
         Placement = Settings.PlacementFor(LensGeometry.LayoutKey(screens)) ?? new LensPlacement(
             LensGeometry.Fit(Placement.Window, LensGeometry.ScreenFor(Placement.Window, screens).Bounds),
             Placement.FillsScreen);
+        _controller.SetScreens([.. screens.Select(static s => s.Bounds)]);
         _controller.SetArea(Placement.Current(screens));
         _controller.NotifyDisplayChanged();
         PlacementChanged?.Invoke(Placement);

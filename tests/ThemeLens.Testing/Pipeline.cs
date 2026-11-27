@@ -18,10 +18,21 @@ public static class Pipeline
         return (scene, RoleAssigner.Assign(scene, pins));
     }
 
-    public static LensResult Run(Theme theme, ImageRgb8 source, IReadOnlyList<Pin>? pins = null)
+    /// <param name="screenPixels">
+    /// Size of the screen the lens is on, for the "rectangles only" option. Left out, the lens fills the screen.
+    /// </param>
+    public static LensResult Run(Theme theme, ImageRgb8 source, IReadOnlyList<Pin>? pins = null, long? screenPixels = null)
     {
-        (SceneAnalysis scene, RoleMap roles) = Analyse(source, pins);
+        Thumbnail thumbnail = Neighbourhood.Build(source).ToThumbnail();
+        SceneAnalysis scene = ClusterFinder.Analyse(thumbnail);
+        RoleMap roles = RoleAssigner.Assign(scene, pins);
         LensTables tables = TableBuilder.Build(theme, roles, scene);
+        if (theme.RectanglesOnly)
+        {
+            long screen = screenPixels ?? ((long)source.Width * source.Height);
+            tables = tables.WithRectangles(RectangleFinder.Find(thumbnail, theme.Rectangles, theme.Base, screen));
+        }
+
         return new LensResult(source, scene, roles, tables, ReferenceRenderer.Render(source, tables));
     }
 

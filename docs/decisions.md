@@ -1,6 +1,6 @@
 # Decisions
 
-Where the code had to settle something the specification (`spec.html`, draft 0.2) leaves open, or where it
+Where the code had to settle something the specification (`spec.html`, draft 0.3) leaves open, or where it
 departs from the letter of the specification, the choice and the reason are recorded here. Section numbers
 refer to the specification.
 
@@ -170,6 +170,39 @@ A new set of anchors has to win three analyses in a row (section 6.4). The compa
 mapping, not role by role. A jump of more than 0.15 in mean luminance counts as a new scene and is accepted at
 once; pins take effect at once.
 
+### D16. Rectangles only: what was asked for, and what had to be settled (5.6, 6.8)
+
+The request was: find rectangles and invert them, either bright ones to dark or the other way round; one bar
+with two handles for the size at which a pure white rectangle is inverted and the size from which a brightness
+threshold applies; the threshold on a second slider; sizes in between take values in between; smaller ones are
+not inverted; the same again for dark rectangles. These points were not in the request and were settled as follows.
+
+- **The target follows the theme.** A dark theme looks for bright rectangles, a light theme for dark ones. A
+  separate choice of target would allow "darken bright rectangles" under a light theme, where the theme has no
+  dark page to give them. There is one set of values for dark themes and one for light themes, in the settings
+  file; a theme file does not hold them.
+- **A found rectangle is shown in the theme**, not as a plain inversion: the same picture the whole lens would
+  show there, with the theme's page colour, text contrast and limits.
+- **Outside the rectangles nothing is changed at all**: no brightness limit, warmth, contrast or sharpening.
+- **Brightness** is the Rec. 709 luma of the sRGB values, the grey level a colour picker shows. The threshold
+  can be set from 70 to 100% under a dark theme and from 0 to 30% under a light one. In between lies the
+  mid-tone band in which the region logic (D2) does not call an area light or dark, so a found rectangle of
+  that brightness would be changed in patches.
+- **"Pure white"** means 98% or more, so `#FAFAFA` counts. The allowance shrinks to nothing at the threshold.
+- **Sizes are shares of the screen the lens is on**, as asked, not of the lens.
+- **Rectangular** means: covered to 90% by at most four upright rectangles. That takes in a window with
+  another window over a corner and a page around a picture, and leaves out round shapes and ragged areas.
+- **Nine brightness steps** between the threshold and white. A rectangle is judged by the step below its
+  brightness, so it may need up to one step (about 3% brightness at the starting values) more than the
+  straight line says.
+- **Edges.** The finder sees one sample every 12 pixels on a full-HD lens. The rectangle it reports stops at
+  the last sample known to be bright; in a margin of two samples around it the shader decides per 4×4 block
+  of the current frame. Inside and in the margin a pixel is changed only if the polarity check puts it in a
+  region of the kind looked for. Where a rectangle borders something dark its edge is exact to the pixel;
+  where it borders something bright that did not qualify, the edge is exact to a 4-pixel block.
+- **Before the first look** the lens changes everything, and the option fades in once rectangles are known.
+  A rectangle found for the first time applies at once; one that is no longer found fades out over 200 ms.
+
 ## Theme files
 
 ### D14. Additions to the format
@@ -206,6 +239,16 @@ there (D2). A thin line in a muted colour along the boundary would keep buttons,
 outlined shapes. It would be the first thing the lens draws that is not a recoloured pixel, so it is left for
 a decision.
 
+### Q4. Rectangles only: three things to confirm
+
+They are also listed in section 14.1 of the specification.
+
+1. The target follows the theme and a found rectangle is shown in the theme (D16). The alternative is a
+   target chosen separately from the theme and a plain inversion of lightness inside the rectangle.
+2. The size bar runs straight from 0.5 to 100% of the screen. Most useful values are below 30%; a scale that
+   gives small sizes more room may be easier to set.
+3. A white photograph is a bright rectangle and is changed like any other.
+
 ### Q3. Tests run on Microsoft.Testing.Platform
 
 xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ slightly from section 10.2:
@@ -221,5 +264,10 @@ xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ s
   light document) can show a lighter stretch of about 30 pixels at that end.
 - Gradients and photographs that run from clearly light to clearly dark are cut into regions along straight
   lines.
+- Rectangles only: the rectangles follow the screen with the delay of the analysis, about an eighth of a
+  second. A dragged window has a bright leading edge, and a newly opened white window is white for that long.
+- Rectangles only: a bright thing that lies within two samples (24 pixels on a full-HD lens) of a found
+  rectangle is changed in the part that lies that close, also when it is too small to be changed by itself.
+- Rectangles only: finding them adds about 2 ms to each analysis.
 - Analysis takes 4 to 8 ms and table building 5 to 10 ms on a 4-core machine: together at the edge of the
   15 ms budget of section 7.6. Both run off the frame loop.

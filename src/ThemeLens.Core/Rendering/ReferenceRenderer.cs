@@ -20,6 +20,8 @@ namespace ThemeLens.Core.Rendering;
 /// <item>Finish: area guard, local contrast, sharpen, then clamp to the theme's limits.</item>
 /// </list>
 /// When nothing in step 4 is switched on, step 2 writes the final picture and steps 3 and 4 are skipped.
+/// With the "rectangles only" option on (section 5.6), every pixel outside the found rectangles leaves the
+/// last step exactly as it came in.
 /// </remarks>
 public static class ReferenceRenderer
 {
@@ -49,9 +51,12 @@ public static class ReferenceRenderer
         Neighbourhood around = Neighbourhood.Build(source);
         bool oneTable = ReferenceEquals(light, dark);
         bool finish = p.NeedsFinishPass;
+        bool only = p.RectanglesOnly > 0f;
 
         // Pass 2: recolour. RGB is the recoloured pixel, A flags pixels that differ from the page by more than an area may.
+        // With "rectangles only" on, a second output says how much of the lens's work each pixel gets.
         byte[] mapped = new byte[w * h * 4];
+        byte[] change = only && finish ? new byte[w * h] : [];
         var result = new ImageRgb8(w, h);
         Parallel.For(0, h, y =>
         {
@@ -59,20 +64,23 @@ public static class ReferenceRenderer
             {
                 Rgb8 pixel = source[x, y];
                 Vector3 encoded = Srgb.ToEncoded(pixel);
-                Vector3 o;
-                if (oneTable)
+                Vector3 o = light.Sample(encoded);
+                float polarity = 1f;
+                if (!oneTable || only)
                 {
-                    o = light.Sample(encoded);
-                }
-                else
-                {
-                    float polarity = around.PolarityAt(x, y, p.WholeLensLightFraction, Wcag.Luminance(pixel));
-                    o = Vector3.Lerp(dark.Sample(encoded), light.Sample(encoded), polarity);
+                    polarity = around.PolarityAt(x, y, p.WholeLensLightFraction, Wcag.Luminance(pixel));
                 }
 
+                if (!oneTable)
+                {
+                    o = Vector3.Lerp(dark.Sample(encoded), o, polarity);
+                }
+
+                // Outside the found rectangles the pixel stays what it was.
+                float share = only ? around.ChangeAt(x, y, polarity, p) : 1f;
                 if (!finish)
                 {
-                    result[x, y] = Srgb.FromEncoded(FinishMath.Clamp(o, p));
+                    result[x, y] = Srgb.FromEncoded(Vector3.Lerp(encoded, FinishMath.Clamp(o, p), share));
                     continue;
                 }
 
@@ -80,7 +88,11 @@ public static class ReferenceRenderer
                 mapped[i] = Srgb.ToByte(o.X);
                 mapped[i + 1] = Srgb.ToByte(o.Y);
                 mapped[i + 2] = Srgb.ToByte(o.Z);
-                mapped[i + 3] = Srgb.ToByte(AreaFlag(o, p));
+                mapped[i + 3] = Srgb.ToByte(AreaFlag(o, p) * share);
+                if (only)
+                {
+                    change[(y * w) + x] = Srgb.ToByte(share);
+                }
             }
         });
 
@@ -187,7 +199,13 @@ public static class ReferenceRenderer
                 colour += new Vector3(delta * (1f - guard));
 
                 // Clamp last. This is what guarantees that a sharpening halo can never exceed the brightness limit.
-                result[x, y] = Srgb.FromEncoded(FinishMath.Clamp(colour, p));
+                Vector3 finished = FinishMath.Clamp(colour, p);
+                if (only)
+                {
+                    finished = Vector3.Lerp(Srgb.ToEncoded(source[x, y]), finished, change[(y * w) + x] / 255f);
+                }
+
+                result[x, y] = Srgb.FromEncoded(finished);
             }
         });
 

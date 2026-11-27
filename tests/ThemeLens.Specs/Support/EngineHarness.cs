@@ -96,6 +96,9 @@ public sealed class ReferenceSurface(FakeClock clock, int width, int height) : I
 
     public List<Presented> Shown { get; } = [];
 
+    /// <summary>The screen content of the frame shown most recently, untouched.</summary>
+    public ImageRgb8? LastSource => _lastSource;
+
     /// <summary>How long each frame takes to render, on the fake clock.</summary>
     public TimeSpan RenderCost { get; set; } = TimeSpan.FromMilliseconds(2);
 

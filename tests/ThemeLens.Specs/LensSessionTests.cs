@@ -130,6 +130,58 @@ public sealed class LensSessionTests : IDisposable
     }
 
     [Fact]
+    public void Rectangles_only_changes_the_lens_live_and_has_one_set_of_values_per_kind_of_theme()
+    {
+        (LensSession session, EngineHarness engine) = Start();
+        session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
+        session.Rectangles.ShouldBe(RectangleSettings.DefaultFor(ThemeBase.Dark), "the option starts switched off");
+        session.TurnOn();
+        engine.RunFor(TimeSpan.FromMilliseconds(500));
+        engine.Controller.Look.Parameters.RectanglesOnly.ShouldBe(0f);
+
+        session.SetRectangles(r => r with { On = true, SmallestArea = 0.05f, FullArea = 0.30f, Brightness = 0.80f });
+        engine.RunFor(TimeSpan.FromMilliseconds(500));
+        engine.Controller.Look.Parameters.RectanglesOnly.ShouldBe(1f);
+        engine.Controller.Theme.Rectangles.Brightness.ShouldBe(0.80f);
+
+        // Every dark theme shares the values; light themes have their own, and start switched off.
+        session.SelectTheme("night-warm");
+        session.Rectangles.On.ShouldBeTrue();
+        session.Rectangles.FullArea.ShouldBe(0.30f);
+        session.SelectTheme("clear-white");
+        session.Rectangles.ShouldBe(RectangleSettings.DefaultFor(ThemeBase.Light));
+        session.SetRectangles(r => r with { On = true, Brightness = 0.9f });
+        session.Rectangles.Brightness.ShouldBe(RectangleSettings.HighestDarkThreshold, "under a light theme the threshold is a darkness");
+
+        // A theme that leaves light and dark alone has nothing to turn round.
+        session.SelectTheme("less-blue");
+        session.RectanglesAvailable.ShouldBeFalse();
+        session.EffectiveTheme.RectanglesOnly.ShouldBeFalse();
+        session.SetRectangles(r => r with { On = true });
+        session.EffectiveTheme.RectanglesOnly.ShouldBeFalse();
+        session.Dispose();
+
+        (LensSession next, EngineHarness nextEngine) = Start();
+        next.SelectTheme("soft-dark");
+        next.Rectangles.ShouldBe(new RectangleSettings { On = true, SmallestArea = 0.05f, FullArea = 0.30f, Brightness = 0.80f });
+        nextEngine.Controller.Theme.RectanglesOnly.ShouldBeTrue();
+        next.Settings.RectanglesFor(ThemeBase.Light).On.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_saved_theme_does_not_carry_the_rectangles_option()
+    {
+        (LensSession session, _) = Start();
+        session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
+        session.SetRectangles(r => r with { On = true });
+
+        Theme saved = session.SaveAsTheme("Mine");
+
+        saved.Rectangles.ShouldBe(RectangleSettings.Off, "the option is the user's setting, not part of a theme file");
+        session.EffectiveTheme.RectanglesOnly.ShouldBeTrue("the option stays on for the theme just saved: it is a dark theme too");
+    }
+
+    [Fact]
     public void Adjustments_survive_a_restart()
     {
         (LensSession session, _) = Start();

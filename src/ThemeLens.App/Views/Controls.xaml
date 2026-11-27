@@ -275,6 +275,34 @@
     </Setter>
   </Style>
 
+  <!--
+    One end of a slider with two handles: two of these lie on top of each other over one drawn track. Only the
+    handle takes the mouse, so the handle of the slider underneath can be reached through the one on top.
+  -->
+  <Style x:Key="RangeEnd" TargetType="Slider">
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <Grid>
+            <Track x:Name="PART_Track">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton IsHitTestVisible="False" Style="{StaticResource SliderTrackButton}" />
+              </Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton IsHitTestVisible="False" Style="{StaticResource SliderTrackButton}" />
+              </Track.IncreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Style="{StaticResource SliderThumb}" />
+              </Track.Thumb>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style x:Key="Label" TargetType="TextBlock">
     <Setter Property="FontSize" Value="15" />
     <Setter Property="VerticalAlignment" Value="Center" />

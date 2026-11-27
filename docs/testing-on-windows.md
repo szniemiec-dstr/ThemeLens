@@ -55,6 +55,14 @@ debugger: in it the lens is deliberately not kept on top and limited to a quarte
 | Move the sliders under "Adjust this theme" | The lens follows while you drag: darker with a lower brightness limit, less blue with more warmth. "Back to the theme's own values" undoes it. |
 | Look at "Colours on screen now, and what you see" | One row per colour under the lens: its true colour with name and hex value, its share, the role it was given and the colour it is shown as. It follows the screen within half a second. Choose another role in "Used as": the lens changes and the row says "Pinned" until "Reset mapping". |
 | Type a name under the sliders and press "Save as theme" | Your values become a theme of your own. It appears in the theme list and is selected. Its file is in `%AppData%\ThemeLens\themes`. |
+| Pick "Wake up", "Wake up sky" or "Wake up dark" | Blue themes: a cool white page with blue-black text, a sky-blue page, and a deep blue page with bright cool text. |
+| Under "Rectangles only", switch on "Only darken bright rectangles" (with a dark theme), lens filling the screen, a white window on a dark desktop | For a moment the lens shows everything in the theme, as before. Then the desktop and everything dark come back exactly as they are, and only the white window stays dark. |
+| Open a small white dialog, and a small light-grey one | With the starting values (2% to 20% of the screen, at least 75% bright) the white dialog is darkened if it covers 2% of the screen or more. The light-grey one is darkened only if it is large: the sentence under the sliders says how large and how bright. |
+| Move the two handles on the "Size" bar and the "At least this bright" slider | The lens follows within a moment. The handles cannot pass each other. Windows smaller than the left handle's size are never darkened. |
+| Drag the white window about | Its dark rectangle follows about an eighth of a second late: a bright edge shows in front while it moves. That is known; tell me if it is too much. |
+| Close the white window | The dark rectangle fades out; it does not jump. |
+| Pick a light theme (Clear white) with a dark editor on a light desktop, and switch on "Only lighten dark rectangles" | The mirror image: only the large dark window becomes light. The slider now reads "At most this bright". |
+| Pick "Less blue" or "Passthrough" | The "Rectangles only" section is greyed out, with a sentence that says why. |
 | Close the app with the lens on, and start it again | The same theme, your slider values and the lens's place are back, and the lens switches itself on. |
 | Move the lens over a dark editor next to a light page | Both halves end up in the theme's colours; the dark half is not inverted to light. |
 | Look at the status in the control window | It reads "Live" with a time in milliseconds, and a frame rate. If it reads "Live, reduced speed", tell me the frame rate it shows. |

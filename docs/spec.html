@@ -148,7 +148,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 
 <div class="page">
   <div class="topbar">
-    <div class="doc">Specification, draft 0.2, 22 November 2026</div>
+    <div class="doc">Specification, draft 0.3, 27 November 2026</div>
     <div class="seg" role="group" aria-label="Page background">
       <button type="button" data-base="dark" aria-pressed="false">Dark background</button>
       <button type="button" data-base="light" aria-pressed="false">Light background</button>
@@ -534,6 +534,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 </svg>
 <figcaption><b>Figure 5.</b> Control window. Each row is one colour cluster found under the lens: its true colour with a name and hex value, how much of the lens it covers, the role it was given, and the colour it is shown as. Changing “Used as” pins that mapping. Contrast and Sharpen are off at zero; each has a mode switch (Standard, or the heavier Local and Strong) behind its label. The status pill reads “Live” with the current delay, “Live, reduced speed” when a heavier option or CPU rendering has pushed the lens past its standard budget, or “Holding background” when the lens is showing a plain fill.</figcaption>
 </figure>
+<p>Below the sliders the window has a section “Rectangles only” (<a href="#s5-6">5.6</a>): a switch, one bar with two handles for the two sizes, and a slider for the brightness. Its wording follows the selected theme: “Only darken bright rectangles” under a dark theme, “Only lighten dark rectangles” under a light one. Under a theme of the Keep base the section is greyed out. A sentence under the controls spells the three values out, so the handles need no manual.</p>
 <p>The window also holds a Settings page (shortcuts, start with Windows, updates, language) and an About page (version, licence, third-party notices). The tray icon repeats the most common actions: lens on or off, theme, fill this screen, open control window, quit.</p>
 
 <h3><span class="n">4.7</span>Keyboard shortcuts</h3>
@@ -646,6 +647,42 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
   "contrast": { "amount": 0.0, "mode": "standard" },
   "sharpen": { "amount": 0.0, "mode": "standard" }
 }</code></pre>
+
+<h3 id="s5-6"><span class="n">5.6</span>Rectangles only</h3>
+<p>Normally the lens changes everything under it. With “Rectangles only” switched on it leaves the screen as it is and changes only large rectangles of the wrong kind:</p>
+<div class="tw"><table>
+<thead><tr><th>Selected theme</th><th>What is looked for</th><th>What happens to it</th><th>Brightness slider</th></tr></thead>
+<tbody>
+<tr><td>Dark base (light avoidance)</td><td>Bright rectangles: a white document window, a white dialog</td><td>Shown in the theme, as the whole lens would show it: dark page, light text</td><td>“At least this bright”, 70 to 100%, starts at 75%</td></tr>
+<tr><td>Light base (darkness avoidance)</td><td>Dark rectangles: a dark editor, a terminal</td><td>Shown in the theme: light page, dark text</td><td>“At most this bright”, 0 to 30%, starts at 25%</td></tr>
+<tr><td>Keep base</td><td colspan="3">Not available. These themes leave light and dark as they are, so there is nothing to turn round.</td></tr>
+</tbody></table></div>
+<p>Which way the option works follows the theme, so there is no separate choice of target. There is one set of values for dark themes and one for light themes; they are the user's settings and are not stored in theme files. The option is off until the user switches it on.</p>
+<p>How bright a rectangle has to be depends on how much of the screen it covers. Three values set the rule: two sizes on one bar with two handles, and a brightness on a slider of its own.</p>
+<ul>
+<li><b>Smallest size</b> (left handle, starts at 2% of the screen). A rectangle of this size is changed only when it is pure white. Anything smaller is never changed.</li>
+<li><b>Size for the brightness</b> (right handle, starts at 20%). From this size on, a rectangle is changed when it reaches the brightness on the slider.</li>
+<li><b>In between</b> the brightness needed falls in a straight line from 100% at the smallest size to the slider's value at the larger size.</li>
+</ul>
+<p>With the starting values, under a dark theme:</p>
+<div class="tw two"><table>
+<thead><tr><th>Rectangle covers</th><th>It is darkened when it is at least</th></tr></thead>
+<tbody>
+<tr><td>less than 2% of the screen</td><td>never</td></tr>
+<tr><td>2%</td><td>pure white (98% or more)</td></tr>
+<tr><td>11%</td><td>about 87% bright</td></tr>
+<tr><td>20% or more</td><td>75% bright</td></tr>
+</tbody></table></div>
+<p>Under a light theme everything is mirrored: “pure white” reads “pure black”, and a rectangle has to be at most as bright as the slider says. Brightness here is the grey level a colour picker would show: white is 100%, <code>#BFBFBF</code> is 75%. Sizes are shares of the screen the lens is on, whatever the size of the lens.</p>
+<p>What counts as a rectangle:</p>
+<ul>
+<li>An upright rectangular area that is bright all over. Text, icons, a scroll bar and other small detail inside it do not count against it.</li>
+<li>An area made of up to four such rectangles also counts, and is judged by its whole size: a window with another window over one corner, or a page around a dark picture.</li>
+<li>A dark area inside a bright rectangle that is larger than the smallest size (a code block, a picture) is left as it is. So is every pixel outside the rectangles: there the lens shows exactly what is on the screen, with no brightness limit, warmth, contrast or sharpening.</li>
+<li>A bright shape that is not made of rectangles (a round logo, the sky in a photo) is left alone.</li>
+</ul>
+<p>This option is the one deliberate exception to “inside the lens the background is always the one I chose”: the user asks for the rest of the screen to stay. Two things keep the spirit of the rule. Until the lens has looked at the screen for the first time it changes everything, so a white window is never shown white first. And a rectangle that is no longer found fades out over the usual 200 ms; a newly found one is changed at once.</p>
+
 </section>
 
 <section id="s6">
@@ -688,7 +725,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <li>Pinned mappings never change on their own.</li>
 </ul>
 
-<h3><span class="n">6.5</span>Background first</h3>
+<h3 id="s6-5"><span class="n">6.5</span>Background first</h3>
 <p>The table is built from what was on screen a moment ago. If the user switches from a white document to a dark editor, a table that inverts lightness would, for a few frames, turn the dark editor white. That is exactly what a light-sensitive user must never see, so there are three protections, all of which work without waiting for the analysis.</p>
 <div class="tw"><table>
 <thead><tr><th>Protection</th><th>When it acts</th><th>How</th></tr></thead>
@@ -716,6 +753,17 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <tr><td>Sharpen, Strong</td><td>A wider two-pass kernel with halo limiting.</td><td>Two extra passes</td></tr>
 </tbody></table></div>
 <p>Order within a frame: recolour, local contrast, sharpen, then clamp to the theme's limits. Clamping last is what guarantees that sharpening halos on a dark theme can never exceed the brightness limit.</p>
+
+<h3 id="s6-8"><span class="n">6.8</span>Finding rectangles</h3>
+<p>The rectangles of <a href="#s5-6">5.6</a> are found on the CPU, in the same analysis picture as the colour clusters and at the same rate. The frame itself is still recoloured on the GPU, which receives a list of at most 16 rectangles.</p>
+<ol>
+<li>Each sample of the analysis picture is one untouched pixel plus the brightness range of the 4×4 block around it. A flat block shows background and nothing else, so its pixel speaks for it. A block with text or an edge in it takes the kind of the flat blocks around it.</li>
+<li>The finder walks from the brightness threshold up to pure white in nine steps. At each step it marks the samples that are at least that bright, closes gaps up to two samples wide, fills enclosed holes smaller than the smallest size, and collects connected areas.</li>
+<li>An area that is large enough for the step is cut into rectangles: the largest rectangle that fits, then the largest that fits in the rest, up to four. If four rectangles cover less than 90% of the area, it is not rectangular and is left alone.</li>
+<li>The analysis sees one sample every 12 pixels on a full-HD lens, so it cannot say exactly where a rectangle ends. Each rectangle therefore stops at the last sample known to be bright, and has a margin of two samples around it. In the margin the shader decides per 4×4 block of the current frame: a block belongs to the rectangle when its brightest pixel is as bright as the rectangle had to be.</li>
+<li>Inside a rectangle the shader changes a pixel only where the polarity check (<a href="#s6-5">6.5</a>) puts it in a light region. That is what leaves a dark picture inside a white page alone, and what makes the edge of a rectangle exact to the pixel where it borders something dark.</li>
+</ol>
+<p>Rectangles follow the screen with the delay of the analysis, about an eighth of a second. While a window is dragged its rectangle trails it, and a newly opened white window can be white for that long. The first can be reduced later by running the finder more often than the cluster analysis; it costs about 2 ms a run.</p>
 </section>
 
 <section id="s7">
@@ -926,6 +974,9 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <tr><td class="id">FR-23</td><td>Contrast and sharpen output is clamped to the theme's limits; neither can produce a pixel the theme would not allow.</td></tr>
 <tr><td class="id">FR-24</td><td>Without a hardware GPU the lens runs on the CPU with the same visible result.</td></tr>
 <tr><td class="id">FR-25</td><td>When the lens runs slower than the Standard budget, the status says so and names the option responsible; no option is switched off automatically.</td></tr>
+<tr><td class="id">FR-26</td><td>“Rectangles only” can be switched on for dark and for light themes, each with its own values. With it on, every pixel outside the found rectangles is shown exactly as it is on the screen.</td></tr>
+<tr><td class="id">FR-27</td><td>A rectangle is changed when it covers at least the larger size and reaches the brightness threshold, or covers at least the smallest size and is pure white (pure black under a light theme). Between the two sizes the brightness needed changes in a straight line. Smaller rectangles are never changed. Sizes are shares of the screen the lens is on.</td></tr>
+<tr><td class="id">FR-28</td><td>With “Rectangles only” on, the lens changes everything until it has found rectangles for the first time, a newly found rectangle is changed at once, and one that is no longer found fades out.</td></tr>
 </tbody></table></div>
 <h3><span class="n">8.2</span>Quality</h3>
 <div class="tw two"><table>
@@ -1129,6 +1180,35 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
     Then mean lens luminance moves only towards its new value
     And the change completes within 250 ms
 
+Feature: Rectangles only
+
+  Rule: Under a dark theme, large bright rectangles are darkened and nothing else is touched
+
+    Scenario: A desktop with windows of different sizes and brightness
+      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      And the screen shows "desktop-windows.png"
+      When the lens renders the frame
+      Then the "large-window" is shown close to the page colour
+      And the "small-dialog" is shown close to the page colour
+      And the "grey-panel" is shown as it is on the screen
+      And the "tiny-note" is shown as it is on the screen
+      And the "desktop" is shown as it is on the screen
+
+    Scenario Outline: How bright a rectangle has to be depends on its size
+      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      And the screen shows a rectangle &lt;brightness&gt;% bright that covers &lt;size&gt;% of the screen
+      When the lens renders the frame
+      Then the "rectangle" is &lt;outcome&gt;
+
+      Examples:
+        | size | brightness | outcome                        |
+        | 25   | 76         | shown close to the page colour |
+        | 25   | 72         | shown as it is on the screen   |
+        | 12   | 92         | shown close to the page colour |
+        | 12   | 80         | shown as it is on the screen   |
+        | 3    | 100        | shown close to the page colour |
+        | 1.5  | 100        | shown as it is on the screen   |
+
 @windows @ui
 Feature: Input passes through the lens
 
@@ -1291,6 +1371,7 @@ Feature: Input passes through the lens
 <tr><td>System surfaces above the lens (Start, UAC, lock screen)</td><td>Unthemed bright moments outside the app's control</td><td>Say so in the first-run text. Recommend Windows dark mode alongside. Per-machine <code>uiAccess</code> build later.</td></tr>
 <tr><td>Photos and video are recoloured</td><td>Images look wrong under dark themes</td><td>Balanced guard mode in 0.1. Image detection after 0.1.</td></tr>
 <tr><td>Security or anti-cheat software distrusts a capturing overlay</td><td>Blocked or flagged</td><td>Signed builds, open source, no input hooks, no injection into other processes. Document known conflicts.</td></tr>
+<tr><td>“Rectangles only” follows the screen an eighth of a second late</td><td>A newly opened white window is white for a moment; a dragged window has a bright leading edge</td><td>Say so next to the option. Run the rectangle finder more often than the cluster analysis if testing shows it matters.</td></tr>
 <tr><td>Wrong role assignment on unusual layouts</td><td>Odd colours until corrected</td><td>Pinning in the control window. Collect failing layouts as new fixtures.</td></tr>
 </tbody></table></div>
 <h3><span class="n">14.1</span>Questions for you</h3>
@@ -1299,6 +1380,9 @@ Feature: Input passes through the lens
 <li>Final name, and who holds the trademark?</li>
 <li>Should the app show the lens automatically at sign-in, or wait for the shortcut?</li>
 <li>Which languages should the UI ship in first?</li>
+<li>“Rectangles only”: the target follows the theme (bright rectangles under a dark theme, dark ones under a light theme) and a found rectangle is shown in the theme. Is that what is wanted, or should the target be a choice of its own, with a plain inversion of lightness inside the rectangle?</li>
+<li>“Rectangles only”: sizes are on a straight scale from 0.5 to 100% of the screen. Most useful values are below 30%; would a scale that gives the small sizes more room be better?</li>
+<li>“Rectangles only”: a white photo is a bright rectangle and is changed like any other. Should pictures be left alone?</li>
 </ol>
 </section>
 
@@ -1320,7 +1404,7 @@ Feature: Input passes through the lens
 </section>
 
 <footer>
-<p>ThemeLens specification, draft 0.2. Intended location in the repository: <code>docs/spec.html</code>.</p>
+<p>ThemeLens specification, draft 0.3 (adds the Wake up themes in 5.3 and “Rectangles only” in 5.6, 6.8 and FR-26 to FR-28). Intended location in the repository: <code>docs/spec.html</code>.</p>
 </footer>
     </main>
   </div>

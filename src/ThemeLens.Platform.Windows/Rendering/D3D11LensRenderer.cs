@@ -31,7 +31,7 @@ namespace ThemeLens.Platform.Windows;
 /// </remarks>
 public sealed class D3D11LensRenderer : IDisposable
 {
-    private const int ResourceSlots = 15;
+    private const int ResourceSlots = 16;
     private const int SourceSlot = 0;
     private const int FineSlot = 1;
     private const int CoarseSlot = 2;
@@ -47,6 +47,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private const int SpreadingSlot = 12;
     private const int RegionSlot = 13;
     private const int LocalSlot = 14;
+    private const int ShareSlot = 15;
 
     private const Format FrameFormat = Format.B8G8R8A8_UNorm;
     private const Format IntermediateFormat = Format.R8G8B8A8_UNorm;
@@ -62,6 +63,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private readonly ID3D11ShaderResourceView[] _resources = new ID3D11ShaderResourceView[ResourceSlots];
     private readonly ID3D11RenderTargetView[] _fineTargets = new ID3D11RenderTargetView[2];
     private readonly ID3D11RenderTargetView[] _regionTargets = new ID3D11RenderTargetView[2];
+    private readonly ID3D11RenderTargetView[] _mappedTargets = new ID3D11RenderTargetView[2];
 
     private ID3D11Device _device = null!;
     private ID3D11DeviceContext _context = null!;
@@ -90,6 +92,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private RenderTexture? _coarse;
     private RenderTexture? _wide;
     private RenderTexture? _mapped;
+    private RenderTexture? _share;
     private RenderTexture? _mappedFine;
     private RenderTexture? _mappedCoarse;
     private RenderTexture? _flagShares;
@@ -602,6 +605,8 @@ public sealed class D3D11LensRenderer : IDisposable
         _coarse?.Dispose();
         _wide?.Dispose();
         _mapped?.Dispose();
+        _share?.Dispose();
+        _share = null;
         _mappedFine?.Dispose();
         _mappedCoarse?.Dispose();
         _flagShares?.Dispose();
@@ -644,6 +649,10 @@ public sealed class D3D11LensRenderer : IDisposable
         FrameParameters p = tables.Parameters;
         bool oneTable = ReferenceEquals(tables.Light, tables.Dark);
 
+        // "Rectangles only" asks every pixel which kind of region it is in, whether or not there are two tables.
+        bool only = !p.Identity && p.RectanglesOnly > 0f;
+        bool regions = !oneTable || only;
+
         // A frame that cannot be read by a shader as it is (no shader-resource binding) is first copied, lens area only.
         Texture2DDescription sourceDescription = source.Description;
         int originX = region.X;
@@ -683,7 +692,17 @@ public sealed class D3D11LensRenderer : IDisposable
             WideWidth = wideWidth,
             WideHeight = wideHeight,
             OneTable = oneTable ? 1f : 0f,
+            RectanglesOnly = only ? p.RectanglesOnly : 0f,
+            RectangleCount = only ? Math.Min(p.Rectangles.Count, LensConstants.MaxRectangles) : 0,
+            RectangleMargin = p.RectangleMargin,
         };
+        for (int i = 0; only && i < p.Rectangles.Count && i < LensConstants.MaxRectangles; i++)
+        {
+            LensRectangle r = p.Rectangles[i];
+            constants.RectangleBounds[i] = new System.Numerics.Vector4(r.Left, r.Top, r.Right, r.Bottom);
+            constants.RectangleExtras[i] = new System.Numerics.Vector4(r.Level, r.Weight, 0f, 0f);
+        }
+
         _context.UpdateSubresource(in constants, _frameBuffer);
 
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
@@ -717,19 +736,19 @@ public sealed class D3D11LensRenderer : IDisposable
             _fineValid = true;
 
             bool softGate = p.GuardOn && p.GuardSoftGate > 0f;
-            if (!oneTable)
+            if (regions)
             {
                 // Which blocks lie in a light region and which in a dark one.
                 BuildRegions(_fineVotes.Resource, fineWidth, fineHeight);
             }
 
-            if (!oneTable || softGate)
+            if (regions || softGate)
             {
                 // With one table only the soft share is read from this level; the region slot stays empty and reads as zero.
                 _coarse ??= new RenderTexture(_device, coarseWidth, coarseHeight, IntermediateFormat);
                 Array.Clear(_resources);
                 _resources[FineSlot] = _fineVotes.Resource;
-                if (!oneTable)
+                if (regions)
                 {
                     _resources[RegionSlot] = _region!.Resource;
                 }
@@ -737,7 +756,7 @@ public sealed class D3D11LensRenderer : IDisposable
                 Draw(LensPass.Coarse, _coarse.Target, coarseWidth, coarseHeight);
             }
 
-            if (!oneTable)
+            if (regions)
             {
                 _wide ??= new RenderTexture(_device, wideWidth, wideHeight, IntermediateFormat);
                 Array.Clear(_resources);
@@ -750,12 +769,18 @@ public sealed class D3D11LensRenderer : IDisposable
             _resources[SourceSlot] = sourceView;
             _resources[LutLightSlot] = _lightTableView;
             _resources[LutDarkSlot] = oneTable ? _lightTableView : _darkTableView;
-            if (!oneTable)
+            if (regions)
             {
                 _resources[CoarseSlot] = _coarse!.Resource;
                 _resources[WideSlot] = _wide!.Resource;
                 _resources[RegionSlot] = _region!.Resource;
                 _resources[LocalSlot] = _local!.Resource;
+            }
+
+            if (only)
+            {
+                // The brightest and the darkest pixel of each block settle where a rectangle ends.
+                _resources[FineSlot] = _fineVotes.Resource;
             }
 
             if (!p.NeedsFinishPass)
@@ -765,7 +790,18 @@ public sealed class D3D11LensRenderer : IDisposable
             else
             {
                 _mapped ??= new RenderTexture(_device, width, height, IntermediateFormat);
-                Draw(LensPass.RecolourMapped, _mapped.Target, width, height);
+                if (only)
+                {
+                    // The finish pass cannot work the share out again: by then the region textures hold the guard's areas.
+                    _share ??= new RenderTexture(_device, width, height, IntermediateFormat);
+                    _mappedTargets[0] = _mapped.Target;
+                    _mappedTargets[1] = _share.Target;
+                    Draw(LensPass.RecolourMapped, _mappedTargets, width, height);
+                }
+                else
+                {
+                    Draw(LensPass.RecolourMapped, _mapped.Target, width, height);
+                }
 
                 // Pass 3: the recoloured picture at a quarter and a sixteenth of its size, the guard's areas and the row blur.
                 bool guard = p.GuardOn;
@@ -829,6 +865,12 @@ public sealed class D3D11LensRenderer : IDisposable
                 if (strongSharpen)
                 {
                     _resources[BlurredRowsSlot] = _blurredRows!.Resource;
+                }
+
+                if (only)
+                {
+                    _resources[SourceSlot] = sourceView;
+                    _resources[ShareSlot] = _share!.Resource;
                 }
 
                 Draw(LensPass.Finish, target, width, height);

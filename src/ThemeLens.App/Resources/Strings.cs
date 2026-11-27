@@ -92,6 +92,32 @@ public static class Strings
 
     public static string AdjustHeading => Get();
 
+    public static string RectanglesHeading => Get();
+
+    public static string RectanglesSwitchDark => Get();
+
+    public static string RectanglesSwitchLight => Get();
+
+    public static string RectanglesSwitchKeep => Get();
+
+    public static string RectanglesAreaLabel => Get();
+
+    public static string RectanglesSmallestName => Get();
+
+    public static string RectanglesFullName => Get();
+
+    public static string RectanglesAreaValue => Get();
+
+    public static string RectanglesBrightLabel => Get();
+
+    public static string RectanglesDarkLabel => Get();
+
+    public static string RectanglesHelpDark => Get();
+
+    public static string RectanglesHelpLight => Get();
+
+    public static string RectanglesHelpKeep => Get();
+
     public static string BrightnessLabel => Get();
 
     public static string WarmthLabel => Get();

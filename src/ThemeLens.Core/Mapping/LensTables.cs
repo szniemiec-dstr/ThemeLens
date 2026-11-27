@@ -51,6 +51,18 @@ public sealed record FrameParameters
     /// <summary>Strength of the strong sharpen pass, 0 when off.</summary>
     public float StrongSharpen { get; init; }
 
+    /// <summary>
+    /// 0 when the lens changes everything under it; 1 when the "rectangles only" option is on and it changes
+    /// only what lies inside <see cref="Rectangles"/> (section 5.6). In between while one fades into the other.
+    /// </summary>
+    public float RectanglesOnly { get; init; }
+
+    /// <summary>The rectangles found by the latest analysis. Only read while <see cref="RectanglesOnly"/> is above 0.</summary>
+    public IReadOnlyList<LensRectangle> Rectangles { get; init; } = [];
+
+    /// <summary>Width of the band around each rectangle in which its edge is settled per block; see <see cref="FoundRectangles.Margin"/>.</summary>
+    public float RectangleMargin { get; init; }
+
     public Rgb8 PageColour => Srgb.FromEncoded(PageEncoded);
 
     public Rgb8 TextColour => Srgb.FromEncoded(TextEncoded);
@@ -78,6 +90,9 @@ public sealed record FrameParameters
             LocalContrast = Mix(a.LocalContrast, b.LocalContrast, t),
             Sharpen = Mix(a.Sharpen, b.Sharpen, t),
             StrongSharpen = Mix(a.StrongSharpen, b.StrongSharpen, t),
+            RectanglesOnly = Mix(a.RectanglesOnly, b.RectanglesOnly, t),
+            Rectangles = b.RectanglesOnly > 0f ? b.Rectangles : a.Rectangles,
+            RectangleMargin = b.RectanglesOnly > 0f ? b.RectangleMargin : a.RectangleMargin,
         };
     }
 }
@@ -108,6 +123,16 @@ public sealed class LensTables
     public Theme Theme { get; }
 
     public RoleMap Roles { get; }
+
+    /// <summary>The same look with other parameters. The tables are shared, not copied.</summary>
+    public LensTables With(FrameParameters parameters) => new(Light, Dark, parameters, Theme, Roles);
+
+    /// <summary>The same look with the rectangles of the "rectangles only" option filled in.</summary>
+    public LensTables WithRectangles(FoundRectangles found)
+    {
+        ArgumentNullException.ThrowIfNull(found);
+        return With(Parameters with { Rectangles = found.Items, RectangleMargin = found.Margin });
+    }
 
     public Lut3D For(RegionPolarity region) => region == RegionPolarity.Light ? Light : Dark;
 

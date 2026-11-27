@@ -13,7 +13,7 @@ namespace ThemeLens.Platform.Windows;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 internal struct FrameConstants
 {
-    public const int SizeInBytes = 8 * 16;
+    public const int SizeInBytes = (8 + (2 * LensConstants.MaxRectangles)) * 16;
 
     // Row 0
     public Vector3 PageEncoded;
@@ -55,9 +55,22 @@ internal struct FrameConstants
 
     // Row 7
     public float OneTable;
-    public float Unused0;
-    public float Unused1;
-    public float Unused2;
+    public float RectanglesOnly;
+    public float RectangleCount;
+    public float RectangleMargin;
+
+    // Rows 8 to 23: left, top, right, bottom of each rectangle.
+    public RectangleRows RectangleBounds;
+
+    // Rows 24 to 39: level and weight of each rectangle.
+    public RectangleRows RectangleExtras;
+}
+
+/// <summary>Sixteen rows of a constant buffer: one <c>float4</c> per rectangle of the "rectangles only" option.</summary>
+[System.Runtime.CompilerServices.InlineArray(LensConstants.MaxRectangles)]
+internal struct RectangleRows
+{
+    private Vector4 _first;
 }
 
 /// <summary>The <c>Rules</c> constant buffer of <c>lens.hlsl</c>: every number the shader takes from <see cref="LensConstants"/>.</summary>

@@ -2,6 +2,7 @@
 using ThemeLens.Core.Analysis;
 using ThemeLens.Core.Colour;
 using ThemeLens.Core.Mapping;
+using ThemeLens.Core.Rendering;
 using ThemeLens.Core.Themes;
 
 namespace ThemeLens.Engine;
@@ -64,6 +65,14 @@ public sealed class LensController : IDisposable
     private bool _hiddenForIdentity;
     private bool _sourceRunning;
     private bool _editWanted;
+    private readonly List<ShownRectangle> _rectangles = [];
+    private IReadOnlyList<PixelRect> _screens = [];
+    private int _rectangleMargin;
+    private ThemeBase? _rectanglesBase;
+    private float _rectanglesKnown;
+    private TimeSpan _rectanglesMoved;
+    private LensTables? _rectangleSource;
+    private LensTables? _rectangleLook;
     private int _framesSinceAnalysis;
     private TimeSpan? _lastAnalysisRequest;
     private bool _slow;
@@ -137,6 +146,21 @@ public sealed class LensController : IDisposable
 
             _area = area;
             _frameDirty = true;
+            UpdateScreenPixels();
+        }
+    }
+
+    /// <summary>
+    /// Tells the engine where the screens are. The "rectangles only" option measures areas as shares of the
+    /// screen the lens is on; until this is called, the lens area itself is taken for the screen.
+    /// </summary>
+    public void SetScreens(IReadOnlyList<PixelRect> screens)
+    {
+        ArgumentNullException.ThrowIfNull(screens);
+        lock (_gate)
+        {
+            _screens = [.. screens];
+            UpdateScreenPixels();
         }
     }
 
@@ -151,6 +175,8 @@ public sealed class LensController : IDisposable
 
             _captureProblem = null;
             _analyser.Reset();
+            ForgetRectangles();
+            _rectanglesKnown = 0f;
             _target = _analyser.Tables;
             _fade = null;
             _hiddenForIdentity = false;
@@ -234,6 +260,19 @@ public sealed class LensController : IDisposable
             TimeSpan now = _clock.Now;
             LensTables current = CurrentLook(now, out _);
             LensTables next = _analyser.SetTheme(theme);
+            if (!theme.RectanglesOnly || _rectanglesBase != theme.Base)
+            {
+                // The rectangles on hand no longer count as known: the next look has to find its own. They are
+                // kept for the fade into the new look, so that what was dark does not flash bright on the way.
+                _rectanglesBase = null;
+            }
+
+            if (theme.RectanglesOnly)
+            {
+                // The values may have changed: look again without waiting for the screen to change.
+                _framesSinceAnalysis = Math.Max(_framesSinceAnalysis, 1);
+                _lastAnalysisRequest = null;
+            }
 
             if (_state == LensState.Off)
             {
@@ -364,6 +403,8 @@ public sealed class LensController : IDisposable
             }
 
             LensTables look = CurrentLook(now, out bool fading);
+            bool rectanglesMoving = AdvanceRectangles(now);
+            look = WithRectangles(look);
             if (look.Parameters.Identity && !fading)
             {
                 _hiddenForIdentity = true;
@@ -373,13 +414,13 @@ public sealed class LensController : IDisposable
                 return;
             }
 
-            if (_lastFrame is not null && (_frameDirty || fading || _lookDirty))
+            if (_lastFrame is not null && (_frameDirty || fading || _lookDirty || rectanglesMoving))
             {
                 TimeSpan started = _clock.Now;
                 _surface.ShowFrame(_lastFrame, look);
                 TimeSpan finished = _clock.Now;
                 _frameDirty = false;
-                _lookDirty = fading;
+                _lookDirty = fading || rectanglesMoving;
                 Measure(finished - started, finished - _lastFrame.CapturedAt);
             }
 
@@ -507,8 +548,183 @@ public sealed class LensController : IDisposable
             _target = analysis.Tables;
         }
 
+        Theme theme = _target.Theme;
+        if (analysis.Rectangles is { } found && theme.RectanglesOnly && analysis.RectanglesBase == theme.Base)
+        {
+            TakeRectangles(found, theme.Base);
+        }
+
         MappingChanged?.Invoke(new LensMapping(analysis.Scene, analysis.Roles, analysis.Tables));
     }
+
+    /// <summary>
+    /// Replaces the rectangles with the ones just found. A rectangle that is found again stays as it is, in its
+    /// new place; a new one applies at once, so a bright window is dark as early as possible; one that is no
+    /// longer found fades out instead of jumping back (section 4.1, no flashes).
+    /// </summary>
+    private void TakeRectangles(FoundRectangles found, ThemeBase themeBase)
+    {
+        var next = new List<ShownRectangle>(found.Items.Count);
+        foreach (LensRectangle rectangle in found.Items)
+        {
+            next.Add(new ShownRectangle(rectangle with { Weight = 1f }, Leaving: false));
+        }
+
+        if (_rectanglesBase == themeBase)
+        {
+            foreach (ShownRectangle old in _rectangles)
+            {
+                if (next.Count >= LensConstants.MaxRectangles)
+                {
+                    break;
+                }
+
+                bool foundAgain = false;
+                foreach (LensRectangle rectangle in found.Items)
+                {
+                    if (SameRectangle(old.Rectangle, rectangle))
+                    {
+                        foundAgain = true;
+                        break;
+                    }
+                }
+
+                if (!foundAgain && old.Rectangle.Weight > 0f)
+                {
+                    next.Add(old with { Leaving = true });
+                }
+            }
+        }
+
+        _rectangles.Clear();
+        _rectangles.AddRange(next);
+        _rectangleMargin = found.Margin;
+        _rectanglesBase = themeBase;
+        _rectangleLook = null;
+        _lookDirty = true;
+    }
+
+    private void ForgetRectangles()
+    {
+        _rectangles.Clear();
+        _rectanglesBase = null;
+        _rectangleLook = null;
+    }
+
+    /// <summary>True when the two cover mostly the same pixels of the lens.</summary>
+    private bool SameRectangle(LensRectangle a, LensRectangle b)
+    {
+        LensRectangle Clip(LensRectangle r) => r with
+        {
+            Right = Math.Min(r.Right, Math.Max(_area.Width, r.Left + 1)),
+            Bottom = Math.Min(r.Bottom, Math.Max(_area.Height, r.Top + 1)),
+        };
+
+        a = Clip(a);
+        b = Clip(b);
+        long shared = a.IntersectionArea(b);
+        long together = a.Area + b.Area - shared;
+        return together > 0 && shared * 2 >= together;
+    }
+
+    /// <summary>
+    /// Moves the fades of the "rectangles only" option on to <paramref name="now"/>: rectangles that are no
+    /// longer found lose weight, and the option itself takes hold once rectangles are known. Returns true while
+    /// something is still moving, so that frames keep being shown on a still screen.
+    /// </summary>
+    private bool AdvanceRectangles(TimeSpan now)
+    {
+        float step = (float)Math.Clamp((now - _rectanglesMoved) / FadeDuration, 0.0, 1.0);
+        _rectanglesMoved = now;
+        bool moving = false;
+
+        // Until the first rectangles for this kind of theme are in, the lens changes everything: the background
+        // comes first, and a bright window must not show through while the lens is still looking.
+        float known = _target.Theme.RectanglesOnly && _rectanglesBase == _target.Theme.Base ? 1f : 0f;
+        if (_rectanglesKnown != known)
+        {
+            _rectanglesKnown = _rectanglesKnown < known
+                ? Math.Min(known, _rectanglesKnown + step)
+                : Math.Max(known, _rectanglesKnown - step);
+            _rectangleLook = null;
+            moving = true;
+        }
+
+        for (int i = _rectangles.Count - 1; i >= 0; i--)
+        {
+            ShownRectangle shown = _rectangles[i];
+            if (!shown.Leaving)
+            {
+                continue;
+            }
+
+            float weight = shown.Rectangle.Weight - step;
+            if (weight <= 0f)
+            {
+                _rectangles.RemoveAt(i);
+            }
+            else
+            {
+                _rectangles[i] = shown with { Rectangle = shown.Rectangle with { Weight = weight } };
+            }
+
+            _rectangleLook = null;
+            moving = true;
+        }
+
+        return moving;
+    }
+
+    /// <summary>The look with the current rectangles filled in. Looks without the option pass through untouched.</summary>
+    private LensTables WithRectangles(LensTables look)
+    {
+        FrameParameters p = look.Parameters;
+        if (p.Identity || p.RectanglesOnly <= 0f)
+        {
+            return look;
+        }
+
+        if (_rectangleLook is not null && ReferenceEquals(_rectangleSource, look))
+        {
+            return _rectangleLook;
+        }
+
+        var rectangles = new LensRectangle[_rectangles.Count];
+        for (int i = 0; i < rectangles.Length; i++)
+        {
+            rectangles[i] = _rectangles[i].Rectangle;
+        }
+
+        _rectangleSource = look;
+        _rectangleLook = look.With(p with
+        {
+            RectanglesOnly = p.RectanglesOnly * _rectanglesKnown,
+            Rectangles = rectangles,
+            RectangleMargin = _rectangleMargin,
+        });
+        return _rectangleLook;
+    }
+
+    /// <summary>The size of the screen that holds most of the lens, for the analyser.</summary>
+    private void UpdateScreenPixels()
+    {
+        long best = 0;
+        long pixels = 0;
+        foreach (PixelRect screen in _screens)
+        {
+            long shared = screen.IntersectionArea(_area);
+            if (shared > best)
+            {
+                best = shared;
+                pixels = (long)screen.Width * screen.Height;
+            }
+        }
+
+        _analyser.ScreenPixels = pixels;
+    }
+
+    /// <summary>A rectangle as shown, and whether it is on its way out.</summary>
+    private readonly record struct ShownRectangle(LensRectangle Rectangle, bool Leaving);
 
     private LensTables CurrentLook(TimeSpan now, out bool fading)
     {

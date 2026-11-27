@@ -91,6 +91,7 @@ public static class TableBuilder
             LocalContrast = theme.Contrast is { IsOn: true, Mode: ContrastMode.Local } ? theme.Contrast.Amount : 0f,
             Sharpen = theme.Sharpen is { IsOn: true, Mode: SharpenMode.Standard } ? theme.Sharpen.Amount : 0f,
             StrongSharpen = theme.Sharpen is { IsOn: true, Mode: SharpenMode.Strong } ? theme.Sharpen.Amount : 0f,
+            RectanglesOnly = theme.RectanglesOnly ? 1f : 0f,
         };
 
         if (theme.Base == ThemeBase.Keep)
