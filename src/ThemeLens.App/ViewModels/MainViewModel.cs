@@ -27,6 +27,12 @@ public sealed record KeepChoice(KeepBackgroundMode Mode, string Name)
     public override string ToString() => Name;
 }
 
+/// <summary>What the "rectangles only" option looks for, as the drop-down list shows it.</summary>
+public sealed record RectangleTargetChoice(RectangleTarget Target, string Name)
+{
+    public override string ToString() => Name;
+}
+
 /// <summary>One line of the shortcut list: the action, and its keys or "not set".</summary>
 public sealed record ShortcutRow(string Action, string Keys, bool IsSet)
 {
@@ -78,6 +84,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             new KeepChoice(KeepBackgroundMode.Strict, Strings.KeepStrict),
             new KeepChoice(KeepBackgroundMode.Balanced, Strings.KeepBalanced),
             new KeepChoice(KeepBackgroundMode.Off, Strings.KeepOff),
+        ];
+
+        RectangleTargets =
+        [
+            new RectangleTargetChoice(RectangleTarget.Bright, Strings.RectanglesTargetBright),
+            new RectangleTargetChoice(RectangleTarget.Dark, Strings.RectanglesTargetDark),
         ];
 
         RoleChoices =
@@ -167,6 +179,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The ways of keeping the background, for the drop-down list.</summary>
     public IReadOnlyList<KeepChoice> KeepChoices { get; }
+
+    public IReadOnlyList<RectangleTargetChoice> RectangleTargets { get; }
 
     /// <summary>The roles a found colour can be used as, for the lists in the mapping table.</summary>
     public IReadOnlyList<RoleChoice> RoleChoices { get; }
@@ -259,27 +273,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ResetAdjustmentsCommand))]
     public partial bool HasAdjustments { get; set; }
 
-    // "Rectangles only" (section 5.6): one set of values for dark themes, one for light themes.
+    // "Rectangles only" (section 5.6): one set of values for bright rectangles, one for dark ones.
 
     /// <summary>True when the lens changes only the rectangles it finds.</summary>
     [ObservableProperty]
     public partial bool RectanglesOnly { get; set; }
 
-    /// <summary>False under a theme that leaves light and dark as they are.</summary>
+    /// <summary>Bright rectangles or dark ones. Follows the theme while <see cref="RectangleOwnTarget"/> is off.</summary>
     [ObservableProperty]
-    public partial bool CanUseRectangles { get; set; }
+    public partial RectangleTargetChoice? SelectedRectangleTarget { get; set; }
 
-    /// <summary>Share of the screen, 0.005 to 1: the left handle. Smaller rectangles are never changed.</summary>
+    /// <summary>False while the theme decides what is looked for.</summary>
+    [ObservableProperty]
+    public partial bool CanChooseRectangleTarget { get; set; } = true;
+
+    /// <summary>Preview setting, on by default: the user chooses the target, whatever the theme.</summary>
+    [ObservableProperty]
+    public partial bool RectangleOwnTarget { get; set; } = true;
+
+    /// <summary>Preview setting, on by default: a found rectangle is plainly inverted, whatever the theme.</summary>
+    [ObservableProperty]
+    public partial bool RectanglePlain { get; set; } = true;
+
+    /// <summary>Side of a square in pixels, from 10: the left handle. Smaller rectangles are never changed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RectangleAreaText))]
     [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
-    public partial double RectangleSmallestArea { get; set; } = 0.02;
+    public partial double RectangleSmallestSide { get; set; } = 200;
 
-    /// <summary>Share of the screen, 0.005 to 1: the right handle. From this size on the brightness alone decides.</summary>
+    /// <summary>Side of a square in pixels: the right handle. From this size on the brightness alone decides.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RectangleAreaText))]
     [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
-    public partial double RectangleFullArea { get; set; } = 0.2;
+    public partial double RectangleFullSide { get; set; } = 640;
+
+    /// <summary>The right end of the size bar: the side of the square that covers half the screen the lens is on.</summary>
+    [ObservableProperty]
+    public partial double RectangleLargestSide { get; set; } = 1018;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RectangleBrightnessText))]
@@ -293,25 +323,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public partial double RectangleBrightnessMaximum { get; set; } = 1;
 
     [ObservableProperty]
-    public partial string RectanglesSwitchText { get; set; } = Strings.RectanglesSwitchDark;
+    public partial string RectanglesSwitchText { get; set; } = Strings.RectanglesSwitchBright;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RectanglesHelp))]
     public partial string RectangleBrightnessLabel { get; set; } = Strings.RectanglesBrightLabel;
 
     public string RectangleAreaText =>
-        Strings.Format(Strings.RectanglesAreaValue, PercentNumber(RectangleSmallestArea), PercentNumber(RectangleFullArea));
+        Strings.Format(Strings.RectanglesAreaValue, Whole(RectangleSmallestSide), Whole(RectangleFullSide));
 
     public string RectangleBrightnessText => Percent(RectangleBrightness);
 
     /// <summary>The three values in a sentence, so the two handles and the slider need no manual.</summary>
     public string RectanglesHelp =>
-        !CanUseRectangles ? Strings.RectanglesHelpKeep
-        : Strings.Format(
-            RectangleBrightnessLabel == Strings.RectanglesDarkLabel ? Strings.RectanglesHelpLight : Strings.RectanglesHelpDark,
-            PercentNumber(RectangleSmallestArea),
-            PercentNumber(RectangleFullArea),
-            PercentNumber(RectangleBrightness));
+        Strings.Format(
+            RectangleBrightnessLabel == Strings.RectanglesDarkLabel ? Strings.RectanglesHelpDark : Strings.RectanglesHelpBright,
+            Whole(RectangleSmallestSide),
+            Whole(RectangleFullSide),
+            Whole(RectangleBrightness * 100));
 
     public string BrightnessText => Percent(BrightnessLimit);
 
@@ -475,12 +504,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ThemesView));
     }
 
-    /// <summary>A share as a number of per cent: whole numbers, and one decimal below 10 where there is one.</summary>
-    private static string PercentNumber(double share)
-    {
-        double percent = Math.Round(share * 100, 1);
-        return percent.ToString(percent < 10 && percent != Math.Floor(percent) ? "0.0" : "0", CultureInfo.CurrentCulture);
-    }
+    private static string Whole(double value) => Math.Round(value).ToString("0", CultureInfo.CurrentCulture);
 
     private static string Percent(double share) =>
         Strings.Format(Strings.PercentValue, Math.Round(share * 100).ToString("0", CultureInfo.CurrentCulture));
@@ -502,14 +526,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ShowRectangles();
     }
 
-    /// <summary>Puts the "rectangles only" values for the selected theme's base into the controls. Call inside <see cref="Sync"/>.</summary>
+    /// <summary>Puts the "rectangles only" option into the controls. Call inside <see cref="Sync"/>.</summary>
     private void ShowRectangles()
     {
-        ThemeBase themeBase = _session.SelectedTheme.Base;
-        RectangleSettings rectangles = _session.RectanglesAvailable ? _session.Rectangles : RectangleSettings.DefaultFor(themeBase);
-        bool dark = themeBase == ThemeBase.Light;
+        RectanglePreferences preferences = _session.Rectangles;
+        RectangleOption option = _session.RectangleOption;
+        bool dark = option.Target == RectangleTarget.Dark;
 
-        // The range first: a slider pulls its value into the range it has at that moment.
+        // The ranges first: a slider pulls its value into the range it has at that moment.
         if (dark)
         {
             RectangleBrightnessMinimum = 0;
@@ -521,54 +545,105 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             RectangleBrightnessMinimum = RectangleSettings.LowestBrightThreshold;
         }
 
+        double largest = RectangleSettings.HalfScreenSide(LensScreenPixels());
+        RectangleLargestSide = largest;
         RectangleBrightnessLabel = dark ? Strings.RectanglesDarkLabel : Strings.RectanglesBrightLabel;
-        RectanglesSwitchText = themeBase switch
-        {
-            ThemeBase.Dark => Strings.RectanglesSwitchDark,
-            ThemeBase.Light => Strings.RectanglesSwitchLight,
-            _ => Strings.RectanglesSwitchKeep,
-        };
-        CanUseRectangles = _session.RectanglesAvailable;
-        RectanglesOnly = rectangles.On;
-        RectangleFullArea = rectangles.FullArea;
-        RectangleSmallestArea = rectangles.SmallestArea;
-        RectangleBrightness = rectangles.Brightness;
+        RectanglesSwitchText = dark ? Strings.RectanglesSwitchDark : Strings.RectanglesSwitchBright;
+        RectangleOwnTarget = preferences.OwnTarget;
+        RectanglePlain = preferences.PlainInversion;
+        CanChooseRectangleTarget = preferences.OwnTarget || !_session.SelectedTheme.HasRoles;
+        SelectedRectangleTarget = RectangleTargets.First(choice => choice.Target == option.Target);
+        RectanglesOnly = preferences.On;
+        RectangleFullSide = Math.Min(option.Values.FullSide, largest);
+        RectangleSmallestSide = Math.Min(option.Values.SmallestSide, largest);
+        RectangleBrightness = option.Values.Brightness;
         OnPropertyChanged(nameof(RectanglesHelp));
     }
 
-    private void SetRectangles(Func<RectangleSettings, RectangleSettings> change)
+    /// <summary>The size in pixels of the screen that holds most of the lens.</summary>
+    private long LensScreenPixels()
     {
-        if (_syncing)
+        PixelRect lens = _runtime.LensBounds;
+        long best = -1;
+        long pixels = 1920L * 1080L;
+        foreach (ScreenInfo screen in _runtime.Screens)
         {
-            return;
+            long shared = screen.Bounds.IntersectionArea(lens);
+            if (shared > best)
+            {
+                best = shared;
+                pixels = (long)screen.Bounds.Width * screen.Bounds.Height;
+            }
         }
 
-        _session.SetRectangles(change);
+        return pixels;
+    }
+
+    private void SetRectangles(Func<RectanglePreferences, RectanglePreferences> change)
+    {
+        if (!_syncing)
+        {
+            _session.SetRectangles(change);
+        }
+    }
+
+    private void SetRectangleValues()
+    {
+        if (!_syncing)
+        {
+            _session.SetRectangleValues(values => values with
+            {
+                SmallestSide = (float)RectangleSmallestSide,
+                FullSide = (float)RectangleFullSide,
+                Brightness = (float)RectangleBrightness,
+            });
+        }
     }
 
     partial void OnRectanglesOnlyChanged(bool value) => SetRectangles(r => r with { On = value });
 
-    partial void OnRectangleBrightnessChanged(double value) => SetRectangles(r => r with { Brightness = (float)value });
+    partial void OnRectanglePlainChanged(bool value) => SetRectangles(r => r with { PlainInversion = value });
 
-    partial void OnRectangleSmallestAreaChanged(double value)
+    partial void OnRectangleOwnTargetChanged(bool value)
     {
-        // The handles cannot pass each other: the one that is moved pushes the other along.
-        if (value > RectangleFullArea)
+        if (!_syncing)
         {
-            RectangleFullArea = value;
+            // What is looked for may be the other kind now, and that kind has values of its own.
+            _session.SetRectangles(r => r with { OwnTarget = value });
+            Sync(ShowRectangles);
         }
-
-        SetRectangles(r => r with { SmallestArea = (float)RectangleSmallestArea, FullArea = (float)RectangleFullArea });
     }
 
-    partial void OnRectangleFullAreaChanged(double value)
+    partial void OnSelectedRectangleTargetChanged(RectangleTargetChoice? value)
     {
-        if (value < RectangleSmallestArea)
+        if (!_syncing && value is not null)
         {
-            RectangleSmallestArea = value;
+            _session.SetRectangles(r => r with { Target = value.Target });
+            Sync(ShowRectangles);
+        }
+    }
+
+    partial void OnRectangleBrightnessChanged(double value) => SetRectangleValues();
+
+    partial void OnRectangleSmallestSideChanged(double value)
+    {
+        // The handles cannot pass each other: the one that is moved pushes the other along.
+        if (value > RectangleFullSide)
+        {
+            RectangleFullSide = value;
         }
 
-        SetRectangles(r => r with { SmallestArea = (float)RectangleSmallestArea, FullArea = (float)RectangleFullArea });
+        SetRectangleValues();
+    }
+
+    partial void OnRectangleFullSideChanged(double value)
+    {
+        if (value < RectangleSmallestSide)
+        {
+            RectangleSmallestSide = value;
+        }
+
+        SetRectangleValues();
     }
 
     private void Adjust(Func<ThemeAdjustments, ThemeAdjustments> change)
@@ -684,6 +759,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 {
                     IsEditMode = _runtime.IsEditMode;
                     FillsScreen = _runtime.Placement.FillsScreen;
+
+                    // The lens may be on another screen now, and half of that screen may be another size.
+                    RectangleLargestSide = RectangleSettings.HalfScreenSide(LensScreenPixels());
                 });
             }
         });

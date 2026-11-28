@@ -53,15 +53,26 @@ public sealed record FrameParameters
 
     /// <summary>
     /// 0 when the lens changes everything under it; 1 when the "rectangles only" option is on and it changes
-    /// only what lies inside <see cref="Rectangles"/> (section 5.6). In between while one fades into the other.
+    /// only what <see cref="Mask"/> selects (section 5.6). In between while one fades into the other, and 0
+    /// while the option is on but the lens has not found its rectangles yet.
     /// </summary>
     public float RectanglesOnly { get; init; }
 
-    /// <summary>The rectangles found by the latest analysis. Only read while <see cref="RectanglesOnly"/> is above 0.</summary>
-    public IReadOnlyList<LensRectangle> Rectangles { get; init; } = [];
+    /// <summary>
+    /// What is changed while <see cref="RectanglesOnly"/> is still 0: 1 every pixel (the lens without the
+    /// option, and the option with rectangles shown in the theme), 0 every pixel in a region of the kind the
+    /// option looks for (the option with plain inversion: it must not invert what is dark already).
+    /// </summary>
+    public float RectangleBaseline { get; init; } = 1f;
 
-    /// <summary>Width of the band around each rectangle in which its edge is settled per block; see <see cref="FoundRectangles.Margin"/>.</summary>
-    public float RectangleMargin { get; init; }
+    /// <summary>+1 when bright rectangles are looked for, −1 for dark ones. Only read with the option on.</summary>
+    public float RectangleTarget { get; init; } = 1f;
+
+    /// <summary>The rectangles found by the latest analysis, or null before the first one.</summary>
+    public RectangleMask? Mask { get; init; }
+
+    /// <summary>True when some pixels may be left as they are, so the renderer has to ask for each one.</summary>
+    public bool SelectsPixels => RectanglesOnly > 0f || RectangleBaseline < 1f;
 
     public Rgb8 PageColour => Srgb.FromEncoded(PageEncoded);
 
@@ -91,8 +102,9 @@ public sealed record FrameParameters
             Sharpen = Mix(a.Sharpen, b.Sharpen, t),
             StrongSharpen = Mix(a.StrongSharpen, b.StrongSharpen, t),
             RectanglesOnly = Mix(a.RectanglesOnly, b.RectanglesOnly, t),
-            Rectangles = b.RectanglesOnly > 0f ? b.Rectangles : a.Rectangles,
-            RectangleMargin = b.RectanglesOnly > 0f ? b.RectangleMargin : a.RectangleMargin,
+            RectangleBaseline = Mix(a.RectangleBaseline, b.RectangleBaseline, t),
+            RectangleTarget = b.SelectsPixels ? b.RectangleTarget : a.RectangleTarget,
+            Mask = b.SelectsPixels ? b.Mask ?? a.Mask : a.Mask,
         };
     }
 }
@@ -131,7 +143,7 @@ public sealed class LensTables
     public LensTables WithRectangles(FoundRectangles found)
     {
         ArgumentNullException.ThrowIfNull(found);
-        return With(Parameters with { Rectangles = found.Items, RectangleMargin = found.Margin });
+        return With(Parameters with { Mask = found.ToMask() });
     }
 
     public Lut3D For(RegionPolarity region) => region == RegionPolarity.Light ? Light : Dark;

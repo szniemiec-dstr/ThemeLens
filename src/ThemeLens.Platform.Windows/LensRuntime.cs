@@ -125,7 +125,6 @@ public sealed class LensRuntime : IDisposable
             FrameSources.Notify(_source, () => _wake.Set());
 
             Controller = new LensController(_clock, _source, _surface, new BackgroundAnalysisRunner(), theme);
-            Controller.SetScreens([.. _screens.Select(static s => s.Bounds)]);
             Controller.SetArea(_lens);
             Controller.StatusChanged += OnStatusChanged;
 
@@ -328,7 +327,6 @@ public sealed class LensRuntime : IDisposable
             if (moved || otherScreen || screensChanged)
             {
                 _surface.SetBounds(lens, screenBounds);
-                Controller.SetScreens([.. Screens.Select(static s => s.Bounds)]);
                 Controller.SetArea(lens);
             }
         }

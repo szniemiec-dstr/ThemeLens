@@ -12,54 +12,53 @@ namespace ThemeLens.Specs.Steps;
 [Binding]
 public sealed class RectangleSteps(LensWorld world)
 {
-    [Given("the theme {string} with rectangles only from {float}% to {float}% of the screen at {int}% brightness")]
-    public void GivenTheThemeWithRectanglesOnly(string name, float smallest, float full, int brightness)
+    [Given("the theme {string} with bright rectangles only, from {int} to {int} pixels at {int}% brightness")]
+    public void GivenTheThemeWithBrightRectanglesOnly(string name, int smallest, int full, int brightness) =>
+        world.Theme = LensWorld.ThemeNamed(name) with { Rectangles = Option(RectangleTarget.Bright, smallest, full, brightness) };
+
+    [Given("the theme {string} with dark rectangles only, from {int} to {int} pixels at {int}% brightness")]
+    public void GivenTheThemeWithDarkRectanglesOnly(string name, int smallest, int full, int brightness) =>
+        world.Theme = LensWorld.ThemeNamed(name) with { Rectangles = Option(RectangleTarget.Dark, smallest, full, brightness) };
+
+    [Given("found rectangles are shown in the theme's colours")]
+    public void GivenFoundRectanglesAreShownInTheThemesColours()
     {
-        Theme theme = LensWorld.ThemeNamed(name);
-        world.Theme = theme with
-        {
-            Rectangles = new RectangleSettings
-            {
-                On = true,
-                SmallestArea = smallest / 100f,
-                FullArea = full / 100f,
-                Brightness = brightness / 100f,
-            }.For(theme.Base),
-        };
+        Theme theme = world.RequireTheme();
+        world.Theme = theme with { Rectangles = theme.Rectangles with { InTheme = true } };
     }
 
     [Given("sharpen at {int}%")]
     public void GivenSharpenAt(int percent) =>
         world.Theme = world.RequireTheme() with { Sharpen = new SharpenSettings(percent / 100f, SharpenMode.Standard) };
 
-    [Given("the screen is {int} times the size of the lens")]
-    public void GivenTheScreenIsTimesTheSizeOfTheLens(int times) =>
-        world.ScreenPixels = (long)Fixtures.Width * Fixtures.Height * times;
-
     /// <summary>
-    /// One flat rectangle on a desktop of the opposite kind: a dark desktop under a dark theme, where the
-    /// option looks for bright rectangles, and a light desktop under a light theme.
+    /// One flat square on a desktop of the opposite kind: a dark desktop when bright rectangles are looked for,
+    /// a light one for dark rectangles. It does not sit on the grid of 4-pixel blocks.
     /// </summary>
-    [Given("the screen shows a rectangle {int}% bright that covers {float}% of the screen")]
-    public void GivenTheScreenShowsARectangle(int brightness, float size)
+    [Given("the screen shows a rectangle {int}% bright as large as a square of {int} pixels")]
+    public void GivenTheScreenShowsARectangle(int brightness, int side)
     {
-        bool lightDesktop = world.RequireTheme().Base == ThemeBase.Light;
+        bool lightDesktop = world.RequireTheme().Rectangles.Target == RectangleTarget.Dark;
         Rgb8 desktop = lightDesktop ? Rgb8.FromHex("#E4DBCF") : Rgb8.FromHex("#1B2430");
         byte level = (byte)Math.Round(brightness * 255 / 100.0);
-        var colour = new Rgb8(level, level, level);
-
-        // Sixteen wide to ten high like the screen, on whole 4-pixel blocks.
-        double pixels = size / 100.0 * Fixtures.Width * Fixtures.Height;
-        int height = (int)Math.Round(Math.Sqrt(pixels / 1.6) / 4) * 4;
-        int width = (int)Math.Round(pixels / height / 4) * 4;
         var canvas = new Canvas(Fixtures.Width, Fixtures.Height, desktop);
-        canvas.Fill(40, 40, width, height, colour);
+        canvas.Fill(41, 38, side, side, new Rgb8(level, level, level));
         world.Fixture = new Fixture("one-rectangle", canvas.Image, desktop, desktop, new Dictionary<string, Rect>
         {
-            ["rectangle"] = new(40, 40, width, height),
+            ["rectangle"] = new(41, 38, side, side),
             ["desktop"] = new(Fixtures.Width - 48, Fixtures.Height - 40, 40, 32),
         });
     }
+
+    [Then("the {string} is shown dark")]
+    public void ThenTheAreaIsShownDark(string area) =>
+        Ground(world.RequireResult().Source, world.RequireResult().Output, area).ShouldBeLessThanOrEqualTo(
+            DarkAtMost, $"the {area} should have been turned dark");
+
+    [Then("the {string} is shown light")]
+    public void ThenTheAreaIsShownLight(string area) =>
+        Ground(world.RequireResult().Source, world.RequireResult().Output, area).ShouldBeGreaterThanOrEqualTo(
+            LightAtLeast, $"the {area} should have been turned light");
 
     [Then("the {string} is shown as it is on the screen")]
     public void ThenTheAreaIsShownAsItIsOnTheScreen(string area)
@@ -83,33 +82,25 @@ public sealed class RectangleSteps(LensWorld world)
     private void SwitchRectangles(bool on)
     {
         Theme theme = world.RequireTheme();
-        world.Theme = theme with { Rectangles = (theme.Rectangles.On ? theme.Rectangles : RectangleSettings.DefaultFor(theme.Base)) with { On = on } };
+        RectangleOption option = theme.Rectangles.On ? theme.Rectangles : Option(RectangleTarget.Bright, 100, 300, 75);
+        world.Theme = theme with { Rectangles = option with { On = on } };
         EngineHarness engine = world.RequireEngine();
         engine.Controller.SetTheme(world.Theme);
         engine.RunFor(TimeSpan.FromMilliseconds(400));
     }
 
-    [Then("no frame so far shows the {string} brighter than the theme allows")]
-    public void ThenNoFrameSoFarShowsTheAreaBrighter(string area)
+    [Then("no frame so far shows the page of the {string} bright")]
+    public void ThenNoFrameSoFarShowsThePageOfTheAreaBright(string area)
     {
         EngineHarness engine = world.RequireEngine();
-        Rect rect = Region(area);
-        float limit = world.RequireTheme().Limits.MaxLuminance;
+        ImageRgb8 screen = world.RequireFixture().Image;
         engine.Surface.Shown.Count(s => s.Kind == PresentedKind.Frame).ShouldBeGreaterThan(0, "the lens should have shown the screen by now");
         foreach (Presented shown in engine.Surface.Shown)
         {
-            if (shown.Picture is not { } picture)
+            if (shown.Picture is { } picture)
             {
-                continue;
-            }
-
-            for (int y = rect.Y; y < rect.Y + rect.Height; y++)
-            {
-                for (int x = rect.X; x < rect.X + rect.Width; x++)
-                {
-                    Wcag.Luminance(picture[x, y]).ShouldBeLessThanOrEqualTo(
-                        limit + 0.004f, $"a pixel of the {area} was shown too bright {shown.At.TotalMilliseconds:0} ms in");
-                }
+                Ground(screen, picture, area).ShouldBeLessThanOrEqualTo(
+                    0.1f, $"the page of the {area} was shown bright {shown.At.TotalMilliseconds:0} ms in");
             }
         }
     }
@@ -122,24 +113,21 @@ public sealed class RectangleSteps(LensWorld world)
         ShouldBeUntouched(engine.Surface.LastSource!, LastPicture(engine), area);
     }
 
+    [Then("after {int} second the {string} is shown dark")]
+    public void ThenAfterTheAreaIsShownDark(int seconds, string area)
+    {
+        EngineHarness engine = world.RequireEngine();
+        engine.RunFor(TimeSpan.FromSeconds(seconds));
+        Ground(engine.Surface.LastSource!, LastPicture(engine), area).ShouldBeLessThanOrEqualTo(DarkAtMost);
+    }
+
     [Then("after {int} second the {string} is shown close to the page colour")]
     public void ThenAfterTheAreaIsShownCloseToThePageColour(int seconds, string area)
     {
         EngineHarness engine = world.RequireEngine();
         engine.RunFor(TimeSpan.FromSeconds(seconds));
-        ImageRgb8 picture = LastPicture(engine);
-        Rect rect = Region(area);
-        var shown = new List<float>();
-        for (int y = rect.Y; y < rect.Y + rect.Height; y++)
-        {
-            for (int x = rect.X; x < rect.X + rect.Width; x++)
-            {
-                shown.Add(Wcag.Luminance(picture[x, y]));
-            }
-        }
-
-        shown.Sort();
-        Wcag.Contrast(shown[shown.Count / 2], engine.Controller.Look.Parameters.PageLuminance).ShouldBeLessThanOrEqualTo(1.5f);
+        float shown = Ground(engine.Surface.LastSource!, LastPicture(engine), area);
+        Wcag.Contrast(shown, engine.Controller.Look.Parameters.PageLuminance).ShouldBeLessThanOrEqualTo(1.5f);
     }
 
     [Then("after {int} second the picture on screen is the screen as it is")]
@@ -149,6 +137,52 @@ public sealed class RectangleSteps(LensWorld world)
         engine.RunFor(TimeSpan.FromSeconds(seconds));
         LastPicture(engine).ContentEquals(engine.Surface.LastSource!).ShouldBeTrue(
             "with no bright rectangle left on screen, the lens should change nothing");
+    }
+
+    /// <summary>Luminance at or below which an area counts as turned dark: white, light grey and 76% grey all end up below it.</summary>
+    private const float DarkAtMost = 0.06f;
+
+    /// <summary>Luminance at or above which an area counts as turned light.</summary>
+    private const float LightAtLeast = 0.4f;
+
+    private static RectangleOption Option(RectangleTarget target, int smallest, int full, int brightness) => new()
+    {
+        On = true,
+        Target = target,
+        Values = new RectangleSettings { SmallestSide = smallest, FullSide = full, Brightness = brightness / 100f }.For(target),
+    };
+
+    /// <summary>
+    /// The luminance the area's own colour is shown with: the median over the pixels that have the colour most
+    /// of the area has on the screen. What is written on it is left out.
+    /// </summary>
+    private float Ground(ImageRgb8 screen, ImageRgb8 picture, string area)
+    {
+        Rect rect = Region(area);
+        var counts = new Dictionary<Rgb8, int>();
+        for (int y = rect.Y; y < rect.Y + rect.Height; y++)
+        {
+            for (int x = rect.X; x < rect.X + rect.Width; x++)
+            {
+                counts[screen[x, y]] = counts.GetValueOrDefault(screen[x, y]) + 1;
+            }
+        }
+
+        Rgb8 ground = counts.MaxBy(pair => pair.Value).Key;
+        var shown = new List<float>();
+        for (int y = rect.Y; y < rect.Y + rect.Height; y++)
+        {
+            for (int x = rect.X; x < rect.X + rect.Width; x++)
+            {
+                if (screen[x, y] == ground)
+                {
+                    shown.Add(Wcag.Luminance(picture[x, y]));
+                }
+            }
+        }
+
+        shown.Sort();
+        return shown[shown.Count / 2];
     }
 
     private void StartOver(string fixture, TimeSpan time)

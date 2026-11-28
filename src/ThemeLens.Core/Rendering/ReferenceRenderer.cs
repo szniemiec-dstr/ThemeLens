@@ -51,7 +51,7 @@ public static class ReferenceRenderer
         Neighbourhood around = Neighbourhood.Build(source);
         bool oneTable = ReferenceEquals(light, dark);
         bool finish = p.NeedsFinishPass;
-        bool only = p.RectanglesOnly > 0f;
+        bool only = p.SelectsPixels;
 
         // Pass 2: recolour. RGB is the recoloured pixel, A flags pixels that differ from the page by more than an area may.
         // With "rectangles only" on, a second output says how much of the lens's work each pixel gets.
@@ -65,10 +65,11 @@ public static class ReferenceRenderer
                 Rgb8 pixel = source[x, y];
                 Vector3 encoded = Srgb.ToEncoded(pixel);
                 Vector3 o = light.Sample(encoded);
+                float luminance = Wcag.Luminance(pixel);
                 float polarity = 1f;
                 if (!oneTable || only)
                 {
-                    polarity = around.PolarityAt(x, y, p.WholeLensLightFraction, Wcag.Luminance(pixel));
+                    polarity = around.PolarityAt(x, y, p.WholeLensLightFraction, luminance);
                 }
 
                 if (!oneTable)
@@ -77,7 +78,7 @@ public static class ReferenceRenderer
                 }
 
                 // Outside the found rectangles the pixel stays what it was.
-                float share = only ? around.ChangeAt(x, y, polarity, p) : 1f;
+                float share = only ? Neighbourhood.ChangeAt(x, y, polarity, LensConstants.Luma(encoded), p) : 1f;
                 if (!finish)
                 {
                     result[x, y] = Srgb.FromEncoded(Vector3.Lerp(encoded, FinishMath.Clamp(o, p), share));

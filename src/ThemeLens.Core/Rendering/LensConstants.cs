@@ -225,9 +225,6 @@ public static class LensConstants
 
     // ---- Rectangles only (section 5.6) ----
 
-    /// <summary>The shader takes at most this many rectangles.</summary>
-    public const int MaxRectangles = 16;
-
     /// <summary>
     /// Brightness steps between the threshold and pure white. A rectangle is looked for at each step, with the
     /// size that step asks for.
@@ -246,49 +243,34 @@ public static class LensConstants
     /// <summary>… cover at least this share of it.</summary>
     public const float RectangleCover = 0.9f;
 
-    /// <summary>
-    /// How strongly a block is of the kind the option looks for: its brightest pixel under a dark theme, the
-    /// darkness of its darkest pixel under a light one.
-    /// </summary>
-    public static float BlockStrength(float direction, float blockMax, float blockRange) =>
-        direction > 0f ? blockMax : 1f - (blockMax - blockRange);
+    /// <summary>The finder gives up after this many rectangles; a screen with more is not a screen of rectangles.</summary>
+    public const int MaxRectangles = 4096;
 
     /// <summary>
-    /// 1 where the pixel (<paramref name="x"/>, <paramref name="y"/>) belongs to one of the rectangles, 0 where
-    /// it belongs to none. Inside a rectangle every pixel belongs. In the margin around it, where the analysis
-    /// could not see the edge exactly, a pixel belongs when its block is as bright as the rectangle had to be.
+    /// Half an 8-bit step. A pixel passes a level stored in 8 bits when it is within this of it, so that the
+    /// reference and the shader agree on pixels that sit exactly on the level.
     /// </summary>
-    public static float Selected(IReadOnlyList<Analysis.LensRectangle> rectangles, float margin, int x, int y, float blockStrength)
-    {
-        float selected = 0f;
-        for (int i = 0; i < rectangles.Count && i < MaxRectangles; i++)
-        {
-            Analysis.LensRectangle r = rectangles[i];
-            if (x < r.Left - margin || x >= r.Right + margin || y < r.Top - margin || y >= r.Bottom + margin)
-            {
-                continue;
-            }
+    public const float RectangleHalfStep = 0.5f / 255f;
 
-            bool inside = x >= r.Left && x < r.Right && y >= r.Top && y < r.Bottom;
-            if (inside || blockStrength >= r.Level)
-            {
-                selected = MathF.Max(selected, r.Weight);
-            }
-        }
-
-        return selected;
-    }
+    /// <summary>How strongly a pixel is of the kind looked for: its luma for bright rectangles, 1 − luma for dark ones.</summary>
+    public static float RectangleStrength(float target, float luma) => target > 0f ? luma : 1f - luma;
 
     /// <summary>
-    /// How much of the lens's work a pixel gets, 0..1. With the option off, all of it. With it on, a pixel is
-    /// changed only inside a found rectangle, and only where it belongs to the kind of region the rectangle was
-    /// found for (<paramref name="polarity"/> is 1 in light regions); a dark picture inside a white page stays.
+    /// 1 where a pixel lies in a region of the kind the option looks for, 0 where it lies in one of the other
+    /// kind: <paramref name="polarity"/> itself for bright rectangles (it is 1 in light regions), its opposite
+    /// for dark ones.
     /// </summary>
-    public static float Change(float rectanglesOnly, float direction, float selected, float polarity)
-    {
-        float kind = direction > 0f ? polarity : direction < 0f ? 1f - polarity : 1f;
-        return Smooth.Lerp(1f, selected * kind, rectanglesOnly);
-    }
+    public static float RectangleKind(float target, float polarity) => target > 0f ? polarity : 1f - polarity;
+
+    /// <summary>
+    /// How much of the lens's work a pixel gets, 0..1. With the option off, all of it. With it on, what the
+    /// rectangles give it (<paramref name="selected"/>). While the rectangles are not known yet
+    /// (<paramref name="rectanglesOnly"/> still 0), the <paramref name="baseline"/> decides: 1 changes every
+    /// pixel, 0 changes every pixel in a region of the kind looked for (<paramref name="kind"/>, see
+    /// <see cref="RectangleKind"/>). Either way nothing bright is shown before the lens has looked.
+    /// </summary>
+    public static float Change(float rectanglesOnly, float baseline, float kind, float selected) =>
+        Smooth.Lerp(Smooth.Lerp(kind, 1f, baseline), selected, rectanglesOnly);
 
     /// <summary>Rec. 709 luma of an encoded colour. Cheap, and good enough for edge and detail measures.</summary>
     public static float Luma(System.Numerics.Vector3 encoded) => System.Numerics.Vector3.Dot(encoded, Wcag.LuminanceWeights);

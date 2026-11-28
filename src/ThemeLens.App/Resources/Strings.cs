@@ -94,11 +94,15 @@ public static class Strings
 
     public static string RectanglesHeading => Get();
 
+    public static string RectanglesSwitchBright => Get();
+
     public static string RectanglesSwitchDark => Get();
 
-    public static string RectanglesSwitchLight => Get();
+    public static string RectanglesTargetLabel => Get();
 
-    public static string RectanglesSwitchKeep => Get();
+    public static string RectanglesTargetBright => Get();
+
+    public static string RectanglesTargetDark => Get();
 
     public static string RectanglesAreaLabel => Get();
 
@@ -112,11 +116,17 @@ public static class Strings
 
     public static string RectanglesDarkLabel => Get();
 
+    public static string RectanglesHelpBright => Get();
+
     public static string RectanglesHelpDark => Get();
 
-    public static string RectanglesHelpLight => Get();
+    public static string RectanglesPreviewHeading => Get();
 
-    public static string RectanglesHelpKeep => Get();
+    public static string RectanglesOwnTarget => Get();
+
+    public static string RectanglesPlain => Get();
+
+    public static string RectanglesPreviewHelp => Get();
 
     public static string BrightnessLabel => Get();
 

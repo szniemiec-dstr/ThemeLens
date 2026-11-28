@@ -31,7 +31,7 @@ namespace ThemeLens.Platform.Windows;
 /// </remarks>
 public sealed class D3D11LensRenderer : IDisposable
 {
-    private const int ResourceSlots = 16;
+    private const int ResourceSlots = 17;
     private const int SourceSlot = 0;
     private const int FineSlot = 1;
     private const int CoarseSlot = 2;
@@ -48,6 +48,7 @@ public sealed class D3D11LensRenderer : IDisposable
     private const int RegionSlot = 13;
     private const int LocalSlot = 14;
     private const int ShareSlot = 15;
+    private const int RectanglesSlot = 16;
 
     private const Format FrameFormat = Format.B8G8R8A8_UNorm;
     private const Format IntermediateFormat = Format.R8G8B8A8_UNorm;
@@ -93,6 +94,9 @@ public sealed class D3D11LensRenderer : IDisposable
     private RenderTexture? _wide;
     private RenderTexture? _mapped;
     private RenderTexture? _share;
+    private ID3D11Texture2D? _rectangles;
+    private ID3D11ShaderResourceView? _rectanglesView;
+    private RectangleMask? _uploadedRectangles;
     private RenderTexture? _mappedFine;
     private RenderTexture? _mappedCoarse;
     private RenderTexture? _flagShares;
@@ -238,7 +242,8 @@ public sealed class D3D11LensRenderer : IDisposable
     /// <see cref="Neighbourhood.ToThumbnail"/>. It never waits for the GPU. The first call after a frame starts
     /// the copy and returns null; a later call returns the picture once the copy has landed.
     /// </summary>
-    public Thumbnail? TryReadThumbnail()
+    /// <param name="withDetail">True to add the picture with a sample for every block; see <see cref="Thumbnail.Detail"/>.</param>
+    public Thumbnail? TryReadThumbnail(bool withDetail = false)
     {
         lock (Sync)
         {
@@ -285,7 +290,10 @@ public sealed class D3D11LensRenderer : IDisposable
 
                 try
                 {
-                    return ReadThumbnail(mapped, _readbackWidth, _readbackHeight);
+                    Thumbnail? detail = withDetail
+                        ? ReadThumbnail(mapped, _readbackWidth, _readbackHeight, Thumbnail.DetailStrideFor(_readbackWidth, _readbackHeight), null)
+                        : null;
+                    return ReadThumbnail(mapped, _readbackWidth, _readbackHeight, Thumbnail.StrideFor(_readbackWidth, _readbackHeight), detail);
                 }
                 finally
                 {
@@ -449,9 +457,8 @@ public sealed class D3D11LensRenderer : IDisposable
     }
 
     /// <summary><see cref="Neighbourhood.ToThumbnail"/>, read from the second target of the fine pass (centre pixel in RGB, luma range in alpha).</summary>
-    private static unsafe Thumbnail ReadThumbnail(MappedSubresource mapped, int fineWidth, int fineHeight)
+    private static unsafe Thumbnail ReadThumbnail(MappedSubresource mapped, int fineWidth, int fineHeight, int stride, Thumbnail? detail)
     {
-        int stride = Thumbnail.StrideFor(fineWidth, fineHeight);
         int width = (fineWidth + stride - 1) / stride;
         int height = (fineHeight + stride - 1) / stride;
         var pixels = new Rgb8[width * height];
@@ -470,7 +477,7 @@ public sealed class D3D11LensRenderer : IDisposable
             }
         }
 
-        return new Thumbnail(width, height, pixels, range, stride * LensConstants.BlockSize);
+        return new Thumbnail(width, height, pixels, range, stride * LensConstants.BlockSize) { Detail = detail };
     }
 
     private static bool IsSoftwareAdapter(ID3D11Device device)
@@ -607,6 +614,7 @@ public sealed class D3D11LensRenderer : IDisposable
         _mapped?.Dispose();
         _share?.Dispose();
         _share = null;
+        DisposeRectangles();
         _mappedFine?.Dispose();
         _mappedCoarse?.Dispose();
         _flagShares?.Dispose();
@@ -650,7 +658,8 @@ public sealed class D3D11LensRenderer : IDisposable
         bool oneTable = ReferenceEquals(tables.Light, tables.Dark);
 
         // "Rectangles only" asks every pixel which kind of region it is in, whether or not there are two tables.
-        bool only = !p.Identity && p.RectanglesOnly > 0f;
+        bool only = !p.Identity && p.SelectsPixels;
+        RectangleMask? mask = only && p.RectanglesOnly > 0f && p.Mask is { IsEmpty: false } ? p.Mask : null;
         bool regions = !oneTable || only;
 
         // A frame that cannot be read by a shader as it is (no shader-resource binding) is first copied, lens area only.
@@ -693,16 +702,12 @@ public sealed class D3D11LensRenderer : IDisposable
             WideHeight = wideHeight,
             OneTable = oneTable ? 1f : 0f,
             RectanglesOnly = only ? p.RectanglesOnly : 0f,
-            RectangleCount = only ? Math.Min(p.Rectangles.Count, LensConstants.MaxRectangles) : 0,
-            RectangleMargin = p.RectangleMargin,
+            RectangleBaseline = only ? p.RectangleBaseline : 1f,
+            RectangleTarget = p.RectangleTarget,
+            RectanglePitch = mask?.Pitch ?? LensConstants.BlockSize,
+            RectangleMaskWidth = mask?.Width ?? 1,
+            RectangleMaskHeight = mask?.Height ?? 1,
         };
-        for (int i = 0; only && i < p.Rectangles.Count && i < LensConstants.MaxRectangles; i++)
-        {
-            LensRectangle r = p.Rectangles[i];
-            constants.RectangleBounds[i] = new System.Numerics.Vector4(r.Left, r.Top, r.Right, r.Bottom);
-            constants.RectangleExtras[i] = new System.Numerics.Vector4(r.Level, r.Weight, 0f, 0f);
-        }
-
         _context.UpdateSubresource(in constants, _frameBuffer);
 
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
@@ -777,10 +782,9 @@ public sealed class D3D11LensRenderer : IDisposable
                 _resources[LocalSlot] = _local!.Resource;
             }
 
-            if (only)
+            if (mask is not null)
             {
-                // The brightest and the darkest pixel of each block settle where a rectangle ends.
-                _resources[FineSlot] = _fineVotes.Resource;
+                _resources[RectanglesSlot] = UploadRectangles(mask);
             }
 
             if (!p.NeedsFinishPass)
@@ -966,6 +970,49 @@ public sealed class D3D11LensRenderer : IDisposable
         }
 
         return _regionCopy;
+    }
+
+    /// <summary>
+    /// The mask of the "rectangles only" option as a texture. It changes a few times a second at most, so it is
+    /// only uploaded when it is another mask than last time.
+    /// </summary>
+    private ID3D11ShaderResourceView UploadRectangles(RectangleMask mask)
+    {
+        if (_rectangles is null || _rectangles.Description.Width != (uint)mask.Width || _rectangles.Description.Height != (uint)mask.Height)
+        {
+            DisposeRectangles();
+            _rectangles = _device.CreateTexture2D(new Texture2DDescription
+            {
+                Width = (uint)mask.Width,
+                Height = (uint)mask.Height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = IntermediateFormat,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource,
+                CPUAccessFlags = CpuAccessFlags.None,
+                MiscFlags = ResourceOptionFlags.None,
+            });
+            _rectanglesView = _device.CreateShaderResourceView(_rectangles);
+        }
+
+        if (!ReferenceEquals(mask, _uploadedRectangles))
+        {
+            _context.UpdateSubresource(mask.Cells, _rectangles, 0, (uint)(mask.Width * RectangleMask.BytesPerCell), (uint)mask.Cells.Length);
+            _uploadedRectangles = mask;
+        }
+
+        return _rectanglesView!;
+    }
+
+    private void DisposeRectangles()
+    {
+        _rectanglesView?.Dispose();
+        _rectangles?.Dispose();
+        _rectanglesView = null;
+        _rectangles = null;
+        _uploadedRectangles = null;
     }
 
     private void UploadTables(LensTables tables, bool oneTable)

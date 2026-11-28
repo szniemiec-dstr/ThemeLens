@@ -234,11 +234,12 @@ public sealed partial class ControlWindowTests
     }
 
     /// <summary>
-    /// FR-26: "rectangles only" has a switch, one bar with two handles for the sizes, and a slider for the
-    /// brightness. The handles cannot pass each other, the lens stays live, and the values come back at the next start.
+    /// FR-26 to FR-29: "rectangles only" has a switch, a choice between bright and dark rectangles, one bar with
+    /// two handles for the sizes in pixels, a slider for the brightness, and two preview switches that are on.
+    /// The handles cannot pass each other, the lens stays live, and the values come back at the next start.
     /// </summary>
     [WindowsFact]
-    public void Rectangles_only_has_a_switch_two_size_handles_and_a_brightness_slider()
+    public void Rectangles_only_has_a_switch_a_target_two_size_handles_and_a_brightness_slider()
     {
         string folder = Path.Combine(Path.GetTempPath(), "ThemeLens.UiTests." + Guid.NewGuid().ToString("N"));
         try
@@ -250,7 +251,7 @@ public sealed partial class ControlWindowTests
                     $"the status should read Live, but reads '{first.Status()}'");
 
                 AutomationElement only = first.Find("RectanglesSwitch");
-                only.Properties.Name.ValueOrDefault.ShouldBe("Only darken bright rectangles", "the app starts with a dark theme");
+                only.Properties.Name.ValueOrDefault.ShouldBe("Only change bright rectangles");
                 only.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off, "the option starts switched off");
                 AutomationElement smallest = first.Find("RectangleSmallestSlider");
                 AutomationElement full = first.Find("RectangleFullSlider");
@@ -258,25 +259,45 @@ public sealed partial class ControlWindowTests
                 smallest.Properties.Name.ValueOrDefault.ShouldBe("Smallest size");
                 full.Properties.Name.ValueOrDefault.ShouldBe("Size for the brightness below");
                 brightness.Properties.Name.ValueOrDefault.ShouldBe("At least this bright");
-                brightness.Patterns.RangeValue.Pattern.Minimum.Value.ShouldBe(0.70, 0.001);
+                first.Find("RectangleTargetList").Properties.Name.ValueOrDefault.ShouldBe("Look for");
+
+                // The bar runs from a square of 10 pixels to the square that covers half the screen.
+                smallest.Patterns.RangeValue.Pattern.Minimum.Value.ShouldBe(10.0, 0.001);
+                double largest = full.Patterns.RangeValue.Pattern.Maximum.Value;
+                largest.ShouldBeGreaterThan(300.0, "half of any screen is larger than a square of 300 pixels");
+                smallest.Patterns.RangeValue.Pattern.Value.Value.ShouldBe(200.0, 0.5);
+                brightness.Patterns.RangeValue.Pattern.Minimum.Value.ShouldBe(0.50, 0.001);
                 brightness.Patterns.RangeValue.Pattern.Maximum.Value.ShouldBe(1.0, 0.001);
+
+                // The two preview settings are on, and can be switched off.
+                AutomationElement ownTarget = first.Find("RectangleOwnTargetSwitch");
+                AutomationElement plain = first.Find("RectanglePlainSwitch");
+                ownTarget.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
+                plain.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
 
                 only.Patterns.Toggle.Pattern.Toggle();
                 WaitFor(() => only.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On).ShouldBeTrue("the switch should be on");
-                smallest.Patterns.RangeValue.Pattern.SetValue(0.05);
-                full.Patterns.RangeValue.Pattern.SetValue(0.40);
+                smallest.Patterns.RangeValue.Pattern.SetValue(40);
+                full.Patterns.RangeValue.Pattern.SetValue(240);
                 brightness.Patterns.RangeValue.Pattern.SetValue(0.85);
 
                 string help = string.Empty;
                 WaitFor(() => (help = first.Find("RectanglesHelp").Properties.Name.ValueOrDefault ?? string.Empty).Contains("85%", StringComparison.Ordinal))
                     .ShouldBeTrue($"the explanation should name the brightness, but reads '{help}'");
-                help.ShouldContain("40%");
-                help.ShouldContain("5%");
+                help.ShouldContain("240 pixels");
+                help.ShouldContain("40 pixels");
 
                 // The left handle pushes the right one along.
-                smallest.Patterns.RangeValue.Pattern.SetValue(0.60);
-                WaitFor(() => Math.Abs(full.Patterns.RangeValue.Pattern.Value.Value - 0.60) < 0.005).ShouldBeTrue(
-                    $"the right handle should have been pushed to 0.60, but is at {full.Patterns.RangeValue.Pattern.Value.Value:0.00}");
+                smallest.Patterns.RangeValue.Pattern.SetValue(280);
+                WaitFor(() => Math.Abs(full.Patterns.RangeValue.Pattern.Value.Value - 280) < 1).ShouldBeTrue(
+                    $"the right handle should have been pushed to 280, but is at {full.Patterns.RangeValue.Pattern.Value.Value:0}");
+
+                // Without "choose myself" the theme decides: the app starts with a dark theme, so bright it is, and the list is greyed out.
+                ownTarget.Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => !first.Find("RectangleTargetList").Properties.IsEnabled.ValueOrDefault).ShouldBeTrue(
+                    "while the theme decides, the list cannot be used");
+                plain.Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => plain.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.Off).ShouldBeTrue();
 
                 Thread.Sleep(TimeSpan.FromSeconds(1));
                 first.Status().ShouldStartWith("Live");
@@ -286,9 +307,11 @@ public sealed partial class ControlWindowTests
 
             using var second = AppSession.Start(folder);
             second.Find("RectanglesSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
-            second.Find("RectangleSmallestSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.60, 0.01);
-            second.Find("RectangleFullSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.60, 0.01);
+            second.Find("RectangleSmallestSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(280, 1);
+            second.Find("RectangleFullSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(280, 1);
             second.Find("RectangleBrightnessSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.85, 0.01);
+            second.Find("RectangleOwnTargetSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off);
+            second.Find("RectanglePlainSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off);
         }
         finally
         {

@@ -124,7 +124,11 @@ public interface ILensSurface
     /// The analysis picture of the frame shown most recently, or null when it is not ready yet.
     /// Reading it must not block the frame loop.
     /// </summary>
-    Thumbnail? TryReadThumbnail();
+    /// <param name="withDetail">
+    /// True to add the picture with a sample for every block (<see cref="Thumbnail.Detail"/>), which the
+    /// "rectangles only" option needs.
+    /// </param>
+    Thumbnail? TryReadThumbnail(bool withDetail = false);
 
     /// <summary>
     /// Shows a plain fill from any thread, without waiting for the frame loop. The watchdog calls this when the

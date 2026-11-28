@@ -59,7 +59,7 @@ public sealed class RenderSteps(LensWorld world)
     {
         Theme theme = world.RequireTheme();
         ImageRgb8 screen = world.RequireFixture().Image;
-        world.Result = Pipeline.Run(theme, screen, screenPixels: world.ScreenPixels);
+        world.Result = Pipeline.Run(theme, screen);
         world.Viewed = world.Result.Output;
 
         // The same frame with the optional settings off, for steps that compare against it.

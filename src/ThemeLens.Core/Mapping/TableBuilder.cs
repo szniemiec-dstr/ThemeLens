@@ -71,6 +71,40 @@ public static class TableBuilder
 
     private static readonly Grid Nodes = new();
 
+    private static readonly Lazy<Lut3D> Inversion = new(BuildInversionTable);
+
+    /// <summary>
+    /// The table of the plain inversion: every colour keeps its hue and gets the luminance that gives it, against
+    /// black, the contrast it had against white. White becomes black, black white, and text that was readable
+    /// on a white page is exactly as readable on the black one. Applying it twice gives the colour back, so the
+    /// same table turns dark rectangles light.
+    /// </summary>
+    public static Lut3D InversionTable => Inversion.Value;
+
+    /// <summary>The luminance a colour of luminance <paramref name="luminance"/> has after the plain inversion.</summary>
+    public static float InvertedLuminance(float luminance) =>
+        (Flare * (1f + Flare) / (Math.Clamp(luminance, 0f, 1f) + Flare)) - Flare;
+
+    private static Lut3D BuildInversionTable()
+    {
+        var table = new Lut3D();
+        const int size = Lut3D.Size;
+        for (int b = 0; b < size; b++)
+        {
+            for (int g = 0; g < size; g++)
+            {
+                for (int r = 0; r < size; r++)
+                {
+                    Vector3 linear = Srgb.Decode(new Vector3(r, g, b) / (size - 1));
+                    Vector3 inverted = Gamut.WithLuminance(linear, InvertedLuminance(Wcag.Luminance(linear)));
+                    table[r, g, b] = Srgb.Encode(Vector3.Clamp(inverted, Vector3.Zero, Vector3.One));
+                }
+            }
+        }
+
+        return table;
+    }
+
     public static LensTables Build(Theme theme, RoleMap? roles = null, SceneAnalysis? scene = null)
     {
         ArgumentNullException.ThrowIfNull(theme);
@@ -92,7 +126,33 @@ public static class TableBuilder
             Sharpen = theme.Sharpen is { IsOn: true, Mode: SharpenMode.Standard } ? theme.Sharpen.Amount : 0f,
             StrongSharpen = theme.Sharpen is { IsOn: true, Mode: SharpenMode.Strong } ? theme.Sharpen.Amount : 0f,
             RectanglesOnly = theme.RectanglesOnly ? 1f : 0f,
+            RectangleTarget = theme.Rectangles.Target == RectangleTarget.Bright ? 1f : -1f,
         };
+
+        if (theme.RectanglesOnly && !theme.RectanglesInTheme)
+        {
+            // Plain inversion, whatever the theme (section 5.6): one table for everything, no limits, no extras.
+            // The "page" is what a rectangle of the kind looked for turns into; it is the fill shown while the
+            // picture cannot be trusted.
+            bool bright = theme.Rectangles.Target == RectangleTarget.Bright;
+            Vector3 page = bright ? Vector3.Zero : Vector3.One;
+            return new LensTables(
+                Inversion.Value,
+                Inversion.Value,
+                new FrameParameters
+                {
+                    Direction = bright ? 1f : -1f,
+                    PageEncoded = page,
+                    TextEncoded = Vector3.One - page,
+                    PageLuminance = page.X,
+                    WholeLensLightFraction = scene.LightFraction,
+                    RectanglesOnly = 1f,
+                    RectangleBaseline = 0f,
+                    RectangleTarget = bright ? 1f : -1f,
+                },
+                theme,
+                roles);
+        }
 
         if (theme.Base == ThemeBase.Keep)
         {

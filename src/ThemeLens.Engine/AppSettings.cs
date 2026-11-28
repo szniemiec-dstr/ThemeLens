@@ -46,6 +46,59 @@ public sealed record ThemeAdjustments
     }
 }
 
+/// <summary>
+/// What the user chose for the "rectangles only" option (section 5.6): on or off, what to look for, the values
+/// of the rule for bright and for dark rectangles, and two settings that are on while the option is a preview.
+/// </summary>
+public sealed record RectanglePreferences
+{
+    public bool On { get; init; }
+
+    /// <summary>What to look for while <see cref="OwnTarget"/> is on.</summary>
+    public RectangleTarget Target { get; init; } = RectangleTarget.Bright;
+
+    /// <summary>
+    /// On (the default): the user chooses bright or dark rectangles, whatever the theme. Off: a dark theme looks
+    /// for bright rectangles and a light theme for dark ones.
+    /// </summary>
+    public bool OwnTarget { get; init; } = true;
+
+    /// <summary>
+    /// On (the default): a found rectangle is plainly inverted, whatever the theme. Off: it is shown in the
+    /// theme's colours, where the theme turns that kind of rectangle round.
+    /// </summary>
+    public bool PlainInversion { get; init; } = true;
+
+    public RectangleSettings Bright { get; init; } = RectangleSettings.DefaultFor(RectangleTarget.Bright);
+
+    public RectangleSettings Dark { get; init; } = RectangleSettings.DefaultFor(RectangleTarget.Dark);
+
+    /// <summary>What is looked for under <paramref name="theme"/>. A theme that leaves light and dark alone has no say.</summary>
+    public RectangleTarget TargetFor(Theme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        return OwnTarget || !theme.HasRoles
+            ? Target
+            : theme.Base == ThemeBase.Dark ? RectangleTarget.Bright : RectangleTarget.Dark;
+    }
+
+    public RectangleSettings ValuesFor(RectangleTarget target) =>
+        ((target == RectangleTarget.Dark ? Dark : Bright) ?? RectangleSettings.DefaultFor(target)).For(target);
+
+    public RectanglePreferences WithValues(RectangleTarget target, RectangleSettings values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return target == RectangleTarget.Dark ? this with { Dark = values.For(target) } : this with { Bright = values.For(target) };
+    }
+
+    /// <summary>The option as the lens runs it under <paramref name="theme"/>.</summary>
+    public RectangleOption For(Theme theme)
+    {
+        RectangleTarget target = TargetFor(theme);
+        return new RectangleOption { On = On, Target = target, InTheme = !PlainInversion, Values = ValuesFor(target) };
+    }
+}
+
 /// <summary>Where the lens was on one arrangement of monitors.</summary>
 public sealed record SavedPlacement(int X, int Y, int Width, int Height, bool FillsScreen)
 {
@@ -86,14 +139,8 @@ public sealed record AppSettings
     /// <summary>The user's values per theme id.</summary>
     public IReadOnlyDictionary<string, ThemeAdjustments> Adjustments { get; init; } = new Dictionary<string, ThemeAdjustments>();
 
-    /// <summary>
-    /// The "rectangles only" option under dark themes: bright rectangles are darkened, the rest of the screen
-    /// is left alone (section 5.6). Kept for all dark themes together, not per theme.
-    /// </summary>
-    public RectangleSettings BrightRectangles { get; init; } = RectangleSettings.DefaultFor(ThemeBase.Dark);
-
-    /// <summary>The same option under light themes: dark rectangles are lightened.</summary>
-    public RectangleSettings DarkRectangles { get; init; } = RectangleSettings.DefaultFor(ThemeBase.Light);
+    /// <summary>The "rectangles only" option (section 5.6).</summary>
+    public RectanglePreferences Rectangles { get; init; } = new();
 
     /// <summary>The last lens rectangle and mode per monitor layout (key from <see cref="LensGeometry.LayoutKey"/>).</summary>
     public IReadOnlyDictionary<string, SavedPlacement> Placements { get; init; } = new Dictionary<string, SavedPlacement>();
@@ -117,25 +164,6 @@ public sealed record AppSettings
         }
 
         return this with { Adjustments = copy };
-    }
-
-    /// <summary>The "rectangles only" values that apply under a base. The keep base has none: it leaves light and dark as they are.</summary>
-    public RectangleSettings RectanglesFor(ThemeBase themeBase) => themeBase switch
-    {
-        ThemeBase.Dark => (BrightRectangles ?? RectangleSettings.DefaultFor(themeBase)).For(themeBase),
-        ThemeBase.Light => (DarkRectangles ?? RectangleSettings.DefaultFor(themeBase)).For(themeBase),
-        _ => RectangleSettings.Off,
-    };
-
-    public AppSettings WithRectangles(ThemeBase themeBase, RectangleSettings rectangles)
-    {
-        ArgumentNullException.ThrowIfNull(rectangles);
-        return themeBase switch
-        {
-            ThemeBase.Dark => this with { BrightRectangles = rectangles.For(themeBase) },
-            ThemeBase.Light => this with { DarkRectangles = rectangles.For(themeBase) },
-            _ => this,
-        };
     }
 
     public AppSettings WithPlacement(string layoutKey, LensPlacement placement)

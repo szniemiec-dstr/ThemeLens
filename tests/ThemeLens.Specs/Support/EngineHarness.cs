@@ -130,8 +130,8 @@ public sealed class ReferenceSurface(FakeClock clock, int width, int height) : I
         Shown.Add(new Presented(PresentedKind.Hidden, clock.Now, null, null));
     }
 
-    public Thumbnail? TryReadThumbnail() =>
-        _lastSource is null ? null : Neighbourhood.Build(_lastSource).ToThumbnail();
+    public Thumbnail? TryReadThumbnail(bool withDetail = false) =>
+        _lastSource is null ? null : Neighbourhood.Build(_lastSource).ToThumbnail(withDetail);
 
     public void ShowEmergencyFill(Rgb8 colour)
     {

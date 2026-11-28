@@ -45,9 +45,6 @@ public sealed class Neighbourhood
     /// <summary>Luma range (max − min) inside the block.</summary>
     public byte[] FineRange { get; private init; } = [];
 
-    /// <summary>Luma of the block's brightest pixel. With the range it also gives the darkest. Used by the "rectangles only" option.</summary>
-    public byte[] FineMax { get; private init; } = [];
-
     /// <summary>One untouched source pixel per block, RGB. Used for the analysis thumbnail.</summary>
     public byte[] FinePoint { get; private init; } = [];
 
@@ -89,7 +86,6 @@ public sealed class Neighbourhood
         byte[] fineLight = new byte[fw * fh];
         byte[] fineDark = new byte[fw * fh];
         byte[] fineRange = new byte[fw * fh];
-        byte[] fineMax = new byte[fw * fh];
         byte[] finePoint = new byte[fw * fh * 3];
         Parallel.For(0, fh, j =>
         {
@@ -117,7 +113,6 @@ public sealed class Neighbourhood
                 fineLight[index] = Srgb.ToByte(light / (block * block));
                 fineDark[index] = Srgb.ToByte(dark / (block * block));
                 fineRange[index] = Srgb.ToByte(hi - lo);
-                fineMax[index] = Srgb.ToByte(hi);
                 Rgb8 centre = source.Clamped((i * block) + (block / 2), (j * block) + (block / 2));
                 finePoint[index * 3] = centre.R;
                 finePoint[(index * 3) + 1] = centre.G;
@@ -195,7 +190,6 @@ public sealed class Neighbourhood
             FineLight = fineLight,
             FineDark = fineDark,
             FineRange = fineRange,
-            FineMax = fineMax,
             FinePoint = finePoint,
             Regions = regions,
             CoarseWidth = cw,
@@ -236,15 +230,25 @@ public sealed class Neighbourhood
     }
 
     /// <summary>
-    /// How much of the lens's work the pixel gets while the "rectangles only" option is on; see
-    /// <see cref="LensConstants.Change"/>. <paramref name="polarity"/> is what <see cref="PolarityAt"/> gave for it.
+    /// How much of the lens's work the pixel gets with the "rectangles only" option; see
+    /// <see cref="LensConstants.Change"/>. <paramref name="polarity"/> is what <see cref="PolarityAt"/> gave
+    /// for it, <paramref name="luma"/> the Rec. 709 luma of its encoded colour.
     /// </summary>
-    public float ChangeAt(int x, int y, float polarity, Mapping.FrameParameters p)
+    public static float ChangeAt(int x, int y, float polarity, float luma, Mapping.FrameParameters p)
     {
-        int block = (Math.Min(y / LensConstants.BlockSize, FineHeight - 1) * FineWidth) + Math.Min(x / LensConstants.BlockSize, FineWidth - 1);
-        float strength = LensConstants.BlockStrength(p.Direction, FineMax[block] / 255f, FineRange[block] / 255f);
-        float selected = LensConstants.Selected(p.Rectangles, p.RectangleMargin, x, y, strength);
-        return LensConstants.Change(p.RectanglesOnly, p.Direction, selected, polarity);
+        float kind = LensConstants.RectangleKind(p.RectangleTarget, polarity);
+        float selected = 0f;
+        if (p.RectanglesOnly > 0f && p.Mask is { IsEmpty: false } mask)
+        {
+            selected = mask.Selected(x, y, LensConstants.RectangleStrength(p.RectangleTarget, luma), out bool askRegions);
+            if (askRegions)
+            {
+                // A dark button on the white page, with whatever is written on it, stays as it is.
+                selected *= kind;
+            }
+        }
+
+        return LensConstants.Change(p.RectanglesOnly, p.RectangleBaseline, kind, selected);
     }
 
     public float SoftFractionAt(int x, int y) =>
@@ -254,9 +258,15 @@ public sealed class Neighbourhood
     /// The picture handed to the analysis: untouched source pixels on a regular grid, about 160 by 90 of them
     /// (section 6.1). Sampling keeps true colours, which averaging would smear into the page colour.
     /// </summary>
-    public Thumbnail ToThumbnail()
+    /// <param name="withDetail">True to add the picture the "rectangles only" option needs; see <see cref="Thumbnail.Detail"/>.</param>
+    public Thumbnail ToThumbnail(bool withDetail = false)
     {
-        int stride = Thumbnail.StrideFor(FineWidth, FineHeight);
+        Thumbnail? detail = withDetail ? Sample(Thumbnail.DetailStrideFor(FineWidth, FineHeight), null) : null;
+        return Sample(Thumbnail.StrideFor(FineWidth, FineHeight), detail);
+    }
+
+    private Thumbnail Sample(int stride, Thumbnail? detail)
+    {
         int tw = (FineWidth + stride - 1) / stride;
         int th = (FineHeight + stride - 1) / stride;
         var pixels = new Rgb8[tw * th];
@@ -273,7 +283,7 @@ public sealed class Neighbourhood
             }
         }
 
-        return new Thumbnail(tw, th, pixels, range, stride * LensConstants.BlockSize);
+        return new Thumbnail(tw, th, pixels, range, stride * LensConstants.BlockSize) { Detail = detail };
     }
 }
 

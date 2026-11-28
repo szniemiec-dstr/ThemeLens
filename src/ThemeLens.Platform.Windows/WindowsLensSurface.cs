@@ -211,7 +211,7 @@ public sealed class WindowsLensSurface : ILensSurface, IDisposable
         HideEmergencyFill();
     }
 
-    public Thumbnail? TryReadThumbnail() => _renderer.TryReadThumbnail();
+    public Thumbnail? TryReadThumbnail(bool withDetail = false) => _renderer.TryReadThumbnail(withDetail);
 
     public void ShowEmergencyFill(Rgb8 colour)
     {

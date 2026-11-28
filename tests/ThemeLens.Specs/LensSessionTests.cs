@@ -130,42 +130,73 @@ public sealed class LensSessionTests : IDisposable
     }
 
     [Fact]
-    public void Rectangles_only_changes_the_lens_live_and_has_one_set_of_values_per_kind_of_theme()
+    public void Rectangles_only_works_under_any_theme_and_has_values_for_bright_and_for_dark_rectangles()
     {
         (LensSession session, EngineHarness engine) = Start();
         session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
-        session.Rectangles.ShouldBe(RectangleSettings.DefaultFor(ThemeBase.Dark), "the option starts switched off");
+        session.Rectangles.ShouldBe(new RectanglePreferences(), "the option starts switched off, looking for bright rectangles, inverting plainly");
         session.TurnOn();
         engine.RunFor(TimeSpan.FromMilliseconds(500));
-        engine.Controller.Look.Parameters.RectanglesOnly.ShouldBe(0f);
+        engine.Controller.Look.Parameters.SelectsPixels.ShouldBeFalse();
 
-        session.SetRectangles(r => r with { On = true, SmallestArea = 0.05f, FullArea = 0.30f, Brightness = 0.80f });
+        session.SetRectangles(r => r with { On = true });
+        session.SetRectangleValues(v => v with { SmallestSide = 120f, FullSide = 400f, Brightness = 0.80f });
         engine.RunFor(TimeSpan.FromMilliseconds(500));
         engine.Controller.Look.Parameters.RectanglesOnly.ShouldBe(1f);
-        engine.Controller.Theme.Rectangles.Brightness.ShouldBe(0.80f);
+        engine.Controller.Look.Parameters.RectangleBaseline.ShouldBe(0f, "plain inversion, whatever the theme");
+        engine.Controller.Theme.Rectangles.Values.Brightness.ShouldBe(0.80f);
 
-        // Every dark theme shares the values; light themes have their own, and start switched off.
-        session.SelectTheme("night-warm");
-        session.Rectangles.On.ShouldBeTrue();
-        session.Rectangles.FullArea.ShouldBe(0.30f);
+        // The option does not belong to a theme: it stays as it is under every one of them.
         session.SelectTheme("clear-white");
-        session.Rectangles.ShouldBe(RectangleSettings.DefaultFor(ThemeBase.Light));
-        session.SetRectangles(r => r with { On = true, Brightness = 0.9f });
-        session.Rectangles.Brightness.ShouldBe(RectangleSettings.HighestDarkThreshold, "under a light theme the threshold is a darkness");
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Bright);
+        session.RectangleOption.Values.FullSide.ShouldBe(400f);
+        session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse();
+        session.SelectTheme("passthrough");
+        session.EffectiveTheme.RectanglesOnly.ShouldBeTrue();
+        session.EffectiveTheme.ChangesNothing.ShouldBeFalse("even a theme that changes nothing shows inverted rectangles");
 
-        // A theme that leaves light and dark alone has nothing to turn round.
-        session.SelectTheme("less-blue");
-        session.RectanglesAvailable.ShouldBeFalse();
-        session.EffectiveTheme.RectanglesOnly.ShouldBeFalse();
-        session.SetRectangles(r => r with { On = true });
-        session.EffectiveTheme.RectanglesOnly.ShouldBeFalse();
+        // Dark rectangles have values of their own.
+        session.SetRectangles(r => r with { Target = RectangleTarget.Dark });
+        session.RectangleOption.Values.ShouldBe(RectangleSettings.DefaultFor(RectangleTarget.Dark));
+        session.SetRectangleValues(v => v with { Brightness = 0.9f });
+        session.RectangleOption.Values.Brightness.ShouldBe(RectangleSettings.HighestDarkThreshold, "for dark rectangles the threshold is a darkness");
         session.Dispose();
 
         (LensSession next, EngineHarness nextEngine) = Start();
-        next.SelectTheme("soft-dark");
-        next.Rectangles.ShouldBe(new RectangleSettings { On = true, SmallestArea = 0.05f, FullArea = 0.30f, Brightness = 0.80f });
+        next.Rectangles.On.ShouldBeTrue();
+        next.Rectangles.Target.ShouldBe(RectangleTarget.Dark);
+        next.Rectangles.Bright.ShouldBe(new RectangleSettings { SmallestSide = 120f, FullSide = 400f, Brightness = 0.80f });
         nextEngine.Controller.Theme.RectanglesOnly.ShouldBeTrue();
-        next.Settings.RectanglesFor(ThemeBase.Light).On.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void The_two_preview_settings_can_be_switched_off_one_by_one()
+    {
+        (LensSession session, _) = Start();
+        session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
+        session.SetRectangles(r => r with { On = true, Target = RectangleTarget.Dark });
+        session.Rectangles.OwnTarget.ShouldBeTrue();
+        session.Rectangles.PlainInversion.ShouldBeTrue();
+
+        // Without the first, the theme decides what is looked for.
+        session.SetRectangles(r => r with { OwnTarget = false });
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Bright, "a dark theme looks for bright rectangles");
+        session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("the rectangle is still plainly inverted");
+        session.SelectTheme("clear-white");
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark, "a light theme looks for dark ones");
+        session.SelectTheme("less-blue");
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark, "a theme that leaves light and dark alone has no say: the user's choice stands");
+
+        // Without the second, a found rectangle is shown in the theme's colours where the theme has them.
+        session.SetRectangles(r => r with { PlainInversion = false });
+        session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("Less blue has no colours of its own");
+        session.SelectTheme("soft-dark");
+        session.EffectiveTheme.RectanglesInTheme.ShouldBeTrue();
+
+        // The first on again, the second still off: bright or dark is the user's choice, the colours the theme's.
+        session.SetRectangles(r => r with { OwnTarget = true });
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark);
+        session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("a dark theme cannot turn a dark rectangle round, so it is inverted");
     }
 
     [Fact]
@@ -177,8 +208,8 @@ public sealed class LensSessionTests : IDisposable
 
         Theme saved = session.SaveAsTheme("Mine");
 
-        saved.Rectangles.ShouldBe(RectangleSettings.Off, "the option is the user's setting, not part of a theme file");
-        session.EffectiveTheme.RectanglesOnly.ShouldBeTrue("the option stays on for the theme just saved: it is a dark theme too");
+        saved.Rectangles.ShouldBe(RectangleOption.Off, "the option is the user's setting, not part of a theme file");
+        session.EffectiveTheme.RectanglesOnly.ShouldBeTrue("the option stays on: it does not depend on the theme");
     }
 
     [Fact]

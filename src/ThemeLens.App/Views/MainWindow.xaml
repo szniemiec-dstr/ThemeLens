@@ -349,7 +349,7 @@
       </TextBlock.Style>
     </TextBlock>
 
-    <!-- Rectangles only (section 5.6, FR-26): change large rectangles of the wrong kind, leave the rest alone -->
+    <!-- Rectangles only (section 5.6, FR-26): change large rectangles of one kind, leave the rest alone -->
     <TextBlock Margin="0,20,0,6"
                Style="{StaticResource Heading}"
                Text="{x:Static app:Strings.RectanglesHeading}" />
@@ -357,22 +357,41 @@
                   HorizontalAlignment="Left"
                   AutomationProperties.Name="{Binding RectanglesSwitchText}"
                   Content="{Binding RectanglesSwitchText}"
-                  IsEnabled="{Binding CanUseRectangles}"
                   IsChecked="{Binding RectanglesOnly, Mode=TwoWay}" />
-    <Grid Margin="0,6,0,0" IsEnabled="{Binding CanUseRectangles}">
+    <Grid Margin="0,6,0,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="130" />
         <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="56" />
+        <ColumnDefinition Width="96" />
       </Grid.ColumnDefinitions>
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
-      <!-- One bar, two handles: the smallest size on the left, the size for the brightness below on the right. -->
-      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.RectanglesAreaLabel}" />
-      <Grid Grid.Row="0" Grid.Column="1">
+      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.RectanglesTargetLabel}" />
+      <ComboBox x:Name="RectangleTargetList"
+                Grid.Row="0"
+                Grid.Column="1"
+                Grid.ColumnSpan="2"
+                AutomationProperties.Name="{x:Static app:Strings.RectanglesTargetLabel}"
+                IsEnabled="{Binding CanChooseRectangleTarget}"
+                ItemsSource="{Binding RectangleTargets}"
+                SelectedItem="{Binding SelectedRectangleTarget, Mode=TwoWay}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type vm:RectangleTargetChoice}">
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+
+      <!--
+        One bar, two handles: the smallest size on the left, the size for the brightness below on the right.
+        The bar runs by the side of a square of the same area, from 10 pixels to half the screen.
+      -->
+      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="{x:Static app:Strings.RectanglesAreaLabel}" />
+      <Grid Grid.Row="1" Grid.Column="1">
         <Border Height="4"
                 VerticalAlignment="Center"
                 Background="{StaticResource Brush.Border}"
@@ -380,25 +399,25 @@
         <Slider x:Name="RectangleFullSlider"
                 Style="{StaticResource RangeEnd}"
                 AutomationProperties.Name="{x:Static app:Strings.RectanglesFullName}"
-                Minimum="0.005"
-                Maximum="1"
-                SmallChange="0.005"
-                LargeChange="0.05"
-                Value="{Binding RectangleFullArea, Mode=TwoWay}" />
+                Minimum="10"
+                Maximum="{Binding RectangleLargestSide}"
+                SmallChange="2"
+                LargeChange="20"
+                Value="{Binding RectangleFullSide, Mode=TwoWay}" />
         <Slider x:Name="RectangleSmallestSlider"
                 Style="{StaticResource RangeEnd}"
                 AutomationProperties.Name="{x:Static app:Strings.RectanglesSmallestName}"
-                Minimum="0.005"
-                Maximum="1"
-                SmallChange="0.005"
-                LargeChange="0.05"
-                Value="{Binding RectangleSmallestArea, Mode=TwoWay}" />
+                Minimum="10"
+                Maximum="{Binding RectangleLargestSide}"
+                SmallChange="2"
+                LargeChange="20"
+                Value="{Binding RectangleSmallestSide, Mode=TwoWay}" />
       </Grid>
-      <TextBlock Grid.Row="0" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleAreaText}" />
+      <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleAreaText}" />
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessLabel}" />
+      <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessLabel}" />
       <Slider x:Name="RectangleBrightnessSlider"
-              Grid.Row="1"
+              Grid.Row="2"
               Grid.Column="1"
               AutomationProperties.Name="{Binding RectangleBrightnessLabel}"
               Minimum="{Binding RectangleBrightnessMinimum}"
@@ -406,12 +425,33 @@
               SmallChange="0.01"
               LargeChange="0.05"
               Value="{Binding RectangleBrightness, Mode=TwoWay}" />
-      <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessText}" />
+      <TextBlock Grid.Row="2" Grid.Column="2" HorizontalAlignment="Right" Style="{StaticResource Label}" Text="{Binding RectangleBrightnessText}" />
     </Grid>
     <TextBlock x:Name="RectanglesHelp"
                Margin="0,6,0,0"
                Style="{StaticResource Quiet}"
                Text="{Binding RectanglesHelp}" />
+
+    <!-- Two switches that are on while the option is a preview; they move to the advanced settings later. -->
+    <TextBlock Margin="0,12,0,6"
+               Style="{StaticResource Label}"
+               Text="{x:Static app:Strings.RectanglesPreviewHeading}" />
+    <StackPanel Orientation="Horizontal">
+      <ToggleButton x:Name="RectangleOwnTargetSwitch"
+                    AutomationProperties.Name="{x:Static app:Strings.RectanglesOwnTarget}"
+                    AutomationProperties.HelpText="{x:Static app:Strings.RectanglesPreviewHelp}"
+                    Content="{x:Static app:Strings.RectanglesOwnTarget}"
+                    IsChecked="{Binding RectangleOwnTarget, Mode=TwoWay}" />
+      <ToggleButton x:Name="RectanglePlainSwitch"
+                    Margin="12,0,0,0"
+                    AutomationProperties.Name="{x:Static app:Strings.RectanglesPlain}"
+                    AutomationProperties.HelpText="{x:Static app:Strings.RectanglesPreviewHelp}"
+                    Content="{x:Static app:Strings.RectanglesPlain}"
+                    IsChecked="{Binding RectanglePlain, Mode=TwoWay}" />
+    </StackPanel>
+    <TextBlock Margin="0,6,0,0"
+               Style="{StaticResource Quiet}"
+               Text="{x:Static app:Strings.RectanglesPreviewHelp}" />
 
     <!-- Colours on screen now, and what you see (figure 5, FR-08, FR-09) -->
     <TextBlock Margin="0,20,0,6"

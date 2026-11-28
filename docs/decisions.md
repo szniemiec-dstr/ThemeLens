@@ -1,6 +1,6 @@
 # Decisions
 
-Where the code had to settle something the specification (`spec.html`, draft 0.3) leaves open, or where it
+Where the code had to settle something the specification (`spec.html`, draft 0.4) leaves open, or where it
 departs from the letter of the specification, the choice and the reason are recorded here. Section numbers
 refer to the specification.
 
@@ -172,36 +172,47 @@ once; pins take effect at once.
 
 ### D16. Rectangles only: what was asked for, and what had to be settled (5.6, 6.8)
 
-The request was: find rectangles and invert them, either bright ones to dark or the other way round; one bar
-with two handles for the size at which a pure white rectangle is inverted and the size from which a brightness
-threshold applies; the threshold on a second slider; sizes in between take values in between; smaller ones are
-not inverted; the same again for dark rectangles. These points were not in the request and were settled as follows.
+The request, in two rounds: find rectangles and invert them, bright ones to dark or the other way round; one
+bar with two handles for the size at which a pure white rectangle is inverted and the size from which a
+brightness threshold applies; the threshold on a second slider; sizes in between take values in between;
+smaller ones are not inverted. Then: by default a rectangle is found and inverted irrespective of the theme,
+unless the user applies the theme; the first version's "target follows the theme" and "shown in the theme"
+stay as settings that can be switched off; the bar reaches from a square of 10 by 10 pixels to half the screen
+and runs by the root of the area. These points were not in the request and were settled as follows.
 
-- **The target follows the theme.** A dark theme looks for bright rectangles, a light theme for dark ones. A
-  separate choice of target would allow "darken bright rectangles" under a light theme, where the theme has no
-  dark page to give them. There is one set of values for dark themes and one for light themes, in the settings
-  file; a theme file does not hold them.
-- **A found rectangle is shown in the theme**, not as a plain inversion: the same picture the whole lens would
-  show there, with the theme's page colour, text contrast and limits.
-- **Outside the rectangles nothing is changed at all**: no brightness limit, warmth, contrast or sharpening.
+- **Two preview switches, both on.** "Choose bright or dark myself" and "Invert plainly" are the new
+  behaviour. Switching the first off lets the theme decide what is looked for; switching the second off shows
+  a found rectangle in the theme's colours. Where a theme cannot turn the rectangle round (a bright rectangle
+  under a light theme, any rectangle under a Keep theme) it is inverted all the same.
+- **The inversion keeps hue and contrast.** It is not the photographic negative. A colour of luminance *Y*
+  gets luminance 0.0525 / (*Y* + 0.05) − 0.05, which gives it against black the WCAG contrast it had against
+  white; its chromaticity is kept and only as much saturation is given up as the gamut demands. White becomes
+  black, `#222222` text keeps 15.9 : 1, a blue link stays blue. The same table turns dark rectangles light.
+- **Outside the rectangles nothing is changed at all**, also not by the theme's brightness limit or warmth.
+- **Sizes are in screen pixels**, as the side of a square of the same area. The bar is linear in that side.
+  Its right end is the square that covers half the screen the lens is on.
 - **Brightness** is the Rec. 709 luma of the sRGB values, the grey level a colour picker shows. The threshold
-  can be set from 70 to 100% under a dark theme and from 0 to 30% under a light one. In between lies the
-  mid-tone band in which the region logic (D2) does not call an area light or dark, so a found rectangle of
-  that brightness would be changed in patches.
+  can be set from 50 to 100% for bright rectangles and from 0 to 50% for dark ones.
 - **"Pure white"** means 98% or more, so `#FAFAFA` counts. The allowance shrinks to nothing at the threshold.
-- **Sizes are shares of the screen the lens is on**, as asked, not of the lens.
-- **Rectangular** means: covered to 90% by at most four upright rectangles. That takes in a window with
-  another window over a corner and a page around a picture, and leaves out round shapes and ragged areas.
+- **Rectangular** means: the outline, with enclosed holes filled, is covered to 90% by at most four upright
+  rectangles. A page with dark buttons or a dark picture in it is one rectangle. Round shapes and ragged
+  areas are left out.
+- **What lies in a filled hole** is decided per pixel by the region logic (D2): a dark button of 20 pixels or
+  more, with its label, stays; thick dark letters of a headline, which are holes too, are content and are
+  inverted with the page.
 - **Nine brightness steps** between the threshold and white. A rectangle is judged by the step below its
   brightness, so it may need up to one step (about 3% brightness at the starting values) more than the
   straight line says.
-- **Edges.** The finder sees one sample every 12 pixels on a full-HD lens. The rectangle it reports stops at
-  the last sample known to be bright; in a margin of two samples around it the shader decides per 4×4 block
-  of the current frame. Inside and in the margin a pixel is changed only if the polarity check puts it in a
-  region of the kind looked for. Where a rectangle borders something dark its edge is exact to the pixel;
-  where it borders something bright that did not qualify, the edge is exact to a 4-pixel block.
-- **Before the first look** the lens changes everything, and the option fades in once rectangles are known.
-  A rectangle found for the first time applies at once; one that is no longer found fades out over 200 ms.
+- **Resolution.** The finder works on one sample per 4×4 block, so a size is known to within 4 pixels, and the
+  rule is read in the rectangle's favour by that much: a square of 10 by 10 is found wherever it lies; one of
+  7 or 8 pixels is found in some positions. On lenses larger than about 2560 by 1440 the finder takes every
+  second block, and the smallest rectangle it can see is about 16 pixels.
+- **Edges.** Inside a rectangle every pixel is changed. In its outermost ring of blocks and in the ring around
+  it, a pixel is changed when it is itself bright enough. The edge is exact to the pixel. The price: dark
+  text closer than about 4 to 8 pixels to the edge of a rectangle is not inverted with it.
+- **Before the first look** the lens inverts every bright region (or shows everything in the theme, with
+  "Invert plainly" off), and the option takes hold once rectangles are known. A rectangle found for the first
+  time applies at once; one that is no longer found fades out over 200 ms.
 
 ## Theme files
 
@@ -243,11 +254,11 @@ a decision.
 
 They are also listed in section 14.1 of the specification.
 
-1. The target follows the theme and a found rectangle is shown in the theme (D16). The alternative is a
-   target chosen separately from the theme and a plain inversion of lightness inside the rectangle.
-2. The size bar runs straight from 0.5 to 100% of the screen. Most useful values are below 30%; a scale that
-   gives small sizes more room may be easier to set.
-3. A white photograph is a bright rectangle and is changed like any other.
+1. The inversion keeps hues and swaps contrast against white for contrast against black (D16). The
+   alternative is the plain negative, in which a blue link turns orange.
+2. A white photograph is a bright rectangle and is inverted like any other.
+3. When the two preview switches move to the advanced settings: one setting for all themes, as now, or one
+   per theme?
 
 ### Q3. Tests run on Microsoft.Testing.Platform
 
@@ -266,8 +277,11 @@ xUnit v3 on the .NET 10 SDK uses the new test platform, so the commands differ s
   lines.
 - Rectangles only: the rectangles follow the screen with the delay of the analysis, about an eighth of a
   second. A dragged window has a bright leading edge, and a newly opened white window is white for that long.
-- Rectangles only: a bright thing that lies within two samples (24 pixels on a full-HD lens) of a found
-  rectangle is changed in the part that lies that close, also when it is too small to be changed by itself.
-- Rectangles only: finding them adds about 2 ms to each analysis.
+- Rectangles only: with the smallest size set very low, thick white letters and small bright icons count as
+  rectangles and are inverted one by one.
+- Rectangles only: a small bright thing inside a dark area that itself lies inside a found rectangle (a white
+  button on a dark card on a white page) is inverted with the page, whatever its size.
+- Rectangles only: finding them adds about 10 ms to each analysis on a full-HD lens, and the detailed
+  picture it needs is about half a megabyte per analysis.
 - Analysis takes 4 to 8 ms and table building 5 to 10 ms on a 4-core machine: together at the edge of the
   15 ms budget of section 7.6. Both run off the frame loop.

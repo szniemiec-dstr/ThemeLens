@@ -1,31 +1,123 @@
 Feature: Rectangles only
   With "rectangles only" switched on, the lens leaves the screen as it is and changes only large
-  rectangles of the wrong kind: bright ones under a dark theme, dark ones under a light theme. How
-  bright a rectangle has to be depends on how much of the screen it covers. (FR-26, FR-27, FR-28)
+  rectangles of one kind: bright ones, to avoid light, or dark ones, to avoid darkness. How bright
+  a rectangle has to be depends on its size. A found rectangle is plainly inverted, whatever the
+  theme, unless the user asks for the theme's colours. (FR-26, FR-27, FR-28, FR-29)
 
-  Rule: Under a dark theme, large bright rectangles are darkened and nothing else is touched
+  Rule: Bright rectangles are inverted, whatever the theme, and nothing else is touched
 
-    Scenario: A desktop with windows of different sizes and brightness
-      The large window covers 44% of the screen, the white dialog and the grey panel 8% each, the
-      note under 1%.
+    Scenario Outline: A desktop with windows of different sizes and brightness
+      The large window is as large as a square of 338 pixels, the white dialog and the grey panel
+      as one of about 145, the note as one of 49.
 
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      Given the theme "<theme>" with bright rectangles only, from 100 to 300 pixels at 75% brightness
       And the screen shows "desktop-windows.png"
       When the lens renders the frame
-      Then the "large-window" is shown close to the page colour
+      Then the "large-window" is shown dark
       And what is written on the "large-window" has a contrast of at least 7 to 1
-      And the "title-bar" is shown close to the page colour
-      And the "small-dialog" is shown close to the page colour
+      And the "title-bar" is shown dark
+      And the "small-dialog" is shown dark
       And the "grey-panel" is shown as it is on the screen
       And the "tiny-note" is shown as it is on the screen
       And the "dark-window" is shown as it is on the screen
       And the "desktop" is shown as it is on the screen
       And the "picture" is shown as it is on the screen
 
-    Scenario: The same desktop with sharpening on
-      The finishing passes must not leak out of the rectangles either.
+      Examples:
+        | theme        |
+        | Soft dark    |
+        | Clear white  |
+        | Wake up sky  |
+        | Passthrough  |
+        | Less blue    |
 
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+    Scenario Outline: How bright a rectangle has to be depends on its size
+      Given the theme "Passthrough" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And the screen shows a rectangle <brightness>% bright as large as a square of <side> pixels
+      When the lens renders the frame
+      Then the "rectangle" is <outcome>
+      And the "desktop" is shown as it is on the screen
+
+      Examples:
+        | side | brightness | outcome                      |
+        | 300  | 76         | shown dark                   |
+        | 300  | 100        | shown dark                   |
+        | 300  | 72         | shown as it is on the screen |
+        | 200  | 90         | shown dark                   |
+        | 200  | 80         | shown as it is on the screen |
+        | 104  | 100        | shown dark                   |
+        | 104  | 92         | shown as it is on the screen |
+        | 60   | 100        | shown as it is on the screen |
+
+    Scenario: The smallest size the bar offers is a square of 10 by 10 pixels
+      Given the theme "Passthrough" with bright rectangles only, from 10 to 300 pixels at 75% brightness
+      And the screen shows a rectangle 100% bright as large as a square of 10 pixels
+      When the lens renders the frame
+      Then the "rectangle" is shown dark
+      And the "desktop" is shown as it is on the screen
+
+    Scenario: A page with dark buttons on it is one rectangle, and the buttons stay
+      Given the theme "Passthrough" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And the screen shows "dark-buttons.png"
+      When the lens renders the frame
+      Then the "gap-between-buttons" is shown dark
+      And the "tile-gutter" is shown dark
+      And what is written on the "first-button" has a contrast of at least 7 to 1
+      And the "toolbar-label" is shown as it is on the screen
+
+  Rule: Dark rectangles are inverted the same way
+
+    Scenario Outline: A light desktop with dark windows
+      Given the theme "<theme>" with dark rectangles only, from 100 to 300 pixels at 25% brightness
+      And the screen shows "desktop-windows-light.png"
+      When the lens renders the frame
+      Then the "large-window" is shown light
+      And what is written on the "large-window" has a contrast of at least 7 to 1
+      And the "small-dialog" is shown light
+      And the "grey-panel" is shown as it is on the screen
+      And the "tiny-note" is shown as it is on the screen
+      And the "dark-window" is shown as it is on the screen
+      And the "desktop" is shown as it is on the screen
+
+      Examples:
+        | theme       |
+        | Clear white |
+        | Soft dark   |
+        | Passthrough |
+
+    Scenario Outline: How dark a rectangle has to be depends on its size
+      Given the theme "Passthrough" with dark rectangles only, from 100 to 300 pixels at 25% brightness
+      And the screen shows a rectangle <brightness>% bright as large as a square of <side> pixels
+      When the lens renders the frame
+      Then the "rectangle" is <outcome>
+      And the "desktop" is shown as it is on the screen
+
+      Examples:
+        | side | brightness | outcome                      |
+        | 300  | 24         | shown light                  |
+        | 300  | 28         | shown as it is on the screen |
+        | 200  | 8          | shown light                  |
+        | 200  | 20         | shown as it is on the screen |
+        | 104  | 0          | shown light                  |
+        | 60   | 0          | shown as it is on the screen |
+
+  Rule: On request a found rectangle is shown in the theme's colours
+
+    Scenario: Bright rectangles under a dark theme
+      Given the theme "Wake up dark" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And found rectangles are shown in the theme's colours
+      And the screen shows "desktop-windows.png"
+      When the lens renders the frame
+      Then the "large-window" is shown close to the page colour
+      And what is written on the "large-window" has a contrast of at least 7 to 1
+      And the "small-dialog" is shown close to the page colour
+      And the "grey-panel" is shown as it is on the screen
+      And the "desktop" is shown as it is on the screen
+      And the "picture" is shown as it is on the screen
+
+    Scenario: The theme's finishing passes stay inside the rectangles
+      Given the theme "Soft dark" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And found rectangles are shown in the theme's colours
       And sharpen at 60%
       And the screen shows "desktop-windows.png"
       When the lens renders the frame
@@ -33,105 +125,49 @@ Feature: Rectangles only
       And the "grey-panel" is shown as it is on the screen
       And the "desktop" is shown as it is on the screen
 
-    Scenario Outline: How bright a rectangle has to be depends on its size
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
-      And the screen shows a rectangle <brightness>% bright that covers <size>% of the screen
-      When the lens renders the frame
-      Then the "rectangle" is <outcome>
-      And the "desktop" is shown as it is on the screen
-
-      Examples:
-        | size | brightness | outcome                        |
-        | 25   | 76         | shown close to the page colour |
-        | 25   | 100        | shown close to the page colour |
-        | 25   | 72         | shown as it is on the screen   |
-        | 12   | 92         | shown close to the page colour |
-        | 12   | 80         | shown as it is on the screen   |
-        | 3    | 100        | shown close to the page colour |
-        | 3    | 92         | shown as it is on the screen   |
-        | 1.5  | 100        | shown as it is on the screen   |
-
-    Scenario: The size is a share of the screen, not of the lens
-      On a screen four times the size of the lens the same dialog covers 2%, not 8%, and stays.
-
-      Given the theme "Soft dark" with rectangles only from 3% to 20% of the screen at 75% brightness
-      And the screen is 4 times the size of the lens
+    Scenario: A theme that cannot turn the rectangle round leaves it to the plain inversion
+      Given the theme "Clear white" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And found rectangles are shown in the theme's colours
       And the screen shows "desktop-windows.png"
       When the lens renders the frame
-      Then the "small-dialog" is shown as it is on the screen
+      Then the "large-window" is shown dark
       And the "desktop" is shown as it is on the screen
-
-    Scenario: With the option off the lens changes everything, as before
-      Given the theme "Soft dark"
-      And the screen shows "desktop-windows.png"
-      When the lens renders the frame
-      Then the "grey-panel" is shown close to the page colour
-      And the "tiny-note" is shown close to the page colour
-
-  Rule: Under a light theme, large dark rectangles are lightened and nothing else is touched
-
-    Scenario: A light desktop with dark windows
-      Given the theme "Clear white" with rectangles only from 2% to 20% of the screen at 25% brightness
-      And the screen shows "desktop-windows-light.png"
-      When the lens renders the frame
-      Then the "large-window" is shown close to the page colour
-      And what is written on the "large-window" has a contrast of at least 7 to 1
-      And the "small-dialog" is shown close to the page colour
-      And the "grey-panel" is shown as it is on the screen
-      And the "tiny-note" is shown as it is on the screen
-      And the "dark-window" is shown as it is on the screen
-      And the "desktop" is shown as it is on the screen
-
-    Scenario Outline: How dark a rectangle has to be depends on its size
-      Given the theme "Clear white" with rectangles only from 2% to 20% of the screen at 25% brightness
-      And the screen shows a rectangle <brightness>% bright that covers <size>% of the screen
-      When the lens renders the frame
-      Then the "rectangle" is <outcome>
-      And the "desktop" is shown as it is on the screen
-
-      Examples:
-        | size | brightness | outcome                        |
-        | 25   | 24         | shown close to the page colour |
-        | 25   | 28         | shown as it is on the screen   |
-        | 12   | 8          | shown close to the page colour |
-        | 12   | 20         | shown as it is on the screen   |
-        | 3    | 0          | shown close to the page colour |
-        | 1.5  | 0          | shown as it is on the screen   |
 
   Rule: The lens never shows a bright rectangle before it has looked
 
     Scenario: Turning the lens on with rectangles only
-      Until the first rectangles are found the lens changes everything, so a white window is never
-      shown white first. Then the rest of the screen comes back.
+      Until the first rectangles are found the lens inverts everything bright, so a white window is
+      never shown white first. Then the small bright things come back.
 
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      Given the theme "Soft dark" with bright rectangles only, from 100 to 300 pixels at 75% brightness
       And the lens is live over "desktop-windows.png"
-      Then no frame so far shows the "large-window" brighter than the theme allows
+      Then no frame so far shows the page of the "large-window" bright
       And after 1 second the "desktop" is shown as it is on the screen
-      And after 1 second the "large-window" is shown close to the page colour
+      And after 1 second the "tiny-note" is shown as it is on the screen
+      And after 1 second the "large-window" is shown dark
 
     Scenario: Switching the option on while the lens is live
       Given the theme "Soft dark"
       And the lens is live over "desktop-windows.png" for 2 seconds
       When I switch rectangles only on
-      Then no frame so far shows the "large-window" brighter than the theme allows
+      Then no frame so far shows the page of the "large-window" bright
       And after 1 second the "desktop" is shown as it is on the screen
-      And after 1 second the "large-window" is shown close to the page colour
+      And after 1 second the "large-window" is shown dark
 
     Scenario: Switching the option off again
       What was dark stays dark while the rest of the screen fades back into the theme.
 
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      Given the theme "Soft dark" with bright rectangles only, from 100 to 300 pixels at 75% brightness
       And the lens is live over "desktop-windows.png" for 2 seconds
       When I switch rectangles only off
-      Then no frame so far shows the "large-window" brighter than the theme allows
+      Then no frame so far shows the page of the "large-window" bright
       And after 1 second the "grey-panel" is shown close to the page colour
-      And no frame so far shows the "large-window" brighter than the theme allows
+      And no frame so far shows the page of the "large-window" bright
 
     Scenario: A bright window is closed
       The rectangle that is no longer found fades out; it does not jump.
 
-      Given the theme "Soft dark" with rectangles only from 2% to 20% of the screen at 75% brightness
+      Given the theme "Soft dark" with bright rectangles only, from 100 to 300 pixels at 75% brightness
       And the lens is live over "desktop-windows.png" for 2 seconds
       When the screen changes to "dark-editor.png"
       Then the status is "Live"

@@ -37,9 +37,11 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
         "less-blue+sharpen",
         "soft-paper+balanced+local-contrast+strong-sharpen",
         "wake-up-dark",
-        "soft-dark+rectangles",
-        "soft-dark+rectangles+guard-off",
-        "clear-white+rectangles+strong-sharpen",
+        "passthrough+bright-rectangles",
+        "clear-white+dark-rectangles",
+        "soft-dark+bright-rectangles+in-theme",
+        "soft-dark+bright-rectangles+in-theme+guard-off",
+        "clear-white+dark-rectangles+in-theme+strong-sharpen",
     ];
 
     public static TheoryData<string, string> LooksAndFixtures()
@@ -76,8 +78,9 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
     [InlineData("soft-dark", "mixed-halves.png", 637, 395)]
     [InlineData("soft-paper+balanced+local-contrast+strong-sharpen", "web-buttons.png", 601, 333)]
     [InlineData("clear-white+balanced+strong-sharpen", "dark-editor.png", 130, 67)]
-    [InlineData("soft-dark+rectangles", "desktop-windows.png", 637, 395)]
-    [InlineData("clear-white+rectangles+strong-sharpen", "desktop-windows-light.png", 601, 333)]
+    [InlineData("passthrough+bright-rectangles", "desktop-windows.png", 637, 395)]
+    [InlineData("soft-dark+bright-rectangles+in-theme", "desktop-windows.png", 637, 395)]
+    [InlineData("clear-white+dark-rectangles+in-theme+strong-sharpen", "desktop-windows-light.png", 601, 333)]
     public void The_shader_matches_at_sizes_that_do_not_divide_evenly(string look, string fixture, int width, int height)
     {
         ImageRgb8 source = Crop(Fixtures.Draw(fixture).Image, width, height);
@@ -107,17 +110,25 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
     /// option takes hold and while a rectangle that is no longer found fades (section 5.6).
     /// </summary>
     [WindowsTheory]
-    [InlineData("soft-dark+rectangles", "desktop-windows.png")]
-    [InlineData("soft-dark+rectangles+guard-off", "desktop-windows.png")]
-    [InlineData("clear-white+rectangles+strong-sharpen", "desktop-windows-light.png")]
+    [InlineData("passthrough+bright-rectangles", "desktop-windows.png")]
+    [InlineData("soft-dark+bright-rectangles+in-theme", "desktop-windows.png")]
+    [InlineData("soft-dark+bright-rectangles+in-theme+guard-off", "desktop-windows.png")]
+    [InlineData("clear-white+dark-rectangles+in-theme+strong-sharpen", "desktop-windows-light.png")]
     public void The_shader_matches_while_rectangles_fade(string look, string fixture)
     {
         ImageRgb8 source = Fixtures.Draw(fixture).Image;
-        LensTables found = Pipeline.Run(LookNamed(look), source).Tables;
-        found.Parameters.Rectangles.Count.ShouldBeGreaterThan(1, "the fixture should have more than one rectangle to find");
-        LensRectangle[] fading = [.. found.Parameters.Rectangles];
+        Theme theme = LookNamed(look);
+        Thumbnail picture = Neighbourhood.Build(source).ToThumbnail(withDetail: true);
+        FoundRectangles found = RectangleFinder.Find(picture.Detail!, theme.Rectangles.Values, theme.Rectangles.Target);
+        found.Items.Count.ShouldBeGreaterThan(1, "the fixture should have more than one rectangle to find");
+        LensRectangle[] fading = [.. found.Items];
         fading[^1] = fading[^1] with { Weight = 0.4f };
-        LensTables tables = found.With(found.Parameters with { RectanglesOnly = 0.7f, Rectangles = fading });
+        LensTables whole = Pipeline.Run(theme, source).Tables;
+        LensTables tables = whole.With(whole.Parameters with
+        {
+            RectanglesOnly = 0.7f,
+            Mask = RectangleMask.Build(found.Width, found.Height, found.Pitch, fading, found.Ask),
+        });
 
         ImageRgb8 reference = ReferenceRenderer.Render(source, tables);
         ImageRgb8 drawn = graphics.Renderer.RenderToImage(source, tables);
@@ -125,18 +136,70 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
         AssertSamePicture(reference, drawn, look, $"{fixture} with the option at 70% and one rectangle at 40%");
     }
 
+    /// <summary>
+    /// Before the lens has found its rectangles the option is not in force yet, and the plain inversion applies
+    /// to every bright region (section 5.6): a look with no mask at all.
+    /// </summary>
+    [WindowsTheory]
+    [InlineData("passthrough+bright-rectangles", "desktop-windows.png")]
+    [InlineData("passthrough+bright-rectangles", "mixed-halves.png")]
+    [InlineData("clear-white+dark-rectangles", "desktop-windows-light.png")]
+    public void The_shader_matches_before_the_rectangles_are_known(string look, string fixture)
+    {
+        ImageRgb8 source = Fixtures.Draw(fixture).Image;
+        LensTables built = TableBuilder.Build(LookNamed(look));
+        LensTables tables = built.With(built.Parameters with { RectanglesOnly = 0f });
+        tables.Parameters.SelectsPixels.ShouldBeTrue();
+
+        ImageRgb8 reference = ReferenceRenderer.Render(source, tables);
+        ImageRgb8 drawn = graphics.Renderer.RenderToImage(source, tables);
+
+        AssertSamePicture(reference, drawn, look, $"{fixture} before the first look");
+    }
+
     /// <summary>With the option on and nothing found, the lens gives back the screen, to the last bit.</summary>
     [WindowsFact]
     public void Rectangles_only_with_no_rectangle_gives_back_every_pixel_unchanged()
     {
         ImageRgb8 source = Fixtures.Draw("dark-editor.png").Image;
-        LensTables tables = Pipeline.Run(LookNamed("soft-dark+rectangles"), source).Tables;
-        tables.Parameters.Rectangles.ShouldBeEmpty();
+        LensTables tables = Pipeline.Run(LookNamed("passthrough+bright-rectangles"), source).Tables;
 
         ImageRgb8 drawn = graphics.Renderer.RenderToImage(source, tables);
 
         PictureComparison comparison = PictureComparison.Compare(source, drawn);
         comparison.IsIdentical.ShouldBeTrue("The lens changed pixels outside any rectangle. " + comparison.Describe());
+    }
+
+    /// <summary>The detailed picture the rectangles are found in is the one the reference builds from the same frame.</summary>
+    [WindowsFact]
+    public void The_detailed_picture_read_back_is_the_one_the_reference_builds()
+    {
+        ImageRgb8 source = Fixtures.Draw("desktop-windows.png").Image;
+        Thumbnail expected = Neighbourhood.Build(source).ToThumbnail(withDetail: true).Detail!;
+        graphics.Renderer.RenderToImage(source, Pipeline.Run(LookNamed("soft-dark"), source).Tables);
+
+        Thumbnail? actual = null;
+        for (int attempt = 0; attempt < 500 && actual is null; attempt++)
+        {
+            actual = graphics.Renderer.TryReadThumbnail(withDetail: true)?.Detail;
+            if (actual is null)
+            {
+                Thread.Sleep(2);
+            }
+        }
+
+        actual.ShouldNotBeNull("the detailed picture never arrived");
+        (actual.Width, actual.Height, actual.SourcePixelsPerSample).ShouldBe((expected.Width, expected.Height, expected.SourcePixelsPerSample));
+        int wrong = 0;
+        for (int i = 0; i < expected.Pixels.Length; i++)
+        {
+            if (actual.Pixels[i] != expected.Pixels[i] || Math.Abs(actual.Range[i] - expected.Range[i]) > 1)
+            {
+                wrong++;
+            }
+        }
+
+        wrong.ShouldBe(0, "samples of the detailed picture differ from the reference");
     }
 
     /// <summary>FR-21: with the Passthrough theme, what comes out is what went in, to the last bit.</summary>
@@ -244,13 +307,23 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
                 "local-contrast" => theme with { Contrast = new ContrastSettings(0.6f, ContrastMode.Local) },
                 "sharpen" => theme with { Sharpen = new SharpenSettings(0.7f, SharpenMode.Standard) },
                 "strong-sharpen" => theme with { Sharpen = new SharpenSettings(0.7f, SharpenMode.Strong) },
-                "rectangles" => theme with { Rectangles = RectangleSettings.DefaultFor(theme.Base) with { On = true } },
+                "bright-rectangles" => theme with { Rectangles = Rectangles(RectangleTarget.Bright) },
+                "dark-rectangles" => theme with { Rectangles = Rectangles(RectangleTarget.Dark) },
+                "in-theme" => theme with { Rectangles = theme.Rectangles with { InTheme = true } },
                 _ => throw new ArgumentException($"There is no option called '{option}'.", nameof(look)),
             };
         }
 
         return theme;
     }
+
+    /// <summary>The option with values that suit the 640 by 400 test screens.</summary>
+    private static RectangleOption Rectangles(RectangleTarget target) => new()
+    {
+        On = true,
+        Target = target,
+        Values = (RectangleSettings.DefaultFor(target) with { SmallestSide = 100f, FullSide = 300f }).For(target),
+    };
 
     private static ImageRgb8 Crop(ImageRgb8 image, int width, int height)
     {

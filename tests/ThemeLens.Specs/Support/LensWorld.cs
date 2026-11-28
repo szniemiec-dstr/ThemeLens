@@ -32,9 +32,6 @@ public sealed class LensWorld : IDisposable
 
     public TimeSpan RenderCost { get; set; } = TimeSpan.FromMilliseconds(2);
 
-    /// <summary>Size of the screen the lens is on, for the "rectangles only" option. Null: the lens fills the screen.</summary>
-    public long? ScreenPixels { get; set; }
-
     public Theme RequireTheme() => Theme ?? throw new InvalidOperationException("No theme has been chosen in this scenario.");
 
     public Fixture RequireFixture() => Fixture ?? throw new InvalidOperationException("The screen shows nothing in this scenario.");

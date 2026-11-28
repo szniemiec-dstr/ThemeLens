@@ -15,8 +15,8 @@ public sealed record AnalysisResult(SceneAnalysis Scene, RoleMap Roles, LensTabl
     /// </summary>
     public FoundRectangles? Rectangles { get; init; }
 
-    /// <summary>The base the rectangles were found for: bright ones for a dark base, dark ones for a light base.</summary>
-    public ThemeBase RectanglesBase { get; init; }
+    /// <summary>What the rectangles are: bright ones or dark ones.</summary>
+    public RectangleTarget RectanglesTarget { get; init; }
 }
 
 /// <summary>
@@ -46,7 +46,6 @@ public sealed class LensAnalyser
     private SceneAnalysis _builtScene = SceneAnalysis.Empty;
     private LensTables _tables;
     private bool _forceRebuild;
-    private long _screenPixels;
 
     public LensAnalyser(Theme theme)
     {
@@ -100,16 +99,6 @@ public sealed class LensAnalyser
         }
     }
 
-    /// <summary>
-    /// Size of the screen the lens is on, in pixels. The "rectangles only" option measures areas as shares of
-    /// it. Zero (the start value) means the lens area itself is taken for the screen.
-    /// </summary>
-    public long ScreenPixels
-    {
-        get => Interlocked.Read(ref _screenPixels);
-        set => Interlocked.Exchange(ref _screenPixels, Math.Max(0, value));
-    }
-
     /// <summary>Replaces the user's pinned mappings. They take effect with the next analysis, without the three-in-a-row wait.</summary>
     public void SetPins(IReadOnlyList<Pin> pins)
     {
@@ -154,13 +143,8 @@ public sealed class LensAnalyser
         FoundRectangles? rectangles = null;
         if (analysed.RectanglesOnly)
         {
-            long screen = ScreenPixels;
-            if (screen <= 0)
-            {
-                screen = (long)thumbnail.Width * thumbnail.Height * thumbnail.SourcePixelsPerSample * thumbnail.SourcePixelsPerSample;
-            }
-
-            rectangles = RectangleFinder.Find(thumbnail, analysed.Rectangles, analysed.Base, screen);
+            // Small rectangles fall between the samples of the analysis picture; the detailed one has them.
+            rectangles = RectangleFinder.Find(thumbnail.Detail ?? thumbnail, analysed.Rectangles.Values, analysed.Rectangles.Target);
         }
 
         SceneAnalysis scene = ClusterFinder.Analyse(thumbnail);
@@ -206,7 +190,9 @@ public sealed class LensAnalyser
                 || (theme.Base == ThemeBase.Keep && theme.Contrast.IsOn
                     && MathF.Abs(scene.MedianLightness - _builtScene.MedianLightness) > 0.08f);
 
-            bool rebuild = rolesChanged || force || statsChanged || !ReferenceEquals(_tables.Theme, theme);
+            // With plain inversion of rectangles the look does not depend on the roles at all.
+            bool plain = theme.RectanglesOnly && !theme.RectanglesInTheme;
+            bool rebuild = (!plain && (rolesChanged || force)) || statsChanged || !ReferenceEquals(_tables.Theme, theme);
             if (rebuild)
             {
                 _tables = TableBuilder.Build(theme, _accepted, scene);
@@ -216,7 +202,7 @@ public sealed class LensAnalyser
             return new AnalysisResult(scene, _accepted, _tables, rebuild)
             {
                 Rectangles = rectangles,
-                RectanglesBase = analysed.Base,
+                RectanglesTarget = analysed.Rectangles.Target,
             };
         }
     }
