@@ -2,7 +2,8 @@ Feature: Rectangles only
   With "rectangles only" switched on, the lens leaves the screen as it is and changes only large
   rectangles of one kind: bright ones, to avoid light, or dark ones, to avoid darkness. How bright
   a rectangle has to be depends on its size. A found rectangle is plainly inverted, whatever the
-  theme, unless the user asks for the theme's colours. (FR-26, FR-27, FR-28, FR-29)
+  theme, to its negative, unless the user asks for hues to be kept or for the theme's colours.
+  (FR-26, FR-27, FR-28, FR-29)
 
   Rule: Bright rectangles are inverted, whatever the theme, and nothing else is touched
 
@@ -64,6 +65,19 @@ Feature: Rectangles only
       And the "tile-gutter" is shown dark
       And what is written on the "first-button" has a contrast of at least 7 to 1
       And the "toolbar-label" is shown as it is on the screen
+
+    Scenario: The inversion can keep hues
+      By default a rectangle is inverted to its negative. With hues kept, light and dark are swapped
+      and colours stay the colours they were.
+
+      Given the theme "Passthrough" with bright rectangles only, from 100 to 300 pixels at 75% brightness
+      And hues are kept when a rectangle is inverted
+      And the screen shows "desktop-windows.png"
+      When the lens renders the frame
+      Then the "large-window" is shown dark
+      And what is written on the "large-window" has a contrast of at least 7 to 1
+      And the "grey-panel" is shown as it is on the screen
+      And the "desktop" is shown as it is on the screen
 
   Rule: Dark rectangles are inverted the same way
 

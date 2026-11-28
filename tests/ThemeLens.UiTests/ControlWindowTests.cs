@@ -235,7 +235,7 @@ public sealed partial class ControlWindowTests
 
     /// <summary>
     /// FR-26 to FR-29: "rectangles only" has a switch, a choice between bright and dark rectangles, one bar with
-    /// two handles for the sizes in pixels, a slider for the brightness, and two preview switches that are on.
+    /// two handles for the sizes in pixels, a slider for the brightness, and three switches kept for each theme.
     /// The handles cannot pass each other, the lens stays live, and the values come back at the next start.
     /// </summary>
     [WindowsFact]
@@ -272,8 +272,11 @@ public sealed partial class ControlWindowTests
                 // The two preview settings are on, and can be switched off.
                 AutomationElement ownTarget = first.Find("RectangleOwnTargetSwitch");
                 AutomationElement plain = first.Find("RectanglePlainSwitch");
+                AutomationElement keepHues = first.Find("RectangleKeepHuesSwitch");
                 ownTarget.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
                 plain.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
+                keepHues.Properties.Name.ValueOrDefault.ShouldBe("Keep hues");
+                keepHues.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off, "the plain negative is the default");
 
                 only.Patterns.Toggle.Pattern.Toggle();
                 WaitFor(() => only.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On).ShouldBeTrue("the switch should be on");
@@ -298,6 +301,35 @@ public sealed partial class ControlWindowTests
                     "while the theme decides, the list cannot be used");
                 plain.Patterns.Toggle.Pattern.Toggle();
                 WaitFor(() => plain.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.Off).ShouldBeTrue();
+                keepHues.Patterns.Toggle.Pattern.Toggle();
+                WaitFor(() => keepHues.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On).ShouldBeTrue();
+
+                // These three are kept theme by theme: another theme still has the defaults, and coming back
+                // brings the choices back.
+                string original = SelectedTheme(first);
+                AutomationElement themes = first.Find("ThemeList");
+                void Choose(Func<AutomationElement, bool> which)
+                {
+                    themes.Patterns.ExpandCollapse.Pattern.Expand();
+                    AutomationElement[] items = [];
+                    WaitFor(() => (items = themes.FindAllDescendants(c => c.ByControlType(ControlType.ListItem))).Length >= 16).ShouldBeTrue(
+                        $"the list should offer the sixteen built-in themes, but offers {items.Length}");
+                    items.First(which).Patterns.SelectionItem.Pattern.Select();
+                    themes.Patterns.ExpandCollapse.Pattern.Collapse();
+                }
+
+                Choose(item => !item.Patterns.SelectionItem.Pattern.IsSelected.Value);
+                WaitFor(() => SelectedTheme(first) != original).ShouldBeTrue("another theme should be chosen now");
+                WaitFor(() => keepHues.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.Off).ShouldBeTrue(
+                    "the other theme has its own choices: hues not kept");
+                ownTarget.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
+                plain.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
+                only.Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On, "the option itself is the same under every theme");
+                Choose(item => item.Properties.Name.ValueOrDefault == original);
+                WaitFor(() => SelectedTheme(first) == original).ShouldBeTrue(
+                    $"the first theme should be chosen again, but the list shows '{SelectedTheme(first)}'");
+                WaitFor(() => keepHues.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On).ShouldBeTrue(
+                    "coming back to the theme brings its choices back");
 
                 Thread.Sleep(TimeSpan.FromSeconds(1));
                 first.Status().ShouldStartWith("Live");
@@ -312,6 +344,7 @@ public sealed partial class ControlWindowTests
             second.Find("RectangleBrightnessSlider").Patterns.RangeValue.Pattern.Value.Value.ShouldBe(0.85, 0.01);
             second.Find("RectangleOwnTargetSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off);
             second.Find("RectanglePlainSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.Off);
+            second.Find("RectangleKeepHuesSwitch").Patterns.Toggle.Pattern.ToggleState.Value.ShouldBe(ToggleState.On);
         }
         finally
         {

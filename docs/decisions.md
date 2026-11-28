@@ -1,6 +1,6 @@
 # Decisions
 
-Where the code had to settle something the specification (`spec.html`, draft 0.4) leaves open, or where it
+Where the code had to settle something the specification (`spec.html`, draft 0.5) leaves open, or where it
 departs from the letter of the specification, the choice and the reason are recorded here. Section numbers
 refer to the specification.
 
@@ -178,16 +178,22 @@ brightness threshold applies; the threshold on a second slider; sizes in between
 smaller ones are not inverted. Then: by default a rectangle is found and inverted irrespective of the theme,
 unless the user applies the theme; the first version's "target follows the theme" and "shown in the theme"
 stay as settings that can be switched off; the bar reaches from a square of 10 by 10 pixels to half the screen
-and runs by the root of the area. These points were not in the request and were settled as follows.
+and runs by the root of the area. And last: the plain negative is the default and hue keeping an option; no
+recognition of photos, what is bright is inverted; the switches are kept per theme. These points were not in
+the request and were settled as follows.
 
-- **Two preview switches, both on.** "Choose bright or dark myself" and "Invert plainly" are the new
-  behaviour. Switching the first off lets the theme decide what is looked for; switching the second off shows
-  a found rectangle in the theme's colours. Where a theme cannot turn the rectangle round (a bright rectangle
-  under a light theme, any rectangle under a Keep theme) it is inverted all the same.
-- **The inversion keeps hue and contrast.** It is not the photographic negative. A colour of luminance *Y*
-  gets luminance 0.0525 / (*Y* + 0.05) − 0.05, which gives it against black the WCAG contrast it had against
-  white; its chromaticity is kept and only as much saturation is given up as the gamut demands. White becomes
-  black, `#222222` text keeps 15.9 : 1, a blue link stays blue. The same table turns dark rectangles light.
+- **Three switches, kept for each theme.** "Choose bright or dark myself" and "Invert plainly" are on by
+  default; switching the first off lets the theme decide what is looked for, switching the second off shows a
+  found rectangle in the theme's colours. Where a theme cannot turn the rectangle round (a bright rectangle
+  under a light theme, any rectangle under a Keep theme) it is inverted all the same. "Keep hues" is off by
+  default. Whether the option is on, what it looks for and the three values of the rule stay the same under
+  every theme: only the three switches were asked to be per theme. A theme saved from another takes its
+  switches over.
+- **Two inversions.** The default is the negative, 255 minus each channel. With "Keep hues" a colour of
+  luminance *Y* gets luminance 0.0525 / (*Y* + 0.05) − 0.05, which gives it against black the WCAG contrast
+  it had against white; its chromaticity is kept and only as much saturation is given up as the gamut
+  demands. Either one, applied twice, gives the colour back, so the same table turns dark rectangles light.
+- **No recognition of pictures.** A bright photo is a bright rectangle and is inverted.
 - **Outside the rectangles nothing is changed at all**, also not by the theme's brightness limit or warmth.
 - **Sizes are in screen pixels**, as the side of a square of the same area. The bar is linear in that side.
   Its right end is the square that covers half the screen the lens is on.
@@ -249,16 +255,6 @@ Under a dark theme a black button on a white page becomes page-coloured, and onl
 there (D2). A thin line in a muted colour along the boundary would keep buttons, cards and panels visible as
 outlined shapes. It would be the first thing the lens draws that is not a recoloured pixel, so it is left for
 a decision.
-
-### Q4. Rectangles only: three things to confirm
-
-They are also listed in section 14.1 of the specification.
-
-1. The inversion keeps hues and swaps contrast against white for contrast against black (D16). The
-   alternative is the plain negative, in which a blue link turns orange.
-2. A white photograph is a bright rectangle and is inverted like any other.
-3. When the two preview switches move to the advanced settings: one setting for all themes, as now, or one
-   per theme?
 
 ### Q3. Tests run on Microsoft.Testing.Platform
 

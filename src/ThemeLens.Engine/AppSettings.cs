@@ -47,16 +47,11 @@ public sealed record ThemeAdjustments
 }
 
 /// <summary>
-/// What the user chose for the "rectangles only" option (section 5.6): on or off, what to look for, the values
-/// of the rule for bright and for dark rectangles, and two settings that are on while the option is a preview.
+/// The settings of the "rectangles only" option that are kept for each theme (section 5.6). The first two are on
+/// while the option is a preview.
 /// </summary>
-public sealed record RectanglePreferences
+public sealed record RectangleThemeChoices
 {
-    public bool On { get; init; }
-
-    /// <summary>What to look for while <see cref="OwnTarget"/> is on.</summary>
-    public RectangleTarget Target { get; init; } = RectangleTarget.Bright;
-
     /// <summary>
     /// On (the default): the user chooses bright or dark rectangles, whatever the theme. Off: a dark theme looks
     /// for bright rectangles and a light theme for dark ones.
@@ -69,15 +64,60 @@ public sealed record RectanglePreferences
     /// </summary>
     public bool PlainInversion { get; init; } = true;
 
+    /// <summary>
+    /// Off (the default): the inversion is the negative, in which blue turns orange. On: light and dark are
+    /// swapped and hues are kept.
+    /// </summary>
+    public bool KeepHues { get; init; }
+}
+
+/// <summary>
+/// What the user chose for the "rectangles only" option (section 5.6): on or off, what to look for and the
+/// values of the rule for bright and for dark rectangles, which hold for every theme; and a few choices that
+/// are kept theme by theme.
+/// </summary>
+public sealed record RectanglePreferences
+{
+    private static readonly IReadOnlyDictionary<string, RectangleThemeChoices> NoThemes = new Dictionary<string, RectangleThemeChoices>();
+
+    public bool On { get; init; }
+
+    /// <summary>What to look for while <see cref="RectangleThemeChoices.OwnTarget"/> is on.</summary>
+    public RectangleTarget Target { get; init; } = RectangleTarget.Bright;
+
     public RectangleSettings Bright { get; init; } = RectangleSettings.DefaultFor(RectangleTarget.Bright);
 
     public RectangleSettings Dark { get; init; } = RectangleSettings.DefaultFor(RectangleTarget.Dark);
+
+    /// <summary>The choices kept per theme id. A theme that is not listed has the defaults.</summary>
+    public IReadOnlyDictionary<string, RectangleThemeChoices> Themes { get; init; } = NoThemes;
+
+    public RectangleThemeChoices ChoicesFor(string themeId) =>
+        Themes is not null && Themes.TryGetValue(themeId, out RectangleThemeChoices? choices) && choices is not null
+            ? choices
+            : new RectangleThemeChoices();
+
+    public RectanglePreferences WithChoices(string themeId, RectangleThemeChoices choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        var copy = new Dictionary<string, RectangleThemeChoices>(Themes ?? NoThemes);
+        if (choices == new RectangleThemeChoices())
+        {
+            copy.Remove(themeId);
+        }
+        else
+        {
+            copy[themeId] = choices;
+        }
+
+        return this with { Themes = copy };
+    }
 
     /// <summary>What is looked for under <paramref name="theme"/>. A theme that leaves light and dark alone has no say.</summary>
     public RectangleTarget TargetFor(Theme theme)
     {
         ArgumentNullException.ThrowIfNull(theme);
-        return OwnTarget || !theme.HasRoles
+        return ChoicesFor(theme.Id).OwnTarget || !theme.HasRoles
             ? Target
             : theme.Base == ThemeBase.Dark ? RectangleTarget.Bright : RectangleTarget.Dark;
     }
@@ -95,7 +135,15 @@ public sealed record RectanglePreferences
     public RectangleOption For(Theme theme)
     {
         RectangleTarget target = TargetFor(theme);
-        return new RectangleOption { On = On, Target = target, InTheme = !PlainInversion, Values = ValuesFor(target) };
+        RectangleThemeChoices choices = ChoicesFor(theme.Id);
+        return new RectangleOption
+        {
+            On = On,
+            Target = target,
+            InTheme = !choices.PlainInversion,
+            KeepHues = choices.KeepHues,
+            Values = ValuesFor(target),
+        };
     }
 }
 

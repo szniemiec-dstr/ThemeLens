@@ -71,21 +71,48 @@ public static class TableBuilder
 
     private static readonly Grid Nodes = new();
 
-    private static readonly Lazy<Lut3D> Inversion = new(BuildInversionTable);
+    private static readonly Lazy<Lut3D> Negative = new(BuildNegativeTable);
+
+    private static readonly Lazy<Lut3D> HueKeeping = new(BuildHueKeepingTable);
 
     /// <summary>
-    /// The table of the plain inversion: every colour keeps its hue and gets the luminance that gives it, against
-    /// black, the contrast it had against white. White becomes black, black white, and text that was readable
-    /// on a white page is exactly as readable on the black one. Applying it twice gives the colour back, so the
-    /// same table turns dark rectangles light.
+    /// The table of the plain inversion: the negative. Every channel becomes its opposite, 255 minus what it
+    /// was. White becomes black and black white; blue turns orange. Applying it twice gives the colour back, so
+    /// the same table turns dark rectangles light.
     /// </summary>
-    public static Lut3D InversionTable => Inversion.Value;
+    public static Lut3D NegativeTable => Negative.Value;
 
-    /// <summary>The luminance a colour of luminance <paramref name="luminance"/> has after the plain inversion.</summary>
+    /// <summary>
+    /// The table of the inversion that keeps hues: every colour keeps its hue and gets the luminance that gives
+    /// it, against black, the contrast it had against white. White becomes black, black white, and text that was
+    /// readable on a white page is exactly as readable on the black one. This one too gives the colour back when
+    /// applied twice.
+    /// </summary>
+    public static Lut3D HueKeepingTable => HueKeeping.Value;
+
+    /// <summary>The luminance a colour of luminance <paramref name="luminance"/> has after the hue-keeping inversion.</summary>
     public static float InvertedLuminance(float luminance) =>
         (Flare * (1f + Flare) / (Math.Clamp(luminance, 0f, 1f) + Flare)) - Flare;
 
-    private static Lut3D BuildInversionTable()
+    private static Lut3D BuildNegativeTable()
+    {
+        var table = new Lut3D();
+        const int size = Lut3D.Size;
+        for (int b = 0; b < size; b++)
+        {
+            for (int g = 0; g < size; g++)
+            {
+                for (int r = 0; r < size; r++)
+                {
+                    table[r, g, b] = Vector3.One - (new Vector3(r, g, b) / (size - 1));
+                }
+            }
+        }
+
+        return table;
+    }
+
+    private static Lut3D BuildHueKeepingTable()
     {
         var table = new Lut3D();
         const int size = Lut3D.Size;
@@ -132,13 +159,15 @@ public static class TableBuilder
         if (theme.RectanglesOnly && !theme.RectanglesInTheme)
         {
             // Plain inversion, whatever the theme (section 5.6): one table for everything, no limits, no extras.
+            // The negative unless the user asked for hues to be kept.
             // The "page" is what a rectangle of the kind looked for turns into; it is the fill shown while the
             // picture cannot be trusted.
             bool bright = theme.Rectangles.Target == RectangleTarget.Bright;
             Vector3 page = bright ? Vector3.Zero : Vector3.One;
+            Lut3D inversion = theme.Rectangles.KeepHues ? HueKeeping.Value : Negative.Value;
             return new LensTables(
-                Inversion.Value,
-                Inversion.Value,
+                inversion,
+                inversion,
                 new FrameParameters
                 {
                     Direction = bright ? 1f : -1f,

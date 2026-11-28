@@ -158,6 +158,12 @@ public sealed record RectangleOption
     /// </summary>
     public bool InTheme { get; init; }
 
+    /// <summary>
+    /// How a rectangle is inverted. False (the default): the plain negative, in which every colour becomes its
+    /// opposite and blue turns orange. True: light and dark are swapped and hues are kept, so blue stays blue.
+    /// </summary>
+    public bool KeepHues { get; init; }
+
     public RectangleSettings Values { get; init; } = new();
 }
 

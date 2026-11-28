@@ -148,7 +148,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 
 <div class="page">
   <div class="topbar">
-    <div class="doc">Specification, draft 0.4, 28 November 2026</div>
+    <div class="doc">Specification, draft 0.5, 28 November 2026</div>
     <div class="seg" role="group" aria-label="Page background">
       <button type="button" data-base="dark" aria-pressed="false">Dark background</button>
       <button type="button" data-base="light" aria-pressed="false">Light background</button>
@@ -534,7 +534,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 </svg>
 <figcaption><b>Figure 5.</b> Control window. Each row is one colour cluster found under the lens: its true colour with a name and hex value, how much of the lens it covers, the role it was given, and the colour it is shown as. Changing “Used as” pins that mapping. Contrast and Sharpen are off at zero; each has a mode switch (Standard, or the heavier Local and Strong) behind its label. The status pill reads “Live” with the current delay, “Live, reduced speed” when a heavier option or CPU rendering has pushed the lens past its standard budget, or “Holding background” when the lens is showing a plain fill.</figcaption>
 </figure>
-<p>Below the sliders the window has a section “Rectangles only” (<a href="#s5-6">5.6</a>): a switch, a list that chooses between bright and dark rectangles, one bar with two handles for the two sizes, and a slider for the brightness. A sentence under the controls spells the three values out, so the handles need no manual. Two more switches, “Choose bright or dark myself” and “Invert plainly”, are on and sit under a small heading “Preview settings”; they will move to the advanced settings.</p>
+<p>Below the sliders the window has a section “Rectangles only” (<a href="#s5-6">5.6</a>): a switch, a list that chooses between bright and dark rectangles, one bar with two handles for the two sizes, and a slider for the brightness. A sentence under the controls spells the three values out, so the handles need no manual. Three more switches sit under a small heading “Preview settings, for this theme”: “Choose bright or dark myself” and “Invert plainly”, which are on, and “Keep hues”, which is off. They are kept for each theme and will move to the advanced settings.</p>
 <p>The window also holds a Settings page (shortcuts, start with Windows, updates, language) and an About page (version, licence, third-party notices). The tray icon repeats the most common actions: lens on or off, theme, fill this screen, open control window, quit.</p>
 
 <h3><span class="n">4.7</span>Keyboard shortcuts</h3>
@@ -653,11 +653,12 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <div class="tw"><table>
 <thead><tr><th>Looking for</th><th>What is found</th><th>What happens to it</th><th>Brightness slider</th></tr></thead>
 <tbody>
-<tr><td>Bright rectangles (light avoidance)</td><td>A white document window, a white dialog</td><td>It is inverted: the white page becomes black, dark text light</td><td>“At least this bright”, 50 to 100%, starts at 75%</td></tr>
+<tr><td>Bright rectangles (light avoidance)</td><td>A white document window, a white dialog, a bright photo</td><td>It is inverted: the white page becomes black, dark text light</td><td>“At least this bright”, 50 to 100%, starts at 75%</td></tr>
 <tr><td>Dark rectangles (darkness avoidance)</td><td>A dark editor, a terminal</td><td>It is inverted: the dark page becomes light, light text dark</td><td>“At most this bright”, 0 to 50%, starts at 25%</td></tr>
 </tbody></table></div>
-<p>The user chooses which of the two is looked for, and a found rectangle is inverted whatever theme is selected. The inversion keeps hues and keeps every contrast: each colour gets the luminance that gives it, against black, the contrast it had against white. Text that was readable on the white page is exactly as readable on the black one, and a blue link is still blue. Applied to a dark rectangle the same rule turns it light.</p>
-<p>There is one set of values for bright rectangles and one for dark ones. They are the user's settings and are not stored in theme files. The option is off until the user switches it on.</p>
+<p>The user chooses which of the two is looked for, and a found rectangle is inverted whatever theme is selected. The inversion is the plain negative: every colour becomes its opposite, white black, black white, blue orange. Applied to a dark rectangle the same rule turns it light. There is no recognition of pictures: what is bright enough and large enough is inverted, a photo included.</p>
+<p>With “Keep hues” switched on, the inversion swaps light and dark only. Each colour keeps its hue and gets the luminance that gives it, against black, the contrast it had against white. Text that was readable on the white page is exactly as readable on the black one, and a blue link is still blue.</p>
+<p>Whether the option is on, what it looks for, and the values below are the same under every theme; there is one set of values for bright rectangles and one for dark ones. They are the user's settings and are not stored in theme files. The option is off until the user switches it on.</p>
 
 <p><b>Sizes.</b> How bright a rectangle has to be depends on how large it is. Sizes are set as the side of a square of the same area, in screen pixels: a window of 800 by 450 pixels counts as a square of 600. The bar runs evenly by that side, from 10 pixels (a square of 10 by 10) to the square that covers half the screen (1018 pixels on a full-HD screen). Three values set the rule: two sizes on one bar with two handles, and a brightness on a slider of its own.</p>
 <ul>
@@ -686,12 +687,13 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 </ul>
 <p>This option is the one deliberate exception to “inside the lens the background is always the one I chose”: the user asks for the rest of the screen to stay. Two things keep the spirit of the rule. Until the lens has looked at the screen for the first time it inverts every bright region, so a white window is never shown white first. And a rectangle that is no longer found fades out over the usual 200 ms; a newly found one is changed at once.</p>
 
-<p><b>Preview settings.</b> Two switches are on by default and will move to the advanced settings. Each can be switched off by itself.</p>
+<p><b>Settings kept for each theme.</b> Three switches are remembered theme by theme, so that one theme can show rectangles in its own colours while another inverts them. A theme saved from another one takes its switches over. The first two are on while the option is a preview; all three will move to the advanced settings.</p>
 <div class="tw"><table>
-<thead><tr><th>Switch</th><th>On (default)</th><th>Off</th></tr></thead>
+<thead><tr><th>Switch</th><th>Default</th><th>On</th><th>Off</th></tr></thead>
 <tbody>
-<tr><td>Choose bright or dark myself</td><td>The list decides what is looked for, whatever the theme.</td><td>The theme decides: a dark theme looks for bright rectangles, a light theme for dark ones. A theme of the Keep base has no say; the list still decides.</td></tr>
-<tr><td>Invert plainly</td><td>A found rectangle is inverted, whatever the theme.</td><td>A found rectangle is shown in the theme's colours, as the whole lens would show it, where the theme turns that kind of rectangle round: bright ones under a dark theme, dark ones under a light theme. Anywhere else it is inverted all the same.</td></tr>
+<tr><td>Choose bright or dark myself</td><td>On</td><td>The list decides what is looked for, whatever the theme.</td><td>The theme decides: a dark theme looks for bright rectangles, a light theme for dark ones. A theme of the Keep base has no say; the list still decides.</td></tr>
+<tr><td>Invert plainly</td><td>On</td><td>A found rectangle is inverted, whatever the theme.</td><td>A found rectangle is shown in the theme's colours, as the whole lens would show it, where the theme turns that kind of rectangle round: bright ones under a dark theme, dark ones under a light theme. Anywhere else it is inverted all the same.</td></tr>
+<tr><td>Keep hues</td><td>Off</td><td>The inversion swaps light and dark and keeps hues and contrast.</td><td>The inversion is the plain negative.</td></tr>
 </tbody></table></div>
 
 </section>
@@ -774,7 +776,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <li>An area that is large enough for the step is cut into rectangles: the largest rectangle that fits, then the largest that fits in the rest, up to four. If four rectangles cover less than 90% of the area, it is not rectangular and is left alone.</li>
 <li>The rectangles are written into a mask with one cell per block. Inside a rectangle every pixel is changed. On its rim, the outermost ring of cells and the ring around it, the shader decides pixel by pixel: a pixel belongs when it is itself as bright as the rectangle had to be. That makes the edge exact to the pixel and keeps the dark pixels beside a bright rectangle dark.</li>
 <li>Where a hole was filled (a dark button on a white page), the shader asks the polarity check (<a href="#s6-5">6.5</a>) for each pixel and leaves alone what lies in a dark region, so the button and what is written on it stay.</li>
-<li>The plain inversion is one more lookup table, the same for every theme: hue is kept, and luminance <i>Y</i> becomes 0.0525 / (<i>Y</i> + 0.05) − 0.05, which swaps a colour's contrast against white for the same contrast against black.</li>
+<li>The inversion is one more lookup table, the same for every theme. The plain negative takes each channel to 255 minus its value. The table that keeps hues takes luminance <i>Y</i> to 0.0525 / (<i>Y</i> + 0.05) − 0.05, which swaps a colour's contrast against white for the same contrast against black, and leaves the hue alone.</li>
 </ol>
 <p>Rectangles follow the screen with the delay of the analysis, about an eighth of a second. While a window is dragged its rectangle trails it, and a newly opened white window can be white for that long. Finding the rectangles costs about 10 ms per analysis on a full-HD lens, on a background thread.</p>
 </section>
@@ -990,7 +992,7 @@ footer{border-top:1px solid var(--line); padding-top:16px; color:var(--dim); fon
 <tr><td class="id">FR-26</td><td>“Rectangles only” can be switched on under any theme, for bright or for dark rectangles, each with its own values. With it on, every pixel outside the found rectangles is shown exactly as it is on the screen.</td></tr>
 <tr><td class="id">FR-27</td><td>Sizes are set as the side of a square of the same area, from 10 pixels to the square that covers half the screen. A rectangle is changed when it is at least as large as the larger size and reaches the brightness threshold, or at least as large as the smallest size and is pure white (pure black for dark rectangles). Between the two sizes the brightness needed changes in a straight line along the bar. Smaller rectangles are never changed.</td></tr>
 <tr><td class="id">FR-28</td><td>With “Rectangles only” on, the lens changes every region of the kind it looks for until it has found rectangles for the first time, a newly found rectangle is changed at once, and one that is no longer found fades out.</td></tr>
-<tr><td class="id">FR-29</td><td>By default the user chooses bright or dark rectangles, and a found rectangle is inverted whatever the theme, keeping hue and contrast. Two settings, both on by default, can each be switched off: then the theme decides what is looked for, and a found rectangle is shown in the theme's colours.</td></tr>
+<tr><td class="id">FR-29</td><td>By default the user chooses bright or dark rectangles, and a found rectangle is inverted to its plain negative whatever the theme. Three settings are kept for each theme: two, on by default, that can each be switched off, after which the theme decides what is looked for and a found rectangle is shown in the theme's colours; and one, off by default, that makes the inversion keep hues and contrast. Pictures are not recognised: a bright photo is inverted like any other bright rectangle.</td></tr>
 </tbody></table></div>
 <h3><span class="n">8.2</span>Quality</h3>
 <div class="tw two"><table>
@@ -1402,9 +1404,6 @@ Feature: Input passes through the lens
 <li>Final name, and who holds the trademark?</li>
 <li>Should the app show the lens automatically at sign-in, or wait for the shortcut?</li>
 <li>Which languages should the UI ship in first?</li>
-<li>“Rectangles only”: the inversion keeps hues (a blue link stays blue) and swaps contrast against white for contrast against black. Is that the inversion wanted, or should it be the plain negative, in which blue turns orange?</li>
-<li>“Rectangles only”: a white photo is a bright rectangle and is inverted like any other. Should pictures be left alone?</li>
-<li>“Rectangles only”: when the two preview settings move to the advanced settings, should they be kept for all themes together, as now, or per theme?</li>
 </ol>
 </section>
 
@@ -1426,7 +1425,7 @@ Feature: Input passes through the lens
 </section>
 
 <footer>
-<p>ThemeLens specification, draft 0.4 (“Rectangles only” in 5.6, 6.8 and FR-26 to FR-29: plain inversion whatever the theme, sizes as the side of a square from 10 pixels to half the screen, two preview settings). Draft 0.3 added the Wake up themes in 5.3 and the first version of the option. Intended location in the repository: <code>docs/spec.html</code>.</p>
+<p>ThemeLens specification, draft 0.5 (“Rectangles only” in 5.6, 6.8 and FR-26 to FR-29: the plain negative whatever the theme, hue keeping as an option, no recognition of pictures, three settings kept for each theme, sizes as the side of a square from 10 pixels to half the screen). Draft 0.3 added the Wake up themes in 5.3 and the first version of the option. Intended location in the repository: <code>docs/spec.html</code>.</p>
 </footer>
     </main>
   </div>

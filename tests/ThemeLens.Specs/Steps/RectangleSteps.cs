@@ -27,6 +27,13 @@ public sealed class RectangleSteps(LensWorld world)
         world.Theme = theme with { Rectangles = theme.Rectangles with { InTheme = true } };
     }
 
+    [Given("hues are kept when a rectangle is inverted")]
+    public void GivenHuesAreKept()
+    {
+        Theme theme = world.RequireTheme();
+        world.Theme = theme with { Rectangles = theme.Rectangles with { KeepHues = true } };
+    }
+
     [Given("sharpen at {int}%")]
     public void GivenSharpenAt(int percent) =>
         world.Theme = world.RequireTheme() with { Sharpen = new SharpenSettings(percent / 100f, SharpenMode.Standard) };

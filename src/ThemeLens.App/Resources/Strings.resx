@@ -239,8 +239,8 @@
     <comment>Explains the three values while dark rectangles are looked for. {0} smallest size, {1} larger size, both in pixels; {2} brightness in per cent.</comment>
   </data>
   <data name="RectanglesPreviewHeading" xml:space="preserve">
-    <value>Preview settings</value>
-    <comment>Small heading above two switches that are on by default and will later move to the advanced settings.</comment>
+    <value>Preview settings, for this theme</value>
+    <comment>Small heading above three switches that are kept for each theme and will later move to the advanced settings.</comment>
   </data>
   <data name="RectanglesOwnTarget" xml:space="preserve">
     <value>Choose bright or dark myself</value>
@@ -250,9 +250,13 @@
     <value>Invert plainly</value>
     <comment>Switch, on by default. On: a found rectangle is inverted, whatever the theme. Off: it is shown in the theme's colours.</comment>
   </data>
+  <data name="RectanglesKeepHues" xml:space="preserve">
+    <value>Keep hues</value>
+    <comment>Switch, off by default. Off: a rectangle is inverted to its negative. On: light and dark are swapped and hues are kept.</comment>
+  </data>
   <data name="RectanglesPreviewHelp" xml:space="preserve">
-    <value>Both are on while this option is a preview. With the first one off, a dark theme looks for bright rectangles and a light theme for dark ones. With the second one off, a found rectangle is shown in the theme's colours where the theme has colours for it.</value>
-    <comment>Explains the two preview switches.</comment>
+    <value>These three are kept for each theme. The first two are on while this option is a preview: with the first one off, a dark theme looks for bright rectangles and a light theme for dark ones; with the second one off, a found rectangle is shown in the theme's colours where the theme has colours for it. “Keep hues” swaps light and dark only, so that blue stays blue; without it the inversion is the plain negative, in which blue turns orange.</value>
+    <comment>Explains the three switches.</comment>
   </data>
   <data name="KeepBackgroundLabel" xml:space="preserve">
     <value>Keep background</value>

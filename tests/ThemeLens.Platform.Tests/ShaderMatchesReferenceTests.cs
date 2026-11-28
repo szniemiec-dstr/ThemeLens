@@ -38,6 +38,7 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
         "soft-paper+balanced+local-contrast+strong-sharpen",
         "wake-up-dark",
         "passthrough+bright-rectangles",
+        "passthrough+bright-rectangles+keep-hues",
         "clear-white+dark-rectangles",
         "soft-dark+bright-rectangles+in-theme",
         "soft-dark+bright-rectangles+in-theme+guard-off",
@@ -310,6 +311,7 @@ public sealed class ShaderMatchesReferenceTests(SoftwareRendererFixture graphics
                 "bright-rectangles" => theme with { Rectangles = Rectangles(RectangleTarget.Bright) },
                 "dark-rectangles" => theme with { Rectangles = Rectangles(RectangleTarget.Dark) },
                 "in-theme" => theme with { Rectangles = theme.Rectangles with { InTheme = true } },
+                "keep-hues" => theme with { Rectangles = theme.Rectangles with { KeepHues = true } },
                 _ => throw new ArgumentException($"There is no option called '{option}'.", nameof(look)),
             };
         }

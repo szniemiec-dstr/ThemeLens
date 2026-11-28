@@ -87,6 +87,9 @@ public sealed class LensSession : IDisposable
     /// <summary>What the user chose for the "rectangles only" option (section 5.6).</summary>
     public RectanglePreferences Rectangles => Settings.Rectangles ?? new RectanglePreferences();
 
+    /// <summary>The choices of the option that are kept for the selected theme.</summary>
+    public RectangleThemeChoices RectangleChoices => Rectangles.ChoicesFor(SelectedTheme.Id);
+
     /// <summary>The option as the lens runs it under the selected theme: what is looked for, and with which values.</summary>
     public RectangleOption RectangleOption => Rectangles.For(SelectedTheme);
 
@@ -185,6 +188,14 @@ public sealed class LensSession : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>Changes the choices of the option that are kept for the selected theme.</summary>
+    public void SetRectangleChoices(Func<RectangleThemeChoices, RectangleThemeChoices> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        string themeId = SelectedTheme.Id;
+        SetRectangles(r => r.WithChoices(themeId, change(r.ChoicesFor(themeId))));
+    }
+
     /// <summary>Changes the three values of the rule for what is looked for at the moment.</summary>
     public void SetRectangleValues(Func<RectangleSettings, RectangleSettings> change)
     {
@@ -219,7 +230,11 @@ public sealed class LensSession : IDisposable
     /// <summary>Saves what the lens shows now as a named theme and selects it (FR-15).</summary>
     public Theme SaveAsTheme(string name)
     {
+        RectangleThemeChoices choices = RectangleChoices;
         Theme saved = _catalogue.SaveAs(AdjustedTheme, name);
+
+        // A theme file cannot hold the choices of the "rectangles only" option; the new theme takes them over here.
+        Update(Settings with { Rectangles = Rectangles.WithChoices(saved.Id, choices) });
         SelectTheme(saved.Id);
         return saved;
     }

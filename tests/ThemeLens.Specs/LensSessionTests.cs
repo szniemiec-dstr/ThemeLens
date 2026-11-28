@@ -134,7 +134,9 @@ public sealed class LensSessionTests : IDisposable
     {
         (LensSession session, EngineHarness engine) = Start();
         session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
-        session.Rectangles.ShouldBe(new RectanglePreferences(), "the option starts switched off, looking for bright rectangles, inverting plainly");
+        session.Rectangles.On.ShouldBeFalse("the option starts switched off");
+        session.Rectangles.Target.ShouldBe(RectangleTarget.Bright);
+        session.RectangleChoices.ShouldBe(new RectangleThemeChoices(), "choosing bright or dark oneself, inverting plainly, to the negative");
         session.TurnOn();
         engine.RunFor(TimeSpan.FromMilliseconds(500));
         engine.Controller.Look.Parameters.SelectsPixels.ShouldBeFalse();
@@ -175,41 +177,72 @@ public sealed class LensSessionTests : IDisposable
         (LensSession session, _) = Start();
         session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
         session.SetRectangles(r => r with { On = true, Target = RectangleTarget.Dark });
-        session.Rectangles.OwnTarget.ShouldBeTrue();
-        session.Rectangles.PlainInversion.ShouldBeTrue();
+        session.RectangleChoices.ShouldBe(new RectangleThemeChoices(), "both on, hues not kept");
+        session.RectangleChoices.OwnTarget.ShouldBeTrue();
+        session.RectangleChoices.PlainInversion.ShouldBeTrue();
 
         // Without the first, the theme decides what is looked for.
-        session.SetRectangles(r => r with { OwnTarget = false });
+        session.SetRectangleChoices(c => c with { OwnTarget = false });
         session.RectangleOption.Target.ShouldBe(RectangleTarget.Bright, "a dark theme looks for bright rectangles");
         session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("the rectangle is still plainly inverted");
-        session.SelectTheme("clear-white");
-        session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark, "a light theme looks for dark ones");
-        session.SelectTheme("less-blue");
-        session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark, "a theme that leaves light and dark alone has no say: the user's choice stands");
 
-        // Without the second, a found rectangle is shown in the theme's colours where the theme has them.
-        session.SetRectangles(r => r with { PlainInversion = false });
-        session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("Less blue has no colours of its own");
-        session.SelectTheme("soft-dark");
+        // Without the second, a found rectangle is shown in the theme's colours.
+        session.SetRectangleChoices(c => c with { PlainInversion = false });
         session.EffectiveTheme.RectanglesInTheme.ShouldBeTrue();
 
         // The first on again, the second still off: bright or dark is the user's choice, the colours the theme's.
-        session.SetRectangles(r => r with { OwnTarget = true });
+        session.SetRectangleChoices(c => c with { OwnTarget = true });
         session.RectangleOption.Target.ShouldBe(RectangleTarget.Dark);
         session.EffectiveTheme.RectanglesInTheme.ShouldBeFalse("a dark theme cannot turn a dark rectangle round, so it is inverted");
     }
 
     [Fact]
-    public void A_saved_theme_does_not_carry_the_rectangles_option()
+    public void The_preview_settings_and_the_way_of_inverting_are_kept_theme_by_theme()
+    {
+        (LensSession session, EngineHarness engine) = Start();
+        session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
+        session.SetRectangles(r => r with { On = true });
+        session.EffectiveTheme.Rectangles.KeepHues.ShouldBeFalse("the plain negative is the default");
+        engine.Controller.Look.Light.ShouldBeSameAs(Core.Mapping.TableBuilder.NegativeTable);
+
+        session.SetRectangleChoices(c => c with { KeepHues = true, OwnTarget = false });
+        engine.Controller.Theme.Rectangles.KeepHues.ShouldBeTrue();
+        engine.Controller.Look.Light.ShouldBeSameAs(Core.Mapping.TableBuilder.HueKeepingTable);
+
+        // Another theme has its own: the defaults, until they are changed there.
+        session.SelectTheme("clear-white");
+        session.RectangleChoices.ShouldBe(new RectangleThemeChoices());
+        session.RectangleOption.Target.ShouldBe(RectangleTarget.Bright, "under this theme bright or dark is still the user's choice");
+        session.SetRectangleChoices(c => c with { PlainInversion = false });
+        session.SelectTheme("soft-dark");
+        session.RectangleChoices.ShouldBe(new RectangleThemeChoices { KeepHues = true, OwnTarget = false });
+
+        // What the option looks for, and with which values, is the same under every theme.
+        session.Rectangles.On.ShouldBeTrue();
+        session.Dispose();
+
+        (LensSession next, _) = Start();
+        next.RectangleChoices.ShouldBe(new RectangleThemeChoices { KeepHues = true, OwnTarget = false });
+        next.SelectTheme("clear-white");
+        next.RectangleChoices.ShouldBe(new RectangleThemeChoices { PlainInversion = false });
+        next.SetRectangleChoices(_ => new RectangleThemeChoices());
+        next.Rectangles.Themes.Keys.ShouldBe(["soft-dark"], "a theme back at the defaults is not listed");
+    }
+
+    [Fact]
+    public void A_saved_theme_does_not_carry_the_rectangles_option_but_takes_over_the_choices_made_for_it()
     {
         (LensSession session, _) = Start();
         session.CompleteFirstRun(ThemeBase.Dark, "soft-dark", false);
         session.SetRectangles(r => r with { On = true });
+        session.SetRectangleChoices(c => c with { KeepHues = true });
 
         Theme saved = session.SaveAsTheme("Mine");
 
         saved.Rectangles.ShouldBe(RectangleOption.Off, "the option is the user's setting, not part of a theme file");
         session.EffectiveTheme.RectanglesOnly.ShouldBeTrue("the option stays on: it does not depend on the theme");
+        session.SelectedTheme.Id.ShouldBe("mine");
+        session.RectangleChoices.KeepHues.ShouldBeTrue("the theme saved from this one starts with the choices made here");
     }
 
     [Fact]

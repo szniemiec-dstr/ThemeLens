@@ -301,12 +301,38 @@ public class RectangleTests
     }
 
     [Fact]
-    public void The_plain_inversion_keeps_every_contrast_and_every_hue()
+    public void The_plain_inversion_is_the_negative()
     {
-        Lut3D table = TableBuilder.InversionTable;
+        Lut3D table = TableBuilder.NegativeTable;
         table.Map(Rgb8.White).ShouldBe(Rgb8.Black);
         table.Map(Rgb8.Black).ShouldBe(Rgb8.White);
+        foreach (string hex in (string[])["#222222", "#666666", "#1A73E8", "#D93025", "#2E9E44", "#F1F3F5", "#8A8F98"])
+        {
+            Rgb8 colour = Rgb8.FromHex(hex);
+            Rgb8 negative = table.Map(colour);
+            negative.ShouldBe(new Rgb8((byte)(255 - colour.R), (byte)(255 - colour.G), (byte)(255 - colour.B)), $"the negative of {hex}");
+            table.Map(negative).ShouldBe(colour, "the negative of the negative is the colour itself");
+        }
 
+        Rgb8 link = table.Map(Rgb8.FromHex("#1A73E8"));
+        link.R.ShouldBeGreaterThan(link.B, "in the negative a blue link turns orange");
+
+        // It is what the option uses unless hues are to be kept.
+        LensTables look = TableBuilder.Build(With("passthrough", RectangleTarget.Bright));
+        look.Light.ShouldBeSameAs(table);
+        look.Dark.ShouldBeSameAs(table);
+    }
+
+    [Fact]
+    public void On_request_the_inversion_keeps_every_hue_and_every_contrast()
+    {
+        Theme keeping = With("passthrough", RectangleTarget.Bright);
+        keeping = keeping with { Rectangles = keeping.Rectangles with { KeepHues = true } };
+        Lut3D table = TableBuilder.HueKeepingTable;
+        TableBuilder.Build(keeping).Light.ShouldBeSameAs(table);
+
+        table.Map(Rgb8.White).ShouldBe(Rgb8.Black);
+        table.Map(Rgb8.Black).ShouldBe(Rgb8.White);
         foreach (string hex in (string[])["#222222", "#666666", "#1A73E8", "#D93025", "#2E9E44", "#F1F3F5", "#8A8F98"])
         {
             Rgb8 colour = Rgb8.FromHex(hex);
@@ -321,6 +347,15 @@ public class RectangleTests
         Rgb8 red = table.Map(Rgb8.FromHex("#D93025"));
         red.R.ShouldBeGreaterThan(red.B, "a red warning is still red");
         TableBuilder.InvertedLuminance(TableBuilder.InvertedLuminance(0.3f)).ShouldBe(0.3f, 1e-4f, "inverting twice gives the colour back");
+
+        // On the desktop the two differ in the colours only: the same pixels are changed.
+        Fixture desktop = Fixtures.Draw("desktop-windows.png");
+        ImageRgb8 kept = Pipeline.Run(With("passthrough", RectangleTarget.Bright) with { Rectangles = keeping.Rectangles with { Values = Bright } }, desktop.Image).Output;
+        ImageRgb8 negative = Pipeline.Run(With("passthrough", RectangleTarget.Bright), desktop.Image).Output;
+        kept[390, 150].ShouldBe(Rgb8.Black);
+        negative[390, 150].ShouldBe(Rgb8.Black);
+        (kept[540, 112].B > kept[540, 112].R).ShouldBeTrue("with hues kept the blue button of the dialog is blue");
+        (negative[540, 112].R > negative[540, 112].B).ShouldBeTrue("in the negative it is orange");
     }
 
     [Fact]

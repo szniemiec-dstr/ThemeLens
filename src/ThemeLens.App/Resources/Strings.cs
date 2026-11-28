@@ -126,6 +126,8 @@ public static class Strings
 
     public static string RectanglesPlain => Get();
 
+    public static string RectanglesKeepHues => Get();
+
     public static string RectanglesPreviewHelp => Get();
 
     public static string BrightnessLabel => Get();

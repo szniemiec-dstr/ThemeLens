@@ -295,6 +295,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool RectanglePlain { get; set; } = true;
 
+    /// <summary>Off by default: the inversion is the negative. On: light and dark are swapped and hues are kept.</summary>
+    [ObservableProperty]
+    public partial bool RectangleKeepHues { get; set; }
+
     /// <summary>Side of a square in pixels, from 10: the left handle. Smaller rectangles are never changed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RectangleAreaText))]
@@ -549,9 +553,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RectangleLargestSide = largest;
         RectangleBrightnessLabel = dark ? Strings.RectanglesDarkLabel : Strings.RectanglesBrightLabel;
         RectanglesSwitchText = dark ? Strings.RectanglesSwitchDark : Strings.RectanglesSwitchBright;
-        RectangleOwnTarget = preferences.OwnTarget;
-        RectanglePlain = preferences.PlainInversion;
-        CanChooseRectangleTarget = preferences.OwnTarget || !_session.SelectedTheme.HasRoles;
+        RectangleThemeChoices choices = _session.RectangleChoices;
+        RectangleOwnTarget = choices.OwnTarget;
+        RectanglePlain = choices.PlainInversion;
+        RectangleKeepHues = choices.KeepHues;
+        CanChooseRectangleTarget = choices.OwnTarget || !_session.SelectedTheme.HasRoles;
         SelectedRectangleTarget = RectangleTargets.First(choice => choice.Target == option.Target);
         RectanglesOnly = preferences.On;
         RectangleFullSide = Math.Min(option.Values.FullSide, largest);
@@ -602,14 +608,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnRectanglesOnlyChanged(bool value) => SetRectangles(r => r with { On = value });
 
-    partial void OnRectanglePlainChanged(bool value) => SetRectangles(r => r with { PlainInversion = value });
+    partial void OnRectanglePlainChanged(bool value)
+    {
+        if (!_syncing)
+        {
+            _session.SetRectangleChoices(c => c with { PlainInversion = value });
+        }
+    }
+
+    partial void OnRectangleKeepHuesChanged(bool value)
+    {
+        if (!_syncing)
+        {
+            _session.SetRectangleChoices(c => c with { KeepHues = value });
+        }
+    }
 
     partial void OnRectangleOwnTargetChanged(bool value)
     {
         if (!_syncing)
         {
             // What is looked for may be the other kind now, and that kind has values of its own.
-            _session.SetRectangles(r => r with { OwnTarget = value });
+            _session.SetRectangleChoices(c => c with { OwnTarget = value });
             Sync(ShowRectangles);
         }
     }

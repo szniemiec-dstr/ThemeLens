@@ -432,11 +432,14 @@
                Style="{StaticResource Quiet}"
                Text="{Binding RectanglesHelp}" />
 
-    <!-- Two switches that are on while the option is a preview; they move to the advanced settings later. -->
+    <!--
+      Kept for each theme. The first two are on while the option is a preview; all three move to the advanced
+      settings later.
+    -->
     <TextBlock Margin="0,12,0,6"
                Style="{StaticResource Label}"
                Text="{x:Static app:Strings.RectanglesPreviewHeading}" />
-    <StackPanel Orientation="Horizontal">
+    <WrapPanel Orientation="Horizontal">
       <ToggleButton x:Name="RectangleOwnTargetSwitch"
                     AutomationProperties.Name="{x:Static app:Strings.RectanglesOwnTarget}"
                     AutomationProperties.HelpText="{x:Static app:Strings.RectanglesPreviewHelp}"
@@ -448,7 +451,13 @@
                     AutomationProperties.HelpText="{x:Static app:Strings.RectanglesPreviewHelp}"
                     Content="{x:Static app:Strings.RectanglesPlain}"
                     IsChecked="{Binding RectanglePlain, Mode=TwoWay}" />
-    </StackPanel>
+      <ToggleButton x:Name="RectangleKeepHuesSwitch"
+                    Margin="12,0,0,0"
+                    AutomationProperties.Name="{x:Static app:Strings.RectanglesKeepHues}"
+                    AutomationProperties.HelpText="{x:Static app:Strings.RectanglesPreviewHelp}"
+                    Content="{x:Static app:Strings.RectanglesKeepHues}"
+                    IsChecked="{Binding RectangleKeepHues, Mode=TwoWay}" />
+    </WrapPanel>
     <TextBlock Margin="0,6,0,0"
                Style="{StaticResource Quiet}"
                Text="{x:Static app:Strings.RectanglesPreviewHelp}" />
